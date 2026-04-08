@@ -16,6 +16,8 @@ Use this skill when working on Zama protocol features in this repository. This r
 
 Read those files first and extend the existing pattern instead of inventing a new one.
 
+If the task is about LuckyScratch product logic instead of the demo counter, also read `references/luckyscratch-architecture.md`.
+
 ## What this repo is optimized for
 
 There are two distinct execution modes and they are not interchangeable:
@@ -104,7 +106,7 @@ Do not invent a parallel wallet or contract interaction layer. Stay on the repo'
 
 ## LuckyScratch-specific guidance
 
-If the task touches lottery mechanics, read `doc/design.md` before coding. In this repo, Zama is not a generic demo: it exists to support hidden state in a scratch-lottery product.
+If the task touches lottery mechanics, read `doc/design.md` before coding. For implementation-oriented structure, also read `references/luckyscratch-architecture.md`. In this repo, Zama is not a generic demo: it exists to support hidden state in a scratch-lottery product.
 
 Default privacy expectations:
 
