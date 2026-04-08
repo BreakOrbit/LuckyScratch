@@ -1,6 +1,7 @@
 import { FhevmType } from "@fhevm/hardhat-plugin";
 import { task } from "hardhat/config";
 import type { TaskArguments } from "hardhat/types";
+import type { FHECounter } from "../typechain-types";
 
 task("task:fhe-address", "Prints the FHECounter address").setAction(async function (
   _taskArguments: TaskArguments,
@@ -19,7 +20,7 @@ task("task:decrypt-count", "Decrypts the current encrypted count")
 
     const deployment = taskArguments.address ? { address: taskArguments.address } : await deployments.get("FHECounter");
     const [signer] = await ethers.getSigners();
-    const fheCounterContract = await ethers.getContractAt("FHECounter", deployment.address);
+    const fheCounterContract = (await ethers.getContractAt("FHECounter", deployment.address)) as unknown as FHECounter;
 
     const encryptedCount = await fheCounterContract.getCount();
     if (encryptedCount === ethers.ZeroHash) {
@@ -48,7 +49,7 @@ task("task:increment", "Increments the encrypted count")
 
     const deployment = taskArguments.address ? { address: taskArguments.address } : await deployments.get("FHECounter");
     const [signer] = await ethers.getSigners();
-    const fheCounterContract = await ethers.getContractAt("FHECounter", deployment.address);
+    const fheCounterContract = (await ethers.getContractAt("FHECounter", deployment.address)) as unknown as FHECounter;
 
     const encryptedValue = await fhevm.createEncryptedInput(deployment.address, signer.address).add32(value).encrypt();
     const tx = await fheCounterContract.connect(signer).increment(encryptedValue.handles[0], encryptedValue.inputProof);
@@ -72,7 +73,7 @@ task("task:decrement", "Decrements the encrypted count")
 
     const deployment = taskArguments.address ? { address: taskArguments.address } : await deployments.get("FHECounter");
     const [signer] = await ethers.getSigners();
-    const fheCounterContract = await ethers.getContractAt("FHECounter", deployment.address);
+    const fheCounterContract = (await ethers.getContractAt("FHECounter", deployment.address)) as unknown as FHECounter;
 
     const encryptedValue = await fhevm.createEncryptedInput(deployment.address, signer.address).add32(value).encrypt();
     const tx = await fheCounterContract.connect(signer).decrement(encryptedValue.handles[0], encryptedValue.inputProof);
