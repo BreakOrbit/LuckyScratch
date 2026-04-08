@@ -1321,6 +1321,73 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@fhevm/hardhat-plugin@npm:^0.4.2":
+  version: 0.4.2
+  resolution: "@fhevm/hardhat-plugin@npm:0.4.2"
+  dependencies:
+    "@fhevm/host-contracts": 0.10.0
+    debug: ^4.1.1
+    dotenv: ^16.5.0
+    picocolors: ^1.1.1
+    resolve: ^1.22.10
+  peerDependencies:
+    "@fhevm/mock-utils": 0.4.2
+    "@fhevm/solidity": ^0.11.1
+    "@nomicfoundation/hardhat-ethers": ^3.1.3
+    "@zama-fhe/relayer-sdk": 0.4.1
+    encrypted-types: ^0.0.4
+    ethers: ^6.16.0
+    hardhat: ^2.0.0
+  checksum: f47d331467c180eb462b47b7a35512b414de3f68e889bc3adbc73a18e1d576b5c51bafada1181d71b15c92d2aaa44e0948d246b061dd8b06e4ef1804c680f32e
+  languageName: node
+  linkType: hard
+
+"@fhevm/host-contracts@npm:0.10.0":
+  version: 0.10.0
+  resolution: "@fhevm/host-contracts@npm:0.10.0"
+  dependencies:
+    encrypted-types: ^0.0.4
+    solidity-comments-darwin-arm64: 0.1.1
+    solidity-comments-linux-x64-gnu: 0.1.1
+  dependenciesMeta:
+    solidity-comments-darwin-arm64:
+      optional: true
+    solidity-comments-linux-x64-gnu:
+      optional: true
+  checksum: 4907881352ee391f748b40cf9c5dfabefeb03e7fc65ccf7aedb68852e575e7b54f863785c689765aa0af6399e0360e6899cfb2ae68dc0558019aaa4b70ec014c
+  languageName: node
+  linkType: hard
+
+"@fhevm/mock-utils@npm:^0.4.2":
+  version: 0.4.2
+  resolution: "@fhevm/mock-utils@npm:0.4.2"
+  peerDependencies:
+    "@zama-fhe/relayer-sdk": 0.4.1
+    ethers: ^6.16.0
+    typescript: ">=5.0.4"
+  peerDependenciesMeta:
+    typescript:
+      optional: true
+  checksum: 92357fef8f9faed686a050d44445b78230d3250936ba6f50ec875b25ae7601f7a8181ffddeef8708f12fb8e1c5794d8f4b3cdada7073889323f43773782e5ae2
+  languageName: node
+  linkType: hard
+
+"@fhevm/solidity@npm:^0.11.1":
+  version: 0.11.1
+  resolution: "@fhevm/solidity@npm:0.11.1"
+  dependencies:
+    encrypted-types: ^0.0.4
+    solidity-comments-darwin-arm64: 0.1.1
+    solidity-comments-linux-x64-gnu: 0.1.1
+  dependenciesMeta:
+    solidity-comments-darwin-arm64:
+      optional: true
+    solidity-comments-linux-x64-gnu:
+      optional: true
+  checksum: 75a3680240814b2fefcfaa3f96c4bdaa9fc9ef03b8654baeea3b4c0598d051749842636495b8293c667fd346670aefb19ff4344d7cf2f9ccec12e55718adb760
+  languageName: node
+  linkType: hard
+
 "@gar/promise-retry@npm:^1.0.0":
   version: 1.0.3
   resolution: "@gar/promise-retry@npm:1.0.3"
@@ -2718,16 +2785,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@nomicfoundation/hardhat-ethers@npm:~3.0.8":
-  version: 3.0.9
-  resolution: "@nomicfoundation/hardhat-ethers@npm:3.0.9"
+"@nomicfoundation/hardhat-ethers@npm:^3.1.3":
+  version: 3.1.3
+  resolution: "@nomicfoundation/hardhat-ethers@npm:3.1.3"
   dependencies:
     debug: ^4.1.1
     lodash.isequal: ^4.5.0
   peerDependencies:
     ethers: ^6.14.0
-    hardhat: ^2.0.0
-  checksum: dbe8eb5265d2c6832e26ee00fec1bf9678b88a3b998187747c31c64333965320bf32978daa0f89b4c8b104521b1acced3c094d812f77ad6252d44cf3baf1f60f
+    hardhat: ^2.28.0
+  checksum: e42bd298fbd6b747524cd9a84712dae7c094bbc6d0cc93a3cbec8a6907f06ac5c81d46e82e74cbc91fab3effed5ebe2906988eb674064b8f2305a4c2f9b12a7b
   languageName: node
   linkType: hard
 
@@ -3601,9 +3668,12 @@ __metadata:
   dependencies:
     "@ethersproject/abi": ~5.7.0
     "@ethersproject/providers": ~5.7.2
+    "@fhevm/hardhat-plugin": ^0.4.2
+    "@fhevm/mock-utils": ^0.4.2
+    "@fhevm/solidity": ^0.11.1
     "@inquirer/password": ^4.0.2
     "@nomicfoundation/hardhat-chai-matchers": ~2.0.7
-    "@nomicfoundation/hardhat-ethers": ~3.0.8
+    "@nomicfoundation/hardhat-ethers": ^3.1.3
     "@nomicfoundation/hardhat-network-helpers": ~1.0.11
     "@nomicfoundation/hardhat-verify": ~2.0.10
     "@openzeppelin/contracts": ~5.0.2
@@ -3616,13 +3686,15 @@ __metadata:
     "@types/qrcode": ~1.5.5
     "@typescript-eslint/eslint-plugin": ~8.27.0
     "@typescript-eslint/parser": ~8.27.0
+    "@zama-fhe/relayer-sdk": 0.4.1
     chai: ~4.5.0
     dotenv: ~16.4.5
+    encrypted-types: ^0.0.4
     envfile: ~7.1.0
     eslint: ~9.23.0
     eslint-config-prettier: ~10.1.1
     eslint-plugin-prettier: ~5.2.4
-    ethers: ~6.13.2
+    ethers: ^6.16.0
     hardhat: ~2.28.2
     hardhat-deploy: ^1.0.4
     hardhat-deploy-ethers: ~0.4.2
@@ -6271,6 +6343,25 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@zama-fhe/relayer-sdk@npm:0.4.1":
+  version: 0.4.1
+  resolution: "@zama-fhe/relayer-sdk@npm:0.4.1"
+  dependencies:
+    commander: ^14.0.0
+    ethers: ^6.15.0
+    fetch-retry: ^6.0.0
+    keccak: ^3.0.4
+    node-tfhe: 1.4.0-alpha.3
+    node-tkms: ^0.12.0
+    tfhe: 1.4.0-alpha.3
+    tkms: ^0.12.0
+    wasm-feature-detect: ^1.8.0
+  bin:
+    relayer: bin/relayer.js
+  checksum: feb1d011fe41e2db0f5c904dc0c6366c5cf758e8e4ac138dc6a1622af14f14dbc8df91c2b8f3c33653df7b3d61a85f4f94c75bc3870e5e356e1e32ff0cd3df02
+  languageName: node
+  linkType: hard
+
 "abbrev@npm:1":
   version: 1.1.1
   resolution: "abbrev@npm:1.1.1"
@@ -7999,6 +8090,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"commander@npm:^14.0.0":
+  version: 14.0.3
+  resolution: "commander@npm:14.0.3"
+  checksum: b8440159124aefbb02784a8996cd0481d8ce503d8d3cd413f4289d06db7e912c36b511277c2faba62f59152dd9ff79239d75e3b9400d9402851878994201d429
+  languageName: node
+  linkType: hard
+
 "commander@npm:^8.1.0":
   version: 8.3.0
   resolution: "commander@npm:8.3.0"
@@ -8539,7 +8637,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"dotenv@npm:^16.4.1":
+"dotenv@npm:^16.4.1, dotenv@npm:^16.5.0":
   version: 16.6.1
   resolution: "dotenv@npm:16.6.1"
   checksum: e8bd63c9a37f57934f7938a9cf35de698097fadf980cb6edb61d33b3e424ceccfe4d10f37130b904a973b9038627c2646a3365a904b4406514ea94d7f1816b69
@@ -8698,6 +8796,13 @@ __metadata:
   dependencies:
     iconv-lite: ^0.6.2
   checksum: bb98632f8ffa823996e508ce6a58ffcf5856330fde839ae42c9e1f436cc3b5cc651d4aeae72222916545428e54fd0f6aa8862fd8d25bdbcc4589f1e3f3715e7f
+  languageName: node
+  linkType: hard
+
+"encrypted-types@npm:^0.0.4":
+  version: 0.0.4
+  resolution: "encrypted-types@npm:0.0.4"
+  checksum: 317b2bfc59ab4c5123d5b5c7ae19c0da2cfb69baab3f71c32b5238cf583fb530f0ac4290c65c3577b1ec427278b53f1a335a6f67071bda05eb480f26c5cee87f
   languageName: node
   linkType: hard
 
@@ -9711,6 +9816,21 @@ __metadata:
   languageName: node
   linkType: hard
 
+"ethers@npm:^6.15.0, ethers@npm:^6.16.0":
+  version: 6.16.0
+  resolution: "ethers@npm:6.16.0"
+  dependencies:
+    "@adraffy/ens-normalize": 1.10.1
+    "@noble/curves": 1.2.0
+    "@noble/hashes": 1.3.2
+    "@types/node": 22.7.5
+    aes-js: 4.0.0-beta.5
+    tslib: 2.7.0
+    ws: 8.17.1
+  checksum: f96c54d35aa09d6700dbbe732db160d66f2a1acd59f2820e307869be478bb5c4c3fd0f34a5d51014cbea04200e6e9776290f521795492688c8d67052bf8a1e2a
+  languageName: node
+  linkType: hard
+
 "ethers@npm:~5.7.0":
   version: 5.7.2
   resolution: "ethers@npm:5.7.2"
@@ -9746,21 +9866,6 @@ __metadata:
     "@ethersproject/web": 5.7.1
     "@ethersproject/wordlists": 5.7.0
   checksum: b7c08cf3e257185a7946117dbbf764433b7ba0e77c27298dec6088b3bc871aff711462b0621930c56880ff0a7ceb8b1d3a361ffa259f93377b48e34107f62553
-  languageName: node
-  linkType: hard
-
-"ethers@npm:~6.13.2":
-  version: 6.13.7
-  resolution: "ethers@npm:6.13.7"
-  dependencies:
-    "@adraffy/ens-normalize": 1.10.1
-    "@noble/curves": 1.2.0
-    "@noble/hashes": 1.3.2
-    "@types/node": 22.7.5
-    aes-js: 4.0.0-beta.5
-    tslib: 2.7.0
-    ws: 8.17.1
-  checksum: 247810e6bb6a4637b0ec51491af9e2589cccb4577a7db691faa3ed8b4f06af7c19e4574885883facc074aa36a909ef9b2930cb3ecdf5803f1e3a08f2b6c510f8
   languageName: node
   linkType: hard
 
@@ -10023,6 +10128,13 @@ __metadata:
     picomatch:
       optional: true
   checksum: bd537daa9d3cd53887eed35efa0eab2dbb1ca408790e10e024120e7a36c6e9ae2b33710cb8381e35def01bc9c1d7eaba746f886338413e68ff6ebaee07b9a6e8
+  languageName: node
+  linkType: hard
+
+"fetch-retry@npm:^6.0.0":
+  version: 6.0.0
+  resolution: "fetch-retry@npm:6.0.0"
+  checksum: a0352f069fd0db8dc16b5a781a02d2d42df1d7438c85c7959f8f83713d266911ba2fce97389cc490cd633fd791187d8498ac624168543a93c68353226cfdadce
   languageName: node
   linkType: hard
 
@@ -12325,7 +12437,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"keccak@npm:^3.0.0, keccak@npm:^3.0.2, keccak@npm:^3.0.3":
+"keccak@npm:^3.0.0, keccak@npm:^3.0.2, keccak@npm:^3.0.3, keccak@npm:^3.0.4":
   version: 3.0.4
   resolution: "keccak@npm:3.0.4"
   dependencies:
@@ -13859,6 +13971,20 @@ __metadata:
   version: 2.0.37
   resolution: "node-releases@npm:2.0.37"
   checksum: c987f8875b2ed4e4fd70708cfdde75e70ec8905d77161f0093ffcc6e797e68eed3b7a5931c73b54afffaba6c3a0e66af1ed1a5edfbe2b7ebdeedbf4f7429891d
+  languageName: node
+  linkType: hard
+
+"node-tfhe@npm:1.4.0-alpha.3":
+  version: 1.4.0-alpha.3
+  resolution: "node-tfhe@npm:1.4.0-alpha.3"
+  checksum: 4caecfc3960bd5266f04d98452935d7cba2ae98a13cc71bbce17b7fd8e1048a176f27110d1a4541b2430c144c4cf40aec12b0b3133c8cea75c1768a3687f3bc5
+  languageName: node
+  linkType: hard
+
+"node-tkms@npm:^0.12.0":
+  version: 0.12.8
+  resolution: "node-tkms@npm:0.12.8"
+  checksum: b2539e25c6a8a7e83c7700497b6de3fd25111a8b3d333694431fb4efdbd0fd38dfa65d61f98faed5cc5a79144356ed47a93b1f2604f544840982270f432b494e
   languageName: node
   linkType: hard
 
@@ -15831,7 +15957,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"resolve@npm:^1.1.6":
+"resolve@npm:^1.1.6, resolve@npm:^1.22.10":
   version: 1.22.11
   resolution: "resolve@npm:1.22.11"
   dependencies:
@@ -15876,7 +16002,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"resolve@patch:resolve@^1.1.6#~builtin<compat/resolve>":
+"resolve@patch:resolve@^1.1.6#~builtin<compat/resolve>, resolve@patch:resolve@^1.22.10#~builtin<compat/resolve>":
   version: 1.22.11
   resolution: "resolve@patch:resolve@npm%3A1.22.11#~builtin<compat/resolve>::version=1.22.11&hash=07638b"
   dependencies:
@@ -16563,6 +16689,20 @@ __metadata:
   languageName: node
   linkType: hard
 
+"solidity-comments-darwin-arm64@npm:0.1.1":
+  version: 0.1.1
+  resolution: "solidity-comments-darwin-arm64@npm:0.1.1"
+  conditions: os=darwin & cpu=arm64
+  languageName: node
+  linkType: hard
+
+"solidity-comments-linux-x64-gnu@npm:0.1.1":
+  version: 0.1.1
+  resolution: "solidity-comments-linux-x64-gnu@npm:0.1.1"
+  conditions: os=linux & cpu=x64 & libc=glibc
+  languageName: node
+  linkType: hard
+
 "solidity-coverage@npm:~0.8.13":
   version: 0.8.17
   resolution: "solidity-coverage@npm:0.8.17"
@@ -17203,6 +17343,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"tfhe@npm:1.4.0-alpha.3":
+  version: 1.4.0-alpha.3
+  resolution: "tfhe@npm:1.4.0-alpha.3"
+  checksum: 7dc0ed7118689b3161d3a35629ea3dc12728191d7498670ae15f4e8cad456e71ffbac2812dbf0fba2a9dce24c665d8b7e13631cfc4b4e406c0d37db8c57fa3c5
+  languageName: node
+  linkType: hard
+
 "thread-stream@npm:^0.15.1":
   version: 0.15.2
   resolution: "thread-stream@npm:0.15.2"
@@ -17256,6 +17403,13 @@ __metadata:
     fdir: ^6.5.0
     picomatch: ^4.0.4
   checksum: db9d22ce1deb1095720a683c492cd5e80da0f71fed21ed697e2752f6f298edd8a1249dab197c86a26f001c180594a81bf532400fe519791ed2a2cb57b03bc337
+  languageName: node
+  linkType: hard
+
+"tkms@npm:^0.12.0":
+  version: 0.12.8
+  resolution: "tkms@npm:0.12.8"
+  checksum: 7793d11494f10b289b98fb6190c6d311b6f7ac3520e3499cfbec8ee950e5289a8172d696b704b660f0cecc2af5ba701ab8251d1b4f391637e64f1e2c39000410
   languageName: node
   linkType: hard
 
@@ -18375,6 +18529,13 @@ __metadata:
   version: 3.0.1
   resolution: "walk-up-path@npm:3.0.1"
   checksum: 9ffca02fe30fb65f6db531260582988c5e766f4c739cf86a6109380a7f791236b5d0b92b1dce37a6f73e22dca6bc9d93bf3700413e16251b2bd6bbd1ca2be316
+  languageName: node
+  linkType: hard
+
+"wasm-feature-detect@npm:^1.8.0":
+  version: 1.8.0
+  resolution: "wasm-feature-detect@npm:1.8.0"
+  checksum: 5972a95fb4064d23d828cd23e70f59ebf612db0fff2209365cc47190886328af570d1d40db00c8d41982fef2b446a8f143cf292482bbf3e1214e60b292c78ccc
   languageName: node
   linkType: hard
 
