@@ -75,7 +75,7 @@
 - 自选购票
 - 刮奖
 - 领奖
-- 用户加密余额记账
+- 用户累计中奖统计
 - 创建者利润记账
 - 循环池刷新
 - Gasless 授权执行入口
@@ -134,7 +134,8 @@ Chainlink VRF 适配层，负责：
 ### `Treasury` 负责
 
 - 钱从哪来
-- 钱进谁的加密余额
+- 持有奖池资金与销售收入
+- 按规则向中奖用户转出官方 `cUSDC`
 - 钱什么时候能提
 - 创建者还有多少可提利润
 - 保证金还有多少锁定
@@ -189,6 +190,8 @@ struct PoolConfig {
     address creator;
     bool protocolOwned;
     uint32 poolInstanceGroupSize;
+    // 仅用于产品层模板配置，表示同主题下计划创建多少个独立 pool instance；
+    // 不参与单个 pool instance 的运行时状态机与结算。
     uint64 ticketPrice;
     uint32 totalTicketsPerRound;
     uint64 totalPrizeBudget;
@@ -208,6 +211,7 @@ struct PoolAccounting {
     uint64 realizedRevenue;
     uint64 settledPrizeCost;
     uint64 settledProtocolCost;
+    uint64 accruedPlatformFee;
     uint64 creatorProfitClaimed;
 }
 ```
@@ -237,6 +241,7 @@ struct RoundState {
     uint32 soldCount;
     uint32 claimedCount;
     uint32 scratchedCount;
+    uint32 winClaimableCount;
     uint32 totalTickets;
     uint64 ticketPrice;
     uint64 roundPrizeBudget;
@@ -286,13 +291,12 @@ struct EncryptedRoundState {
 }
 
 struct EncryptedUserState {
-    euint64 encryptedBalance;
     euint64 encryptedLifetimeWinnings;
 }
 
 struct EncryptedTicketState {
     euint64 encryptedPrizeAmount;
-    ebool decryptedByOwner;
+    ebool revealAuthorized;
 }
 ```
 
@@ -300,6 +304,9 @@ struct EncryptedTicketState {
 
 - `encryptedPrizeAmount` 在建池并完成 VRF 洗牌后写入。
 - 刮奖不生成新结果，只是把既有结果绑定到该 NFT 的揭晓流程。
+- `revealAuthorized` 表示该票在链上状态更新后已允许当前持有人进入揭晓流程，不表达可转移的长期查看权。
+- 不在项目内维护用户可消费 `cUSDC` 余额账本；用户钱包余额由官方 `cUSDC` 合约维护。
+- `EncryptedUserState` 仅保留统计类字段，例如累计中奖额。
 
 ## 5.5 Gasless
 
@@ -371,12 +378,14 @@ mapping(PoolId => mapping(RoundId => mapping(uint32 => bool))) public soldTicket
 1. 用户钱包中已有足够的官方 `cUSDC`
 2. 用户选择机选或自选
 3. `Core` 校验 round 状态为 `Ready`
-4. 默认通过 `allowance + transferFrom` 从用户钱包消费 `cUSDC`
+4. 用户默认只需对 `Treasury` 完成 `approve`
+5. `Core` 调用 `Treasury.collectTicketPayment(...)`，由 `Treasury` 通过 `allowance + transferFrom` 从用户钱包消费 `cUSDC`
 5. 若官方 `cUSDC` 后续支持 `permit`，可在不改变主流程的前提下增加单笔授权优化
-6. 标记对应 ticket slot 已售
-7. 铸造 NFT
-8. 更新销售收入与售票计数
-9. 如全部售完，则 round 进入 `SoldOut`
+6. 购票收入进入 `Treasury`，作为奖池兑付资金与利润结算基础
+7. 标记对应 ticket slot 已售
+8. 铸造 NFT
+9. 更新销售收入与售票计数
+10. 如全部售完，则 round 进入 `SoldOut`
 
 ## 7.3 刮奖
 
@@ -385,29 +394,66 @@ mapping(PoolId => mapping(RoundId => mapping(uint32 => bool))) public soldTicket
 3. 读取该 ticket 预分配的加密奖项
 4. 标记 ticket 已刮
 5. 若奖项大于 0，则状态转为 `ScratchedWinClaimable`
-6. 前端基于授权在本地揭晓
+   - `winClaimableCount += 1`
+6. 若奖项等于 0，则状态转为 `ScratchedNoWin`
+7. 将 `revealAuthorized` 标记为 `true`
+8. 发出刮奖完成事件并锁定后续不可转让
+9. 前端基于授权在本地揭晓
 
 ## 7.4 领奖
 
 1. 校验 ticket 状态为 `ScratchedWinClaimable`
 2. 读取 ticket 的加密奖励
-3. 将奖励发放到用户钱包中的加密 `cUSDC`
+3. `Treasury` 从池资金中向 `ownerOf(ticketId)` 转出官方 `cUSDC`
 4. 更新用户累计加密奖励
 5. ticket 状态改为 `Claimed`
 6. round 的 claim 计数递增
+7. 同步累计已结算奖金成本
+8. `winClaimableCount -= 1`
+9. 当 round 已 `SoldOut`，且 `scratchedCount == soldCount`，且 `winClaimableCount == 0` 时，round 进入 `Settled`
 
 ## 7.5 循环池刷新
 
-1. 当前 round 售罄
-2. 结算已实现收入、已结算奖金、Sponsor/Infra 成本
+触发方式：
+
+- 不采用“售罄后在最后一笔购票交易里自动刷新”
+- 采用显式链上函数触发下一轮，例如 `rollToNextRound(poolId)`
+- 后端 worker 在检测到最后一张票售出后，默认自动调用一次 `rollToNextRound(poolId)`
+- 同时保留“任何人可调用 + 合约内校验条件”的兜底能力，以降低卡死风险
+
+补充说明：
+
+- 若第一次自动触发时 round 尚未 `Settled`，则本次调用应直接失败或返回不可滚动状态
+- 后端将该 pool 标记为 `waiting_settlement`，并在后续检测到满足条件后继续重试
+- 因此“售完自动刷新”在实现上表示“售完后自动尝试进入下一轮”，而不是保证首个触发一定成功
+
+执行条件：
+
+1. 当前 round 已 `SoldOut`
+2. 当前 pool 为 `Loop` 模式
+3. 若要求严格结算后再开新轮，则当前 round 已 `Settled`
+4. 可用资金足够覆盖下一轮奖金预算与必要保留金
+
+执行流程：
+
+1. 调用显式刷新函数
+2. 合约结算已实现收入、已结算奖金、Sponsor/Infra 成本
 3. 锁定下一轮奖金预算
-4. 若可用余额足够：
-   - 创建新 round
-   - 请求新 VRF
-   - 洗牌并写入新一轮加密结果
-5. 若余额不足：
-   - 池状态转为 `Closing`
+4. 创建新 round
+5. 请求新 VRF
+6. round 状态进入 `PendingVRF`
+7. VRF 回调完成后，写入新一轮加密结果
+8. 新 round 状态变为 `Ready`
+9. pool 状态回到 `Active`
+
+失败路径：
+
+1. 若余额不足：
+   - pool 状态转为 `Closing`
    - 不再进入下一轮
+2. 若 VRF 初始化未完成：
+   - pool 保持不可售
+   - 等待回调或重试
 
 ---
 
@@ -456,13 +502,29 @@ function executeGaslessBatchScratch(
 ) external;
 ```
 
+## 8.2.1 后端可读状态接口
+
+```solidity
+function getTicketRevealState(TicketId ticketId)
+    external
+    view
+    returns (TicketStatus status, bool revealAuthorized);
+```
+
+说明：
+
+- `getTicketRevealState` 仅暴露后端编排解密授权所需的最小状态，不泄露奖项明文。
+- 后端读取 owner 统一使用 ERC-721 标准 `ownerOf(ticketId)`，不再额外定义重复 owner 查询接口。
+
 说明：
 
 - 仅购票和刮奖提供 Gasless
 - `claimReward` 默认用户自付 Gas
 - `req.paramsHash` 必须与函数参数匹配
-- 当前实现默认依赖官方 `cUSDC` 的 `approve/allowance + transferFrom`
+- 当前实现默认由 `Treasury` 作为唯一收款与扣款入口，依赖官方 `cUSDC` 的 `approve/allowance + transferFrom`
 - `claimReward` 只要求官方 `cUSDC` 具备标准转账能力
+- 当前版本的 Gasless 购票只覆盖“已完成授权后的执行交易”
+- 若用户尚未对 `Treasury` 完成 `approve`，首次授权仍需用户自付 Gas 手动完成
 - `permit` 不是当前版本的必需前提，只有在官方合约确认支持后才作为可选优化接入
 
 ## 8.3 池创建与管理接口
@@ -486,9 +548,16 @@ function setTreasury(address treasury) external;
 
 ```solidity
 function closePool(PoolId poolId) external;
+function rollToNextRound(PoolId poolId) external;
 function withdrawCreatorProfit(PoolId poolId, uint256 amount) external;
 function refundBond(PoolId poolId) external;
 ```
+
+说明：
+
+- `rollToNextRound` 是循环池进入下一轮的显式链上触发入口。
+- 后端在检测到 round 售罄后，默认自动触发一次该函数。
+- 后端的自动触发不替代合约状态机；最终是否刷新仍由链上条件校验决定。
 
 ## 8.5 VRF 回调接口
 
@@ -621,7 +690,7 @@ claimableProfit
 = realizedRevenue
 - settledPrizeCost
 - settledProtocolCost
-- platformFee
+- accruedPlatformFee
 - lockedNextRoundBudget
 - alreadyClaimedProfit
 ```
@@ -675,11 +744,11 @@ bytes32 public constant VRF_ROLE = keccak256("VRF_ROLE");
 event PoolCreated(PoolId indexed poolId, address indexed creator, bool protocolOwned);
 event PoolRoundRequested(PoolId indexed poolId, RoundId indexed roundId, bytes32 requestId);
 event PoolRoundInitialized(PoolId indexed poolId, RoundId indexed roundId);
+event RoundSettled(PoolId indexed poolId, RoundId indexed roundId);
 
 event TicketPurchased(address indexed user, PoolId indexed poolId, TicketId indexed ticketId, uint32 ticketIndex);
-event TicketScratched(address indexed user, TicketId indexed ticketId, bool hasReward);
-event RewardClaimed(address indexed user, TicketId indexed ticketId);
-event BalanceWithdrawn(address indexed user, uint256 amount);
+event TicketScratched(address indexed user, PoolId indexed poolId, RoundId indexed roundId, TicketId ticketId, bool hasReward, bool revealAuthorized);
+event RewardClaimed(address indexed user, TicketId indexed ticketId, PoolId indexed poolId, RoundId roundId);
 
 event CreatorProfitWithdrawn(PoolId indexed poolId, address indexed creator, uint256 amount);
 event BondRefunded(PoolId indexed poolId, address indexed creator, uint256 amount);
@@ -695,6 +764,7 @@ event GaslessRejected(address indexed user, GaslessAction action, bytes32 digest
 - 不在事件里泄露奖项明文
 - 可记录 ticketId、poolId、roundId
 - 用户广播模块只消费不会破坏隐私的事件
+- 后端 Indexer 必须同时监听 `LuckyScratchTicket` 的 ERC-721 `Transfer` 事件，以维护 ticket 当前 owner 缓存；关键权限判断仍以链上 `ownerOf(ticketId)` 为准
 
 ---
 
