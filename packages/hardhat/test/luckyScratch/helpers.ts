@@ -2,6 +2,7 @@ import { FhevmType } from "@fhevm/hardhat-plugin";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import type { BigNumberish } from "ethers";
 import { ethers, fhevm } from "hardhat";
+// @ts-expect-error fhevm mock-utils does not ship a typed CJS entry for this test helper.
 import { KMSVerifier } from "../../node_modules/@fhevm/mock-utils/_cjs/fhevm/contracts/KMSVerifier.js";
 import {
   LuckyScratchCore,
@@ -142,7 +143,7 @@ export async function deployLuckyScratchFixture(): Promise<DeployedLuckyScratch>
   const token = await tokenFactory.deploy(admin.address);
   const ticket = await ticketFactory.deploy(admin.address);
   const treasury = await treasuryFactory.deploy(admin.address, await token.getAddress());
-  const vrfAdapter = await vrfFactory.deploy(admin.address);
+  const vrfAdapter = await vrfFactory.deploy(admin.address, ethers.ZeroAddress, 0n, ethers.ZeroHash, 0, 0, false);
   const core = await coreFactory.deploy(admin.address);
 
   await ticket.connect(admin).setCore(await core.getAddress());

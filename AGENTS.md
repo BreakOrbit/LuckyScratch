@@ -29,7 +29,7 @@ This repository is currently running in **Hardhat flavor**.
 - Scaffold template example contracts and demo tasks have been removed; LuckyScratch is the only active contract suite
 - Deployment wiring lives in `packages/hardhat/deploy/02_deploy_lucky_scratch.ts`
 - Contract tests for LuckyScratch live in `packages/hardhat/test/luckyScratch/`
-- Production deployment now targets real `cUSDC` addresses on supported networks such as Sepolia; no local mock token is deployed by the LuckyScratch deploy script
+- Production deployment now targets real `cUSDC` addresses and real Chainlink VRF v2.5 network settings on supported networks such as Sepolia; no local mock token is deployed by the LuckyScratch deploy script
 - The homepage no longer exposes a scaffold demo contract panel; it is now a project status entry page
 - Product and contract design inputs live in `doc/`, especially `doc/smart-contract-design.md` and `doc/smart-contract-implementation-plan.md`
 
@@ -40,7 +40,7 @@ The current smart-contract implementation includes:
 - `LuckyScratchCore`: pool lifecycle, round management, ticket purchase, scratch, claim, gasless execution, creator profit accounting, and next-round rolling
 - `LuckyScratchTicket`: ERC-721 ticket NFT minting, transfer lock after scratch, and transfer callback into the core contract
 - `LuckyScratchTreasury`: cUSDC custody, ticket payment collection, prize payout, profit withdrawal, and bond refund
-- `LuckyScratchVRFAdapter`: mockable randomness request/fulfillment bridge used by the core contract
+- `LuckyScratchVRFAdapter`: Chainlink VRF v2.5 subscription adapter on supported live networks, with owner-driven mock fulfillment retained for local hardhat tests
 - Shared modules under `contracts/luckyScratch/interfaces`, `contracts/luckyScratch/libraries`, and `contracts/luckyScratch/types`
 - Test-only contracts live under `packages/hardhat/contracts/test/`
 
@@ -54,6 +54,7 @@ Implemented LuckyScratch flows currently covered in code and tests:
 - Gasless purchase, gasless scratch, and gasless batch scratch
 - Loop pool settlement and roll to next round
 - Creator profit withdrawal and bond refund
+- Live-network randomness requests now flow through Chainlink VRF v2.5 subscription callbacks, while local tests still use manual adapter fulfillment
 
 Current LuckyScratch rule highlights:
 
@@ -127,7 +128,10 @@ Additional notes:
 - Tests use `packages/hardhat/contracts/test/TestUSDC.sol`; this test token is not part of the production deployment path
 - If contract size becomes a problem, check `packages/hardhat/hardhat.config.ts` before refactoring; the repo currently relies on optimizer + `viaIR`
 - Current gas optimization direction favors removing redundant storage writes and avoiding unnecessary memory copies in `LuckyScratchCore` rather than relaxing security or privacy constraints
+- Sepolia/mainnet deployment of `LuckyScratchVRFAdapter` requires `CHAINLINK_VRF_SUBSCRIPTION_ID_<NETWORK>` or `CHAINLINK_VRF_SUBSCRIPTION_ID`; optional overrides are `CHAINLINK_VRF_COORDINATOR`, `CHAINLINK_VRF_KEY_HASH`, `CHAINLINK_VRF_CALLBACK_GAS_LIMIT`, `CHAINLINK_VRF_REQUEST_CONFIRMATIONS`, and `CHAINLINK_VRF_NATIVE_PAYMENT`
 - `packages/nextjs/contracts/deployedContracts.ts` is generated from persisted deployment artifacts, so it can be empty until a supported live-network deployment is written to disk
+- Account utility commands avoid the default Sepolia runtime now: `yarn account` runs against Hardhat's in-process network, while `yarn account:generate`, `yarn account:import`, and `yarn account:reveal-pk` run via `ts-node`
+- Live-network deploys are wrapped by `packages/hardhat/scripts/runHardhatDeployWithPK.ts`, which now compiles on the local `hardhat` network first and then runs `deploy --no-compile` on the target network to avoid fhEVM plugin RPC probing issues on Sepolia/mainnet
 
 ## Architecture
 
@@ -142,7 +146,7 @@ Additional notes:
 - Current LuckyScratch module root: `packages/hardhat/contracts/luckyScratch/`
 - Current LuckyScratch deploy entry: `packages/hardhat/deploy/02_deploy_lucky_scratch.ts`
 - Example scaffold deploy scripts and FHE demo tasks are intentionally removed
-- The LuckyScratch deploy script expects a real `cUSDC` address from the configured network map and is intended for Sepolia / mainnet-style deployments rather than local mock deployment
+- The LuckyScratch deploy script expects a real `cUSDC` address and a funded Chainlink VRF v2.5 subscription id for Sepolia / mainnet-style deployments; local tests deploy the VRF adapter in mock mode by passing a zero coordinator
 - Deploying specific contract:
   - If the deploy script has:
     ```typescript

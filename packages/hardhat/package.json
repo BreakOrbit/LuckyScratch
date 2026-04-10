@@ -2,10 +2,10 @@
   "name": "@se-2/hardhat",
   "version": "0.0.1",
   "scripts": {
-    "account": "hardhat run scripts/listAccount.ts",
-    "account:generate": "hardhat run scripts/generateAccount.ts",
-    "account:import": "hardhat run scripts/importAccount.ts",
-    "account:reveal-pk": "hardhat run scripts/revealPK.ts",
+    "account": "hardhat run scripts/listAccount.ts --network hardhat --no-compile",
+    "account:generate": "ts-node scripts/generateAccount.ts",
+    "account:import": "ts-node scripts/importAccount.ts",
+    "account:reveal-pk": "ts-node scripts/revealPK.ts",
     "chain": "hardhat node --network hardhat --no-deploy",
     "check-types": "tsc --noEmit --incremental",
     "clean": "hardhat clean",
@@ -22,6 +22,7 @@
     "verify": "hardhat etherscan-verify"
   },
   "dependencies": {
+    "@chainlink/contracts": "^1.5.0",
     "@fhevm/mock-utils": "^0.4.2",
     "@fhevm/solidity": "^0.11.1",
     "@inquirer/password": "^4.0.2",

@@ -5,6 +5,19 @@ import password from "@inquirer/password";
 import { spawn } from "child_process";
 import { config } from "hardhat";
 
+function runHardhatCommand(args: string[], env = process.env): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const child = spawn("hardhat", args, {
+      stdio: "inherit",
+      env,
+      shell: process.platform === "win32",
+    });
+
+    child.on("error", reject);
+    child.on("exit", code => resolve(code ?? 0));
+  });
+}
+
 /**
  * Unencrypts the private key and runs the hardhat deploy command
  */
@@ -14,15 +27,8 @@ async function main() {
 
   if (networkName === "localhost" || networkName === "hardhat") {
     // Deploy command on the localhost network
-    const hardhat = spawn("hardhat", ["deploy", ...process.argv.slice(2)], {
-      stdio: "inherit",
-      env: process.env,
-      shell: process.platform === "win32",
-    });
-
-    hardhat.on("exit", code => {
-      process.exit(code || 0);
-    });
+    const exitCode = await runHardhatCommand(["deploy", ...process.argv.slice(2)]);
+    process.exit(exitCode);
     return;
   }
 
@@ -37,17 +43,22 @@ async function main() {
 
   try {
     const wallet = await Wallet.fromEncryptedJson(encryptedKey, pass);
-    process.env.__RUNTIME_DEPLOYER_PRIVATE_KEY = wallet.privateKey;
+    const deployEnv = {
+      ...process.env,
+      __RUNTIME_DEPLOYER_PRIVATE_KEY: wallet.privateKey,
+    };
+    const deployArgs = process.argv.slice(2);
 
-    const hardhat = spawn("hardhat", ["deploy", ...process.argv.slice(2)], {
-      stdio: "inherit",
-      env: process.env,
-      shell: process.platform === "win32",
-    });
+    if (!deployArgs.includes("--no-compile")) {
+      const compileExitCode = await runHardhatCommand(["compile", "--network", "hardhat"], deployEnv);
+      if (compileExitCode !== 0) {
+        process.exit(compileExitCode);
+      }
+      deployArgs.push("--no-compile");
+    }
 
-    hardhat.on("exit", code => {
-      process.exit(code || 0);
-    });
+    const deployExitCode = await runHardhatCommand(["deploy", ...deployArgs], deployEnv);
+    process.exit(deployExitCode);
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
   } catch (e) {
     console.error("Failed to decrypt private key. Wrong password?");
