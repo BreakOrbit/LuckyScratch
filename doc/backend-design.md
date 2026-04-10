@@ -135,7 +135,6 @@ Zama fhEVM Backend APIs
 - `TicketScratched`
 - `RewardClaimed`
 - `GaslessExecuted`
-- `GaslessRejected`
 - `RoundSettled`
 - `PoolRolledToNextRound`
 - `PoolClosed`
@@ -149,7 +148,7 @@ Zama fhEVM Backend APIs
 - 处理 reorg
 - 维护 pool / round / ticket / user 的查询表
 - 为前端提供快速查询，而不是每次直接扫链
-- 维护 gasless 请求的链上终态
+- 结合 `GaslessExecuted`、交易回执和 relayer 自身落库记录维护 gasless 请求终态
 - 维护 NFT 当前 owner 的本地缓存
 
 ## 4.3 Gasless Relayer
@@ -309,7 +308,7 @@ Next.js
 
 流程：
 
-1. 用户前端直接调用 `claimReward`
+1. 用户前端调用 `claimReward(ticketId, clearRewardAmount, decryptionProof)`
 2. 链上 `Treasury` 向 `ownerOf(ticketId)` 转出官方 `cUSDC`
 3. Indexer 收到 `RewardClaimed`
 4. 本地读模型更新用户累计中奖额、ticket 状态、round claim 计数

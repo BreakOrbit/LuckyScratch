@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { FHECounterPanel } from "./_components/FHECounterPanel";
 import { Address } from "@scaffold-ui/components";
 import type { NextPage } from "next";
 import { hardhat } from "viem/chains";
@@ -21,7 +20,7 @@ const Home: NextPage = () => {
             <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.45em] text-secondary">
               Zama x Scaffold-ETH 2
             </span>
-            <span className="block text-4xl font-black md:text-6xl">FHEVM Hardhat Playground</span>
+            <span className="block text-4xl font-black md:text-6xl">LuckyScratch Contract Workspace</span>
           </h1>
           <div className="mt-6 flex flex-col items-center justify-center space-x-2">
             <p className="my-2 font-medium">Connected Address</p>
@@ -35,14 +34,33 @@ const Home: NextPage = () => {
           </div>
 
           <p className="mx-auto mt-6 max-w-3xl text-center text-lg text-base-content/70">
-            The Hardhat workspace now includes a Zama FHE counter contract, deployment script, tasks, and tests. This
-            page gives you a frontend entrypoint for the deployed contract and highlights the difference between local
-            mock mode and Sepolia&apos;s relayer-backed flow.
+            This workspace now focuses on the LuckyScratch fhEVM contract suite. Scaffold template demo contracts and
+            panels have been removed so the repo only tracks the lottery pool, ticket NFT, treasury, VRF adapter, and
+            their test and deployment flows.
           </p>
-        </div>
-
-        <div className="mt-14 w-full">
-          <FHECounterPanel />
+          <div className="mx-auto mt-10 grid max-w-5xl gap-6 md:grid-cols-3">
+            <div className="rounded-3xl border border-base-300 bg-base-100/90 p-6 shadow-sm">
+              <p className="text-sm uppercase tracking-[0.3em] text-secondary">Contracts</p>
+              <p className="mt-3 text-lg font-semibold">LuckyScratchCore / Ticket / Treasury / VRFAdapter</p>
+              <p className="mt-2 text-sm text-base-content/70">
+                The active onchain surface is under <code>packages/hardhat/contracts/luckyScratch</code>.
+              </p>
+            </div>
+            <div className="rounded-3xl border border-base-300 bg-base-100/90 p-6 shadow-sm">
+              <p className="text-sm uppercase tracking-[0.3em] text-secondary">Validation</p>
+              <p className="mt-3 text-lg font-semibold">Compile, typecheck, test</p>
+              <p className="mt-2 text-sm text-base-content/70">
+                Use <code>yarn compile</code>, <code>yarn hardhat:check-types</code>, and <code>yarn test</code>.
+              </p>
+            </div>
+            <div className="rounded-3xl border border-base-300 bg-base-100/90 p-6 shadow-sm">
+              <p className="text-sm uppercase tracking-[0.3em] text-secondary">Design Source</p>
+              <p className="mt-3 text-lg font-semibold">Contract behavior follows the docs in `doc/`</p>
+              <p className="mt-2 text-sm text-base-content/70">
+                Start from the smart contract design and implementation plan documents when extending this repo.
+              </p>
+            </div>
+          </div>
         </div>
 
         <div className="grow bg-base-300/80 w-full px-8 py-12 backdrop-blur">

@@ -12,7 +12,6 @@ import "hardhat-deploy";
 import "hardhat-deploy-ethers";
 import { task } from "hardhat/config";
 import generateTsAbis from "./scripts/generateTsAbis";
-import "./tasks/FHECounter";
 
 // If not set, it uses ours Alchemy's default API key.
 // You can get your own at https://dashboard.alchemyapi.io
@@ -33,8 +32,9 @@ const config: HardhatUserConfig = {
           optimizer: {
             enabled: true,
             // https://docs.soliditylang.org/en/latest/using-the-compiler.html#optimizer-options
-            runs: 200,
+            runs: 1,
           },
+          viaIR: true,
           evmVersion: "cancun",
         },
       },

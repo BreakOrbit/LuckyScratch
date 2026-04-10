@@ -468,8 +468,17 @@ function purchaseTicketsWithSelection(PoolId poolId, uint32[] calldata ticketInd
 function scratchTicket(TicketId ticketId) external;
 function batchScratch(TicketId[] calldata ticketIds) external;
 
-function claimReward(TicketId ticketId) external;
-function batchClaimRewards(TicketId[] calldata ticketIds) external;
+function claimReward(
+    TicketId ticketId,
+    uint64 clearRewardAmount,
+    bytes calldata decryptionProof
+) external;
+
+function batchClaimRewards(
+    TicketId[] calldata ticketIds,
+    uint64[] calldata clearRewardAmounts,
+    bytes[] calldata decryptionProofs
+) external;
 ```
 
 ## 8.2 Gasless 接口
@@ -509,12 +518,16 @@ function getTicketRevealState(TicketId ticketId)
     external
     view
     returns (TicketStatus status, bool revealAuthorized);
+
+function claimableCreatorProfit(PoolId poolId) external view returns (uint256);
 ```
 
 说明：
 
 - `getTicketRevealState` 仅暴露后端编排解密授权所需的最小状态，不泄露奖项明文。
 - 后端读取 owner 统一使用 ERC-721 标准 `ownerOf(ticketId)`，不再额外定义重复 owner 查询接口。
+- 链上状态字段通过现有 public getter 读取：`poolConfigs`、`poolStates`、`poolAccounting`、`roundStates`、`tickets`、`nonces`。
+- 创建者池列表、用户持票列表、聚合分页查询等列表型视图由后端 Indexer 基于事件与标准 ERC-721 状态维护，不强行塞进核心合约 ABI。
 
 说明：
 
@@ -747,7 +760,7 @@ event PoolRoundInitialized(PoolId indexed poolId, RoundId indexed roundId);
 event RoundSettled(PoolId indexed poolId, RoundId indexed roundId);
 
 event TicketPurchased(address indexed user, PoolId indexed poolId, TicketId indexed ticketId, uint32 ticketIndex);
-event TicketScratched(address indexed user, PoolId indexed poolId, RoundId indexed roundId, TicketId ticketId, bool hasReward, bool revealAuthorized);
+event TicketScratched(address indexed user, PoolId indexed poolId, RoundId indexed roundId, TicketId ticketId, bool revealAuthorized);
 event RewardClaimed(address indexed user, TicketId indexed ticketId, PoolId indexed poolId, RoundId roundId);
 
 event CreatorProfitWithdrawn(PoolId indexed poolId, address indexed creator, uint256 amount);
@@ -756,7 +769,6 @@ event PoolClosed(PoolId indexed poolId);
 event PoolRolledToNextRound(PoolId indexed poolId, RoundId indexed newRoundId);
 
 event GaslessExecuted(address indexed user, GaslessAction action, bytes32 digest);
-event GaslessRejected(address indexed user, GaslessAction action, bytes32 digest, bytes32 reason);
 ```
 
 ## 14.2 事件原则
@@ -765,6 +777,7 @@ event GaslessRejected(address indexed user, GaslessAction action, bytes32 digest
 - 可记录 ticketId、poolId、roundId
 - 用户广播模块只消费不会破坏隐私的事件
 - 后端 Indexer 必须同时监听 `LuckyScratchTicket` 的 ERC-721 `Transfer` 事件，以维护 ticket 当前 owner 缓存；关键权限判断仍以链上 `ownerOf(ticketId)` 为准
+- Gasless 失败状态不通过链上 `GaslessRejected` 事件表达，而是由 relayer 服务结合交易回执和本地请求表维护
 
 ---
 

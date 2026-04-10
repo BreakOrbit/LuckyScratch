@@ -859,20 +859,29 @@ graph TD
 | --- | --- |
 | `createPool(params)` | 创建池子（含保证金锁定） |
 | `closePool(poolId)` | 创建者关闭池子 |
-| `withdrawCreatorProfit(poolId)` | 创建者提取利润 |
+| `withdrawCreatorProfit(poolId, amount)` | 创建者按金额提取利润 |
 | `refundBond(poolId)` | 退还保证金（池子结束后） |
-| `getPoolsByCreator(address) → poolId[]` | 查询创建者的所有池 |
-| `getPoolInfo(poolId) → PoolInfo` | 查询池详情 |
+| `claimableCreatorProfit(poolId) → uint256` | 查询创建者当前可提利润 |
+| `poolConfigs / poolStates / poolAccounting / roundStates / tickets / nonces` | 链上字段查询走 public getter |
+| `getTicketRevealState(ticketId)` | 查询刮奖状态与 reveal 授权 |
+| `ownerOf(ticketId)` | 查询当前 NFT 持有人 |
 
 ## 8.10 事件定义
 
 | 事件 | 说明 |
 | --- | --- |
-| `PoolCreated(creator, poolId, bondAmount, poolSize)` | 池子创建成功 |
-| `PoolClosed(poolId, creator)` | 池子关闭 |
-| `PoolRefreshedByCreator(poolId, round)` | 循环池刷新（新一轮） |
+| `PoolCreated(poolId, creator, protocolOwned)` | 池子创建成功 |
+| `PoolRoundRequested(poolId, roundId, requestId)` | 轮次请求 VRF |
+| `PoolRoundInitialized(poolId, roundId)` | 轮次初始化完成 |
+| `RoundSettled(poolId, roundId)` | 轮次完成结算 |
+| `TicketPurchased(user, poolId, ticketId, ticketIndex)` | 购票成功 |
+| `TicketScratched(user, poolId, roundId, ticketId, revealAuthorized)` | 刮奖完成并授予解密读取权限 |
+| `RewardClaimed(user, ticketId, poolId, roundId)` | 领奖成功 |
 | `BondRefunded(poolId, creator, amount)` | 保证金退还 |
 | `CreatorProfitWithdrawn(poolId, creator, amount)` | 创建者提取利润 |
+| `PoolClosed(poolId)` | 池子关闭 |
+| `PoolRolledToNextRound(poolId, newRoundId)` | 循环池进入新一轮 |
+| `GaslessExecuted(user, action, digest)` | Gasless 请求链上执行成功 |
 
 ---
 
@@ -886,14 +895,14 @@ graph TD
 
 ```mermaid
 graph LR
-    A[智能合约] -->|ScratchResult Event| B[事件监听器]
-    B -->|过滤中奖事件| C[广播队列]
+    A[智能合约] -->|TicketScratched / RewardClaimed| B[事件监听器]
+    B -->|结合后端读模型与业务策略筛选| C[广播队列]
     C -->|实时推送| D[首页滚动条]
 ```
 
-- 监听链上 `ScratchResult` 事件
-- 过滤中奖金额 > 0 的事件
-- 提取：用户地址（脱敏）、中奖金额、池名
+- 当前链上不会直接广播中奖金额
+- 若需要公共中奖广播，必须由后端在不破坏隐私的前提下，基于 `RewardClaimed` 或用户授权后的结果组装脱敏内容
+- 广播系统不应假设存在单独的 `ScratchResult` / `WinBroadcast` 核心合约事件
 
 ## 9.3 广播内容格式
 
@@ -994,9 +1003,9 @@ graph LR
 
 ### 不走 Gasless 的操作
 
-- `claimReward(tokenId)`
-- `batchClaimRewards(tokenIds[])`
-- `withdrawCreatorProfit(poolId)`
+- `claimReward(tokenId, clearRewardAmount, decryptionProof)`
+- `batchClaimRewards(tokenIds[], clearRewardAmounts[], decryptionProofs[])`
+- `withdrawCreatorProfit(poolId, amount)`
 - `refundBond(poolId)`
 
 设计原则：
@@ -2410,32 +2419,37 @@ stateDiagram-v2
 | `purchaseTicketsWithSelection(poolId, ticketIndexes[])` | 自选购票 |
 | `scratchTicket(tokenId)` | 单张刮奖 |
 | `batchScratch(tokenIds[])` | 批量刮奖 |
-| `claimReward(tokenId)` | 单张领奖 |
-| `batchClaimRewards(tokenIds[])` | 批量领奖 |
+| `claimReward(tokenId, clearRewardAmount, decryptionProof)` | 单张领奖 |
+| `batchClaimRewards(tokenIds[], clearRewardAmounts[], decryptionProofs[])` | 批量领奖 |
 | `createPool(params)` | 创建池子（含保证金锁定） |
 | `closePool(poolId)` | 创建者关闭池子 |
-| `withdrawCreatorProfit(poolId)` | 创建者提取利润 |
+| `withdrawCreatorProfit(poolId, amount)` | 创建者提取利润 |
 | `refundBond(poolId)` | 退还保证金（池子结束后） |
-| `getPoolsByCreator(address) → poolId[]` | 查询创建者的所有池 |
-| `getPoolInfo(poolId) → PoolInfo` | 查询池详情 |
-| `getPoolAvailability(poolId) → bool` | 池是否有票 |
-| `getUserTickets(address) → tokenId[]` | 用户持有的票 |
+| `claimableCreatorProfit(poolId) → uint256` | 查询创建者当前可提利润 |
+| `poolConfigs / poolStates / poolAccounting / roundStates / tickets / nonces` | 读取链上字段状态 |
+| `getTicketRevealState(ticketId)` | 查询刮奖状态与 reveal 授权 |
+| `ownerOf(ticketId)` | 查询当前 NFT 持有人 |
 
 # 附录 C：事件定义
 
 | 事件 | 触发 | 参数 |
 | --- | --- | --- |
-| `TicketPurchased` | 购票成功 | user, poolId, tokenIds[], amount |
-| `TicketScratched` | 刮奖完成 | user, tokenId, poolId |
-| `RewardClaimed` | 领奖成功 | user, tokenId, amount |
-| `PoolRefreshed` | 池刷新 | poolId |
-| `PoolCreated` | 池子创建成功 | creator, poolId, bondAmount, poolSize |
-| `PoolClosed` | 池子关闭 | poolId, creator |
+| `TicketPurchased` | 购票成功 | user, poolId, ticketId, ticketIndex |
+| `TicketScratched` | 刮奖完成 | user, poolId, roundId, ticketId, revealAuthorized |
+| `RewardClaimed` | 领奖成功 | user, ticketId, poolId, roundId |
+| `PoolCreated` | 池子创建成功 | poolId, creator, protocolOwned |
+| `PoolRoundRequested` | 请求 VRF | poolId, roundId, requestId |
+| `PoolRoundInitialized` | 轮次初始化完成 | poolId, roundId |
+| `RoundSettled` | 轮次结算完成 | poolId, roundId |
+| `PoolClosed` | 池子关闭 | poolId |
 | `CreatorProfitWithdrawn` | 创建者提取利润 | poolId, creator, amount |
-| `TicketTransferred` | NFT 彩票转让 | from, to, tokenId |
+| `Transfer` | NFT 彩票转让 | from, to, tokenId |
 | `BondRefunded` | 保证金退还 | poolId, creator, amount |
-| `PoolRefreshedByCreator` | 循环池刷新 | poolId, round |
+| `PoolRolledToNextRound` | 循环池刷新 | poolId, newRoundId |
+| `GaslessExecuted` | Gasless 执行成功 | user, action, digest |
 
-> 📌 注意：`TicketScratched` 事件不包含中奖金额（保护隐私）。中奖广播系统通过单独的 `WinBroadcast` 事件传播脱敏信息（仅包含地址前后各 4 位和中奖金额范围）。
+> 📌 注意：`TicketScratched` 与 `RewardClaimed` 事件都不直接暴露中奖金额。若产品需要中奖广播，应由后端在隐私评审后基于链上事件和用户授权结果构建脱敏内容。
 > 
 > 📌 用户自建池的事件独立于官方池事件，通过 `poolId` 字段区分官方池和用户池。
+>
+> 📌 创建者池列表、用户持票列表与其他分页聚合查询，默认由后端 Indexer 基于 `PoolCreated`、ERC-721 `Transfer` 等事件构建，而不是在核心合约中增加高成本列表接口。

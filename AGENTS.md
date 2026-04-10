@@ -20,6 +20,65 @@ Check which package exists in the repository:
 - If `packages/hardhat` exists → **Hardhat flavor** (follow Hardhat instructions)
 - If `packages/foundry` exists → **Foundry flavor** (follow Foundry instructions)
 
+### Current Repository Status
+
+This repository is currently running in **Hardhat flavor**.
+
+- Smart contracts live in `packages/hardhat/contracts/`
+- The active LuckyScratch implementation lives in `packages/hardhat/contracts/luckyScratch/`
+- Scaffold template example contracts and demo tasks have been removed; LuckyScratch is the only active contract suite
+- Deployment wiring lives in `packages/hardhat/deploy/02_deploy_lucky_scratch.ts`
+- Contract tests for LuckyScratch live in `packages/hardhat/test/luckyScratch/`
+- Production deployment now targets real `cUSDC` addresses on supported networks such as Sepolia; no local mock token is deployed by the LuckyScratch deploy script
+- The homepage no longer exposes a scaffold demo contract panel; it is now a project status entry page
+- Product and contract design inputs live in `doc/`, especially `doc/smart-contract-design.md` and `doc/smart-contract-implementation-plan.md`
+
+### LuckyScratch Current Scope
+
+The current smart-contract implementation includes:
+
+- `LuckyScratchCore`: pool lifecycle, round management, ticket purchase, scratch, claim, gasless execution, creator profit accounting, and next-round rolling
+- `LuckyScratchTicket`: ERC-721 ticket NFT minting, transfer lock after scratch, and transfer callback into the core contract
+- `LuckyScratchTreasury`: cUSDC custody, ticket payment collection, prize payout, profit withdrawal, and bond refund
+- `LuckyScratchVRFAdapter`: mockable randomness request/fulfillment bridge used by the core contract
+- Shared modules under `contracts/luckyScratch/interfaces`, `contracts/luckyScratch/libraries`, and `contracts/luckyScratch/types`
+- Test-only contracts live under `packages/hardhat/contracts/test/`
+
+Implemented LuckyScratch flows currently covered in code and tests:
+
+- Pool creation with prize tiers and creator bond lock
+- VRF request and round initialization
+- Auto-selection purchase and manual selection purchase
+- Single-ticket scratch and batch scratch
+- Reward claim and batch reward claim
+- Gasless purchase, gasless scratch, and gasless batch scratch
+- Loop pool settlement and roll to next round
+- Creator profit withdrawal and bond refund
+
+Current LuckyScratch rule highlights:
+
+- `createPool` enforces the documented budget band, supported ticket-price presets, fixed platform fee, hit-rate range, and max-prize cap
+- A round settles only after all tickets are scratched and all winning tickets are claimed
+- Closing an unsold or still-initializing pool now keeps it closed even if an old VRF request is fulfilled later
+- Gasless success is represented onchain by `GaslessExecuted`; rejected gasless attempts are tracked by the relayer service and transaction receipts rather than a persisted onchain `GaslessRejected` event
+- Frontend/backend state reads should prefer the existing public getters on `LuckyScratchCore` (`poolConfigs`, `poolStates`, `poolAccounting`, `roundStates`, `tickets`, `nonces`), plus `getTicketRevealState`, `claimableCreatorProfit`, and ERC-721 `ownerOf`; list-style queries belong in the backend indexer
+- The core contract is gas- and bytecode-sensitive: avoid adding wrapper view functions, redundant replay-tracking storage, or duplicated struct-copy helpers unless the feature justifies the extra runtime size
+
+Important implementation note:
+
+- Reward values are stored encrypted onchain with fhEVM primitives
+- Reward payout is finalized via `claimReward(ticketId, clearRewardAmount, decryptionProof)` and `batchClaimRewards(...)`
+- This decryption-proof flow is required because encrypted prize state cannot directly and safely drive plain ERC-20 transfer amounts onchain without verified disclosure
+
+### AGENTS.md Maintenance Rule
+
+This file is not a static template. It must track the current repository state.
+
+- Any code change that affects architecture, file layout, commands, contract interfaces, deployment flow, testing flow, or key product behavior must update `AGENTS.md` in the same change
+- When adding or removing a contract, deploy script, test suite, integration, or repo-specific rule, update the relevant section here before finishing the task
+- If a change is too small to justify a broad rewrite, at minimum update the `Current Repository Status`, `LuckyScratch Current Scope`, or command references impacted by the change
+- Do not leave `AGENTS.md` stale after shipping code
+
 ## Common Commands
 
 Commands work the same for both flavors unless noted otherwise:
@@ -52,6 +111,24 @@ yarn deploy --network <network>   # e.g., sepolia, mainnet, base
 yarn vercel:yolo --prod # for deployment of frontend
 ```
 
+### Current Verification Commands
+
+For the current LuckyScratch contract stack, use these commands as the default validation set:
+
+```bash
+yarn compile
+yarn hardhat:check-types
+yarn test
+```
+
+Additional notes:
+
+- LuckyScratch tests are written against the Hardhat fhEVM mock environment
+- Tests use `packages/hardhat/contracts/test/TestUSDC.sol`; this test token is not part of the production deployment path
+- If contract size becomes a problem, check `packages/hardhat/hardhat.config.ts` before refactoring; the repo currently relies on optimizer + `viaIR`
+- Current gas optimization direction favors removing redundant storage writes and avoiding unnecessary memory copies in `LuckyScratchCore` rather than relaxing security or privacy constraints
+- `packages/nextjs/contracts/deployedContracts.ts` is generated from persisted deployment artifacts, so it can be empty until a supported live-network deployment is written to disk
+
 ## Architecture
 
 ### Smart Contract Development
@@ -62,6 +139,10 @@ yarn vercel:yolo --prod # for deployment of frontend
 - Deployment scripts: `packages/hardhat/deploy/` (uses hardhat-deploy plugin)
 - Tests: `packages/hardhat/test/`
 - Config: `packages/hardhat/hardhat.config.ts`
+- Current LuckyScratch module root: `packages/hardhat/contracts/luckyScratch/`
+- Current LuckyScratch deploy entry: `packages/hardhat/deploy/02_deploy_lucky_scratch.ts`
+- Example scaffold deploy scripts and FHE demo tasks are intentionally removed
+- The LuckyScratch deploy script expects a real `cUSDC` address from the configured network map and is intended for Sepolia / mainnet-style deployments rather than local mock deployment
 - Deploying specific contract:
   - If the deploy script has:
     ```typescript
@@ -74,15 +155,27 @@ yarn vercel:yolo --prod # for deployment of frontend
 
 - Contracts: `packages/foundry/contracts/`
 - Deployment scripts: `packages/foundry/script/` (uses custom deployment strategy)
-  - Example: `packages/foundry/script/Deploy.s.sol` and `packages/foundry/script/DeployYourContract.s.sol`
+  - Example: `packages/foundry/script/Deploy.s.sol` and `packages/foundry/script/DeployLuckyScratch.s.sol`
 - Tests: `packages/foundry/test/`
 - Config: `packages/foundry/foundry.toml`
 - Deploying a specific contract:
-  - Create a separate deployment script and run `yarn deploy --file DeployYourContract.s.sol`
+  - Create a separate deployment script and run `yarn deploy --file DeployLuckyScratch.s.sol`
 
 #### Both Flavors
 
 - After `yarn deploy`, ABIs are auto-generated to `packages/nextjs/contracts/deployedContracts.ts`
+
+### Current LuckyScratch Contract Map
+
+- `packages/hardhat/contracts/luckyScratch/LuckyScratchCore.sol`
+- `packages/hardhat/contracts/luckyScratch/LuckyScratchTicket.sol`
+- `packages/hardhat/contracts/luckyScratch/LuckyScratchTreasury.sol`
+- `packages/hardhat/contracts/luckyScratch/LuckyScratchVRFAdapter.sol`
+- `packages/hardhat/contracts/test/TestUSDC.sol` (test-only utility)
+- `packages/hardhat/contracts/luckyScratch/interfaces/`
+- `packages/hardhat/contracts/luckyScratch/libraries/`
+- `packages/hardhat/contracts/luckyScratch/types/`
+- No scaffold example contract should be added back unless explicitly requested
 
 ### Frontend Contract Interaction
 
@@ -99,10 +192,10 @@ Contract data is read from two files in `packages/nextjs/contracts/`:
 #### Reading Contract Data
 
 ```typescript
-const { data: totalCounter } = useScaffoldReadContract({
-  contractName: "YourContract",
-  functionName: "userGreetingCounter",
-  args: ["0xd8da6bf26964af9d7eed9e03e53415d37aa96045"],
+const { data: poolState } = useScaffoldReadContract({
+  contractName: "LuckyScratchCore",
+  functionName: "poolStates",
+  args: [1n],
 });
 ```
 
@@ -110,13 +203,12 @@ const { data: totalCounter } = useScaffoldReadContract({
 
 ```typescript
 const { writeContractAsync, isPending } = useScaffoldWriteContract({
-  contractName: "YourContract",
+  contractName: "LuckyScratchCore",
 });
 
 await writeContractAsync({
-  functionName: "setGreeting",
-  args: [newGreeting],
-  value: parseEther("0.01"), // for payable functions
+  functionName: "purchaseTickets",
+  args: [1n, 1],
 });
 ```
 
@@ -124,8 +216,8 @@ await writeContractAsync({
 
 ```typescript
 const { data: events, isLoading } = useScaffoldEventHistory({
-  contractName: "YourContract",
-  eventName: "GreetingChange",
+  contractName: "LuckyScratchCore",
+  eventName: "TicketPurchased",
   watch: true,
   fromBlock: 31231n,
   blockData: true,
