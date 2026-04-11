@@ -1,0 +1,450 @@
+openapi: 3.1.0
+info:
+  title: LuckyScratch Backend API
+  version: 0.2.0
+servers:
+  - url: http://localhost:8080
+paths:
+  /healthz:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: OK
+  /api/v1/pools:
+    get:
+      summary: List pools from the local read model
+      responses:
+        "200":
+          description: Pool list
+  /api/v1/pools/{poolId}:
+    get:
+      summary: Get a single pool from the local read model
+      parameters:
+        - in: path
+          name: poolId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Pool detail
+  /api/v1/pools/{poolId}/rounds/{roundId}:
+    get:
+      summary: Get a single round from the local read model
+      parameters:
+        - in: path
+          name: poolId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: roundId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Round detail
+  /api/v1/tickets/{ticketId}:
+    get:
+      summary: Get a single ticket from the local read model
+      parameters:
+        - in: path
+          name: ticketId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Ticket detail
+  /api/v1/users/{address}/tickets:
+    get:
+      summary: List tickets owned by an address
+      parameters:
+        - in: path
+          name: address
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Ticket list
+  /api/v1/users/{address}/wins:
+    get:
+      summary: List claimed winning tickets for an address
+      parameters:
+        - in: path
+          name: address
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Win list
+  /api/v1/gasless/nonce/{address}:
+    get:
+      summary: Read the current LuckyScratch gasless nonce onchain
+      parameters:
+        - in: path
+          name: address
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Nonce payload
+  /api/v1/gasless/purchase:
+    post:
+      summary: Submit a gasless purchase request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PurchaseRequest"
+      responses:
+        "202":
+          description: Accepted
+  /api/v1/gasless/purchase-selection:
+    post:
+      summary: Submit a gasless purchase-selection request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PurchaseSelectionRequest"
+      responses:
+        "202":
+          description: Accepted
+  /api/v1/gasless/scratch:
+    post:
+      summary: Submit a gasless scratch request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScratchRequest"
+      responses:
+        "202":
+          description: Accepted
+  /api/v1/gasless/batch-scratch:
+    post:
+      summary: Submit a gasless batch-scratch request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BatchScratchRequest"
+      responses:
+        "202":
+          description: Accepted
+  /api/v1/gasless/requests/{digest}:
+    get:
+      summary: Get persisted gasless request status
+      parameters:
+        - in: path
+          name: digest
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Gasless request status
+  /api/v1/tickets/{ticketId}/reveal-auth:
+    post:
+      summary: Build reveal authorization payload for a scratched ticket, including a ticket-scoped Zama relayer proxy URL when enabled
+      parameters:
+        - in: path
+          name: ticketId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RevealAuthRequest"
+      responses:
+        "200":
+          description: Reveal payload
+  /api/v1/tickets/{ticketId}/claim-precheck:
+    get:
+      summary: Check whether a ticket can proceed to claim flow
+      parameters:
+        - in: path
+          name: ticketId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Claim precheck payload
+  /api/v1/tickets/{ticketId}/zama/relayer/v2/keyurl:
+    get:
+      summary: Proxy the upstream Zama relayer keyurl response for a ticket-scoped reveal flow
+      parameters:
+        - in: path
+          name: ticketId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Proxied keyurl payload
+  /api/v1/tickets/{ticketId}/zama/relayer/v2/user-decrypt:
+    post:
+      summary: Proxy a Zama relayer user-decrypt submission after backend-side reveal authorization checks
+      parameters:
+        - in: path
+          name: ticketId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ZamaUserDecryptRequest"
+      responses:
+        "200":
+          description: Proxied completed response
+        "202":
+          description: Proxied queued response
+  /api/v1/tickets/{ticketId}/zama/relayer/v2/user-decrypt/{jobId}:
+    get:
+      summary: Proxy a Zama relayer user-decrypt job status poll for a ticket-scoped reveal flow
+      parameters:
+        - in: path
+          name: ticketId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: jobId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Proxied completed response
+        "202":
+          description: Proxied queued response
+  /api/v1/admin/jobs:
+    get:
+      summary: List recurring backend jobs
+      responses:
+        "200":
+          description: Job list
+  /api/v1/admin/jobs/{jobId}/retry:
+    post:
+      summary: Retry a recurring backend job immediately
+      parameters:
+        - in: path
+          name: jobId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Retry accepted
+  /api/v1/admin/relayer/health:
+    get:
+      summary: Get relayer address and balance health
+      responses:
+        "200":
+          description: Relayer health
+  /api/v1/admin/pools/{poolId}/costs:
+    get:
+      summary: Get per-pool cost summary and recent ledgers
+      parameters:
+        - in: path
+          name: poolId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Pool cost summary
+  /api/v1/admin/gasless/pools/{poolId}/pause:
+    post:
+      summary: Pause gasless for a pool
+      parameters:
+        - in: path
+          name: poolId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Pool paused
+  /api/v1/admin/gasless/users/{address}/block:
+    post:
+      summary: Block gasless for a user
+      parameters:
+        - in: path
+          name: address
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: User blocked
+components:
+  schemas:
+    GaslessRequest:
+      type: object
+      required:
+        - user
+        - action
+        - targetContract
+        - paramsHash
+        - nonce
+        - deadline
+        - chainId
+      properties:
+        user:
+          type: string
+        action:
+          oneOf:
+            - type: string
+            - type: integer
+        targetContract:
+          type: string
+        paramsHash:
+          type: string
+        nonce:
+          oneOf:
+            - type: string
+            - type: integer
+        deadline:
+          oneOf:
+            - type: string
+            - type: integer
+        chainId:
+          oneOf:
+            - type: string
+            - type: integer
+    PurchaseRequest:
+      type: object
+      required:
+        - request
+        - signature
+        - poolId
+        - quantity
+      properties:
+        request:
+          $ref: "#/components/schemas/GaslessRequest"
+        signature:
+          type: string
+        poolId:
+          oneOf:
+            - type: string
+            - type: integer
+        quantity:
+          type: integer
+    PurchaseSelectionRequest:
+      type: object
+      required:
+        - request
+        - signature
+        - poolId
+        - ticketIndexes
+      properties:
+        request:
+          $ref: "#/components/schemas/GaslessRequest"
+        signature:
+          type: string
+        poolId:
+          oneOf:
+            - type: string
+            - type: integer
+        ticketIndexes:
+          type: array
+          items:
+            type: integer
+    ScratchRequest:
+      type: object
+      required:
+        - request
+        - signature
+        - ticketId
+      properties:
+        request:
+          $ref: "#/components/schemas/GaslessRequest"
+        signature:
+          type: string
+        ticketId:
+          oneOf:
+            - type: string
+            - type: integer
+    BatchScratchRequest:
+      type: object
+      required:
+        - request
+        - signature
+        - ticketIds
+      properties:
+        request:
+          $ref: "#/components/schemas/GaslessRequest"
+        signature:
+          type: string
+        ticketIds:
+          type: array
+          items:
+            oneOf:
+              - type: string
+              - type: integer
+    RevealAuthRequest:
+      type: object
+      required:
+        - address
+      properties:
+        address:
+          type: string
+    ZamaUserDecryptRequest:
+      type: object
+      required:
+        - handleContractPairs
+        - requestValidity
+        - contractsChainId
+        - contractAddresses
+        - userAddress
+        - signature
+        - publicKey
+      properties:
+        handleContractPairs:
+          type: array
+          items:
+            type: object
+            properties:
+              handle:
+                type: string
+              contractAddress:
+                type: string
+        requestValidity:
+          type: object
+          properties:
+            startTimestamp:
+              type: string
+            durationDays:
+              type: string
+        contractsChainId:
+          type: string
+        contractAddresses:
+          type: array
+          items:
+            type: string
+        userAddress:
+          type: string
+        signature:
+          type: string
+        publicKey:
+          type: string
+        extraData:
+          type: string

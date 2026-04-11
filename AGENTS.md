@@ -26,12 +26,15 @@ This repository is currently running in **Hardhat flavor**.
 
 - Smart contracts live in `packages/hardhat/contracts/`
 - The active LuckyScratch implementation lives in `packages/hardhat/contracts/luckyScratch/`
+- The Go backend now lives in `packages/backend/` and includes a real PostgreSQL-backed API/worker implementation
 - Scaffold template example contracts and demo tasks have been removed; LuckyScratch is the only active contract suite
 - Deployment wiring lives in `packages/hardhat/deploy/02_deploy_lucky_scratch.ts`
 - Contract tests for LuckyScratch live in `packages/hardhat/test/luckyScratch/`
 - Production deployment now targets real `cUSDC` addresses and real Chainlink VRF v2.5 network settings on supported networks such as Sepolia; no local mock token is deployed by the LuckyScratch deploy script
 - The homepage no longer exposes a scaffold demo contract panel; it is now a project status entry page
 - Product and contract design inputs live in `doc/`, especially `doc/smart-contract-design.md` and `doc/smart-contract-implementation-plan.md`
+- Backend implementation planning and codegen guidance now live in `doc/backend-design.md` and `doc/backend-codegen-plan.md`
+- The backend migration now includes the LuckyScratch read model, `deployment_registry`, `indexed_logs`, recurring `jobs`, `gasless_controls`, and audit/cost tables needed by the live API/worker
 
 ### LuckyScratch Current Scope
 
@@ -62,6 +65,11 @@ Current LuckyScratch rule highlights:
 - A round settles only after all tickets are scratched and all winning tickets are claimed
 - Closing an unsold or still-initializing pool now keeps it closed even if an old VRF request is fulfilled later
 - Gasless success is represented onchain by `GaslessExecuted`; rejected gasless attempts are tracked by the relayer service and transaction receipts rather than a persisted onchain `GaslessRejected` event
+- The backend gasless relayer now prechecks Treasury token allowance before gasless purchase execution, and it rejects gasless `batch-scratch` requests that span multiple pools or rounds because the current risk/cost attribution model is single-scope
+- The backend reveal service now emits official Zama relayer-sdk context by default on Sepolia, but the relayer URL handed to clients is a ticket-scoped backend proxy that fronts Zama `keyurl` / `user-decrypt`; if `ZAMA_API_KEY` is configured, keep it server-side and never expose it to the client
+- The backend Zama proxy now returns a stable local decryption `jobId` based on `zama_request_ref`, persists a `submitting` state before outbound relayer calls, fails reveal-auth fast when it cannot construct a public proxy URL, and includes a worker-side reconcile loop that advances submitted upstream jobs while timing out stale `submitting` rows
+- The backend worker now reclaims stale PostgreSQL `jobs.status='running'` locks after `JOB_LOCK_TIMEOUT`, the gasless relayer persists the signed `tx_hash` before send and lets the indexer backfill missing receipt fields from `GaslessExecuted`, and the API now maps service-level validation/conflict errors to stable public HTTP responses instead of leaking raw internal errors
+- Because the currently pinned `@zama-fhe/relayer-sdk` 0.4.1 / relayer v2 POST flow does not expose a client-controlled idempotency key or lookup-by-local-request-ref API, the backend still cannot losslessly recover the rare case where the upstream relayer already accepted a decrypt request but the backend crashed before persisting the returned upstream `jobId`
 - Frontend/backend state reads should prefer the existing public getters on `LuckyScratchCore` (`poolConfigs`, `poolStates`, `poolAccounting`, `roundStates`, `tickets`, `nonces`), plus `getTicketRevealState`, `claimableCreatorProfit`, and ERC-721 `ownerOf`; list-style queries belong in the backend indexer
 - The core contract is gas- and bytecode-sensitive: avoid adding wrapper view functions, redundant replay-tracking storage, or duplicated struct-copy helpers unless the feature justifies the extra runtime size
 
@@ -112,6 +120,25 @@ yarn deploy --network <network>   # e.g., sepolia, mainnet, base
 yarn vercel:yolo --prod # for deployment of frontend
 ```
 
+Backend commands:
+
+```bash
+cd packages/backend
+go test ./...
+go run ./cmd/api
+go run ./cmd/worker
+```
+
+Backend runtime prerequisites:
+
+- `DATABASE_URL`
+- `RPC_URL`
+- `RELAYER_PRIVATE_KEY`
+- `ADMIN_TOKEN` is optional but recommended for admin routes
+- `API_PUBLIC_BASE_URL` is optional for direct deployments, but effectively required when the backend sits behind a reverse proxy that does not forward the public host/proto headers and reveal-auth must emit a stable absolute Zama proxy URL
+- `REVEAL_SUBMIT_TIMEOUT` is optional and controls how long a local Zama decrypt request may remain in `submitting` before the worker marks it failed
+- `JOB_LOCK_TIMEOUT` is optional and controls when a stale PostgreSQL-backed recurring job lock is reclaimed after a worker crash
+
 ### Current Verification Commands
 
 For the current LuckyScratch contract stack, use these commands as the default validation set:
@@ -132,6 +159,9 @@ Additional notes:
 - `packages/nextjs/contracts/deployedContracts.ts` is generated from persisted deployment artifacts, so it can be empty until a supported live-network deployment is written to disk
 - Account utility commands avoid the default Sepolia runtime now: `yarn account` runs against Hardhat's in-process network, while `yarn account:generate`, `yarn account:import`, and `yarn account:reveal-pk` run via `ts-node`
 - Live-network deploys are wrapped by `packages/hardhat/scripts/runHardhatDeployWithPK.ts`, which now compiles on the local `hardhat` network first and then runs `deploy --no-compile` on the target network to avoid fhEVM plugin RPC probing issues on Sepolia/mainnet
+- The current backend is no longer phase-0: it now includes `sqlc`-generated repositories, deployment import into `deployment_registry`, go-ethereum contract wrappers, read-model query APIs, gasless request validation/broadcast, reveal-auth + claim-precheck + Zama proxy reconciliation, recurring PostgreSQL-backed jobs, and an event indexer with minimal reorg rewind/replay
+- The backend docs now fix two important implementation boundaries: deployment metadata must be tracked independently of raw Hardhat deployment files, and reveal/claim stays client-driven for final proof submission while the backend only performs authorization/precheck orchestration
+- The backend currently uses PostgreSQL for recurring jobs and does not yet wire Redis; keep that in mind before assuming Redis locks or queues exist
 
 ## Architecture
 

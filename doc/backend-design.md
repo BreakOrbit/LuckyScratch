@@ -17,11 +17,13 @@
 - 如何接入链上事件、Gasless、Zama 解密授权与风控
 - API、数据库、任务系统和部署方式如何设计
 
-本文档默认采用：
+本文档默认采用当前仓库已完成的 LuckyScratch 合约实现：
 
 - 前端：`packages/nextjs`
 - 后端：独立 Go 服务
-- 链上：LuckyScratch 合约 + Zama 官方 `cUSDC` + Chainlink VRF
+- 链上：`LuckyScratchCore` / `LuckyScratchTicket` / `LuckyScratchTreasury` / `LuckyScratchVRFAdapter`
+- 支付代币：Zama 官方 `cUSDC`
+- 随机源：`LuckyScratchVRFAdapter` 接入 Chainlink VRF v2.5（本地测试保留 mock fulfill）
 
 ---
 
@@ -150,15 +152,17 @@ Zama fhEVM Backend APIs
 - 为前端提供快速查询，而不是每次直接扫链
 - 结合 `GaslessExecuted`、交易回执和 relayer 自身落库记录维护 gasless 请求终态
 - 维护 NFT 当前 owner 的本地缓存
+- 对少量高价值权限判断走链上实时读取，而不是只信本地索引
+- 后端运行时必须有独立的 deployment metadata 真相源，至少包含合约地址、deployment block、deployment tx hash 和生效版本
 
 ## 4.3 Gasless Relayer
 
 负责处理：
 
-- `purchaseTickets`
-- `purchaseTicketsWithSelection`
-- `scratchTicket`
-- `batchScratch`
+- `executeGaslessPurchase`
+- `executeGaslessPurchaseSelection`
+- `executeGaslessScratch`
+- `executeGaslessBatchScratch`
 
 执行流程：
 
@@ -174,24 +178,29 @@ Zama fhEVM Backend APIs
 
 - 当前版 Gasless 只覆盖“已完成 `Treasury approve` 后”的执行交易
 - 首次 `approve` 仍由用户自己发链上交易
+- 当前合约没有链上 `GaslessRejected` 事件；失败终态必须由 relayer 落库、交易回执和错误分类共同维护
+- `nonces(address)` 是链上唯一 nonce 真相；后端缓存只能用于加速，不能替代链上读取
 
 ## 4.4 Decryption Auth Service
 
-负责 fhEVM 解密授权编排。
+负责 fhEVM 解密授权和领奖前校验编排。
 
 主要职责：
 
 - 统一以链上 `ownerOf(ticketId)` 校验请求用户是否为当前 NFT 持有人
 - 通过合约只读接口 `getTicketRevealState(ticketId)` 校验 ticket 是否已链上 `scratch`
 - 通过合约只读接口 `getTicketRevealState(ticketId)` 校验 `revealAuthorized == true`
-- 调用 Zama 对应后端/SDK 生成本次解密授权材料
+- 基于当前合约地址与加密 handle 组织前端所需的解密材料
+- 为领奖流程返回上下文与参数要求，但不代用户生成或代发最终 claim 交易
 - 返回前端可消费的解密参数
 
 关键原则：
 
 - 后端不替用户“决定中奖结果”
 - 后端只负责“授权当前持有人查看已存在的加密结果”
-- 最终显示结果仍由前端完成
+- 最终显示结果与领取提交仍由前端钱包完成
+- 后端不直接代用户调用 `claimReward(...)`
+- 当前版本默认由前端本地完成最终 `clearRewardAmount + decryptionProof` 的生成或组装
 
 ## 4.5 Risk & Budget Engine
 
@@ -249,6 +258,7 @@ Next.js
  -> POST /api/v1/gasless/purchase
 
 Go Backend
+ -> 读取链上 `nonces(user)` 或使用刚同步的 nonce 缓存进行预校验
  -> 校验签名/nonce/deadline
  -> 校验 pool round = Ready
  -> 校验用户已对 Treasury 完成 approve
@@ -282,7 +292,7 @@ Next.js
 Go Backend
  -> 以链上 `ownerOf(ticketId)` 校验 NFT 当前 owner
  -> 校验状态为 Unscratched
- -> 广播 executeGaslessScratch
+ -> 广播 `executeGaslessScratch`
 
 Chain Indexer
  -> 收到 TicketScratched
@@ -292,11 +302,12 @@ Next.js
  -> POST /api/v1/tickets/{id}/reveal-auth
 
 Go Backend
+ -> 调用 `ownerOf(ticketId)`
  -> 调用 `getTicketRevealState(ticketId)`
  -> 校验链上已 scratch
  -> 校验 revealAuthorized = true
- -> 调 Zama 解密授权接口
- -> 返回授权材料
+ -> 组织解密/领奖所需材料
+ -> 返回授权材料与领奖参数说明
 
 Next.js
  -> 本地解密并展示结果
@@ -308,10 +319,17 @@ Next.js
 
 流程：
 
-1. 用户前端调用 `claimReward(ticketId, clearRewardAmount, decryptionProof)`
-2. 链上 `Treasury` 向 `ownerOf(ticketId)` 转出官方 `cUSDC`
-3. Indexer 收到 `RewardClaimed`
-4. 本地读模型更新用户累计中奖额、ticket 状态、round claim 计数
+1. 用户前端先通过 reveal 流程拿到或生成 `clearRewardAmount + decryptionProof`
+2. 用户前端调用 `claimReward(ticketId, clearRewardAmount, decryptionProof)`
+3. 链上 `Treasury` 向 `ownerOf(ticketId)` 转出官方 `cUSDC`
+4. Indexer 收到 `RewardClaimed`
+5. 本地读模型更新用户累计中奖额、ticket 状态、round claim 计数
+
+说明：
+
+- 当前合约不存在无证明版 `claimReward(ticketId)`
+- 后端可提供领奖前校验与材料编排，但最终领取交易由用户钱包自己发送
+- 如果前端直接本地生成 `decryptionProof`，后端也至少应保留 claim precheck 能力，避免无效提交
 
 ## 5.5 建池与 VRF 初始化流程
 
@@ -319,39 +337,43 @@ Next.js
 createPool
  -> PoolCreated
  -> PoolRoundRequested
+ -> Chainlink VRF callback 进入 LuckyScratchVRFAdapter
  -> fulfillPoolRandomness
  -> PoolRoundInitialized
 ```
 
 后端职责：
 
-- 监听每个 `pool instance` 的 VRF 初始化状态
-- 统计每个 pool 的 VRF 请求成本
+- 监听每个 round 的 VRF 初始化状态
+- 统计每个 pool / round 的 VRF 请求成本
 - 若发现长时间停留在 `PendingVRF`，触发告警
+- 监控 `LuckyScratchVRFAdapter` 是否已被加入对应 Chainlink subscription consumer
 
 注意：
 
 - 后端不负责生成随机数
 - 随机数只来自 Chainlink VRF
+- 生产部署后需要人工或运维流程把 `LuckyScratchVRFAdapter` 地址加入 VRF subscription，否则 round 会一直停在 `PendingVRF`
+- “consumer 是否已加入 subscription” 当前优先作为运维 checklist；若未来接入稳定数据源，再升级成自动监控
 
 ## 5.6 循环池结算检查
 
 后端定时检查：
 
 - 当前 round 是否已 `SoldOut`
-- 是否仍有 `winClaimableCount > 0`
-- 是否已满足 `Settled`
-- 是否进入下一轮
-- 是否需要告警“轮次售罄但长期无人刮开”
+- `scratchedCount == soldCount` 是否已满足
+- `winClaimableCount == 0` 是否已满足
+- round 是否已进入 `Settled`
+- pool 是否需要由授权运营账户触发下一轮
 
 说明：
 
 - 结算状态最终以链上为准
-- 后端只做检测、统计、告警和后台展示
-- 下一轮刷新不在售罄交易里自动完成，而是通过显式链上函数触发
-- 后端在检测到最后一张票售出后，自动调用一次 `rollToNextRound(poolId)`
-- 若首次自动触发失败，则进入重试、告警和兜底调度，但不改变合约校验逻辑
-- 若失败原因是 round 尚未 `Settled`，则将该 pool 标记为 `waiting_settlement`，待条件满足后再次尝试
+- 当前合约只有 `pool creator` 或 `ADMIN_ROLE` 能调用 `rollToNextRound(poolId)`
+- 因此后端不能默认替所有池自动滚下一轮
+- 对 `protocol-owned` 池，后端可以用管理员 signer 自动触发
+- 对创作者自有池，后端更适合做提醒、告警和后台展示；除非该地址本身就是运营 signer
+- 若下一轮资金不足，链上会把 pool 状态切到 `Closing`，后端只需记录与告警
 
 ## 5.7 确认深度规则
 
@@ -519,6 +541,8 @@ updated_at
 - 所有请求都需要幂等键
 - 所有链上状态都以 event replay 可恢复
 - owner 缓存仅用于查询加速，权限判断仍以链上实时读取为准
+- 当前链上没有聚合查询 view；后端读模型应基于事件索引，并按需调用 `poolConfigs`、`poolStates`、`poolAccounting`、`roundStates`、`tickets`、`nonces`、`claimableCreatorProfit`、`getTicketRevealState` 和 ERC-721 `ownerOf`
+- 对 `pausePool` 等无事件状态变更，以及 `claimableCreatorProfit` 这类非纯事件可还原字段，需要额外的链上状态校准任务
 
 ---
 
@@ -538,6 +562,7 @@ GET  /tickets/{ticketId}
 GET  /users/{address}/tickets
 GET  /users/{address}/wins
 GET  /gasless/nonce/{address}
+GET  /tickets/{ticketId}/claim-precheck
 ```
 
 ## 7.2 Gasless 接口
@@ -585,6 +610,7 @@ GET  /gasless/requests/{digest}
 
 ```text
 POST /tickets/{ticketId}/reveal-auth
+GET  /tickets/{ticketId}/claim-precheck
 ```
 
 请求体：
@@ -601,6 +627,10 @@ POST /tickets/{ticketId}/reveal-auth
 {
   "ticketId": "123",
   "authPayload": {},
+  "claim": {
+    "requiresClearRewardAmount": true,
+    "requiresDecryptionProof": true
+  },
   "expiresAt": "2026-04-10T12:00:00Z"
 }
 ```
@@ -610,6 +640,25 @@ POST /tickets/{ticketId}/reveal-auth
 - 当前地址是链上 `ownerOf(ticketId)`
 - 通过 `getTicketRevealState(ticketId)` 可见 ticket 已 `scratch`
 - 通过 `getTicketRevealState(ticketId)` 可见 `revealAuthorized == true`
+
+### `GET /tickets/{ticketId}/claim-precheck`
+
+用途：
+
+- 返回当前 ticket 是否具备链上领奖前置条件
+- 给前端提供更明确的错误提示，而不是让用户直接打失败交易
+
+建议返回字段：
+
+```json
+{
+  "ticketId": "123",
+  "owner": "0x...",
+  "status": "Scratched",
+  "revealAuthorized": true,
+  "claimMethod": "claimReward(ticketId, clearRewardAmount, decryptionProof)"
+}
+```
 
 ## 7.4 管理后台接口
 
@@ -695,6 +744,7 @@ POST /admin/jobs/{jobId}/retry
 - 单 pool 总 infra 成本
 - 单轮 sponsor 成本
 - 单用户近 24h Gasless 使用量
+- 当前未初始化 round 数与长期 `PendingVRF` 数
 
 ---
 
@@ -715,7 +765,7 @@ POST /admin/jobs/{jobId}/retry
 ## 10.2 目录建议
 
 ```text
-backend/
+packages/backend/
   cmd/
     api/
     worker/
