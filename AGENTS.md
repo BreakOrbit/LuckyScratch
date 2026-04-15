@@ -32,6 +32,8 @@ This repository is currently running in **Hardhat flavor**.
 - Contract tests for LuckyScratch live in `packages/hardhat/test/luckyScratch/`
 - Production deployment now targets real `cUSDC` addresses and real Chainlink VRF v2.5 network settings on supported networks such as Sepolia; no local mock token is deployed by the LuckyScratch deploy script
 - The homepage no longer exposes a scaffold demo contract panel; it is now a project status entry page
+- The store frontend now renders a client-side sortable, paginated pool grid under `packages/nextjs/app/store/page.tsx` with supporting UI components in `packages/nextjs/components/store/`
+- The profile frontend sidebar `Setting` action now renders a converted settings terminal panel from `doc/profile/user_profile_settings_terminal/code.html` via `packages/nextjs/components/profile/SettingsPanel.tsx`
 - Product and contract design inputs live in `doc/`, especially `doc/smart-contract-design.md` and `doc/smart-contract-implementation-plan.md`
 - Backend implementation planning and codegen guidance now live in `doc/backend-design.md` and `doc/backend-codegen-plan.md`
 - The backend migration now includes the LuckyScratch read model, `deployment_registry`, `indexed_logs`, recurring `jobs`, `gasless_controls`, and audit/cost tables needed by the live API/worker

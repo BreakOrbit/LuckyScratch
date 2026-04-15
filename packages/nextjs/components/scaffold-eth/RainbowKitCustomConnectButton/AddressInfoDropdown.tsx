@@ -12,7 +12,9 @@ import {
   DocumentDuplicateIcon,
   EyeIcon,
   QrCodeIcon,
+  UserIcon,
 } from "@heroicons/react/24/outline";
+import Link from "next/link";
 import { BlockieAvatar } from "~~/components/scaffold-eth";
 import { useCopyToClipboard, useOutsideClick } from "~~/hooks/scaffold-eth";
 import { getTargetNetworks } from "~~/utils/scaffold-eth";
@@ -86,6 +88,12 @@ export const AddressInfoDropdown = ({
               <QrCodeIcon className="h-6 w-4 ml-2 sm:ml-0" />
               <span className="whitespace-nowrap">View QR Code</span>
             </label>
+          </li>
+          <li className={selectingNetwork ? "hidden" : ""}>
+            <Link href="/profile" className="h-8 btn-sm rounded-xl! flex gap-3 py-3" onClick={closeDropdown}>
+              <UserIcon className="h-6 w-4 ml-2 sm:ml-0" />
+              <span className="whitespace-nowrap">My Profile</span>
+            </Link>
           </li>
           <li className={selectingNetwork ? "hidden" : ""}>
             <button className="h-8 btn-sm rounded-xl! flex gap-3 py-3" type="button">

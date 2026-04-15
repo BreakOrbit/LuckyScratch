@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Bars3Icon } from "@heroicons/react/24/outline";
@@ -17,6 +17,7 @@ export const menuLinks: HeaderMenuLink[] = [
   { label: "Store", href: "/store" },
   { label: "My Tickets", href: "/my-tickets" },
   { label: "Create Pool", href: "/create-pool" },
+  { label: "My Profile", href: "/profile" },
 ];
 
 export const HeaderMenuLinks = () => {
