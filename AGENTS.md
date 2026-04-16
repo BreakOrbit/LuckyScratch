@@ -33,8 +33,9 @@ This repository is currently running in **Hardhat flavor**.
 - Production deployment now targets real `cUSDC` addresses and real Chainlink VRF v2.5 network settings on supported networks such as Sepolia; no local mock token is deployed by the LuckyScratch deploy script
 - The homepage no longer exposes a scaffold demo contract panel; it is now a project status entry page
 - The store frontend now renders a client-side sortable, paginated pool grid under `packages/nextjs/app/store/page.tsx` with supporting UI components in `packages/nextjs/components/store/`
-- The create-pool frontend now renders a converted creator terminal page under `packages/nextjs/app/create-pool/page.tsx` with the main body in `packages/nextjs/components/create-pool/CreatePoolPage.tsx`; the page currently includes editable numeric inputs, an interactive loop-mode toggle, and add/remove/edit reward tiers while global header/footer continue to come from the shared app shell
+- The create-pool frontend now renders a converted creator terminal page under `packages/nextjs/app/create-pool/page.tsx` with the main body in `packages/nextjs/components/create-pool/CreatePoolPage.tsx`; the page currently includes editable numeric inputs, an interactive loop-mode toggle, add/remove/edit reward tiers, a right-column cost preview, and creation notes while global header/footer continue to come from the shared app shell
 - The profile frontend sidebar `Setting` action now renders a converted settings terminal panel from `doc/profile/user_profile_settings_terminal/code.html` via `packages/nextjs/components/profile/SettingsPanel.tsx`
+- The profile frontend sidebar `My Pools` action now renders the converted right-side card grid layout from `doc/profile/stitch_ (4)/code.html` via `packages/nextjs/components/profile/MyPoolsPanel.tsx`
 - The profile `My Pools` panel CTA now routes to `/create-pool`
 - Product and contract design inputs live in `doc/`, especially `doc/smart-contract-design.md` and `doc/smart-contract-implementation-plan.md`
 - Backend implementation planning and codegen guidance now live in `doc/backend-design.md` and `doc/backend-codegen-plan.md`

@@ -3,7 +3,10 @@
 import { useMemo, useState } from "react";
 import {
   ArrowUpTrayIcon,
+  BanknotesIcon,
+  CalculatorIcon,
   InformationCircleIcon,
+  LockClosedIcon,
   PencilSquareIcon,
   RocketLaunchIcon,
   ShieldCheckIcon,
@@ -57,6 +60,14 @@ export function CreatePoolPage() {
   );
   const isPrizeValidated = allocatedPrize === prizePool;
   const bondAmount = useMemo(() => (prizePool * 1.1).toFixed(2), [prizePool]);
+  const creationBondAmount = useMemo(() => prizePool * 1.2, [prizePool]);
+  const grossRevenue = useMemo(() => ticketPrice * totalTickets, [ticketPrice, totalTickets]);
+  const platformFeeAmount = useMemo(() => grossRevenue * 0.08, [grossRevenue]);
+  const estimatedProfit = useMemo(
+    () => grossRevenue - prizePool - platformFeeAmount,
+    [grossRevenue, prizePool, platformFeeAmount],
+  );
+  const rtp = useMemo(() => (grossRevenue > 0 ? (prizePool / grossRevenue) * 100 : 0), [grossRevenue, prizePool]);
 
   const handleTierChange = (id: string, field: "amount" | "quantity", value: number) => {
     setRewardTiers(current =>
@@ -294,7 +305,11 @@ export function CreatePoolPage() {
                 <div className="flex items-center justify-between rounded-lg bg-[#141B2C] p-4">
                   <div>
                     <p className="font-bold text-[#DCE2F9]">Loop Mode</p>
-                    <p className="text-xs text-[#D0C6AB]">Auto-restart after completion</p>
+                    <p className="text-xs text-[#D0C6AB]">
+                      {loopMode
+                        ? "Loop mode (auto-refreshes the next round when sold out)"
+                        : "One-time mode (ends when sold out)"}
+                    </p>
                   </div>
                   <button
                     type="button"
@@ -440,6 +455,45 @@ export function CreatePoolPage() {
               </div>
             </section>
 
+            <section className={panelClassName}>
+              <div className="mb-6 flex items-center gap-3">
+                <CalculatorIcon className="h-6 w-6 text-[#E9C400]" />
+                <h2 className="font-headline text-xl font-bold uppercase tracking-tight text-[#DCE2F9]">
+                  Cost Preview
+                </h2>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between border-b border-[#4D4732]/10 pb-2">
+                  <span className="text-xs font-medium text-[#D0C6AB]">Bond</span>
+                  <span className="font-headline font-bold text-[#DCE2F9]">
+                    {creationBondAmount.toFixed(2)} USDC{" "}
+                    <span className="text-[10px] font-normal text-[#D0C6AB]">
+                      (Prize {prizePool.toFixed(2)}U + 20%)
+                    </span>
+                  </span>
+                </div>
+                <div className="flex items-center justify-between border-b border-[#4D4732]/10 pb-2">
+                  <span className="text-xs font-medium text-[#D0C6AB]">Platform Fee</span>
+                  <span className="font-headline font-bold text-[#DCE2F9]">
+                    8% <span className="text-[10px] font-normal text-[#D0C6AB]">≈ {platformFeeAmount.toFixed(2)}U</span>
+                  </span>
+                </div>
+                <div className="flex items-center justify-between border-b border-[#4D4732]/10 pb-2">
+                  <span className="text-xs font-medium text-[#D0C6AB]">Estimated Profit</span>
+                  <span
+                    className={`font-headline font-bold ${estimatedProfit >= 0 ? "text-emerald-400" : "text-[#FFB4AB]"}`}
+                  >
+                    {estimatedProfit.toFixed(2)} USDC
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-[#D0C6AB]">RTP</span>
+                  <span className="font-headline font-bold text-[#FFD700]">{rtp.toFixed(1)}%</span>
+                </div>
+              </div>
+            </section>
+
             <div className="space-y-4">
               <div className="rounded-xl border border-[#FFD700]/20 bg-[rgba(24,31,48,0.7)] p-6 shadow-[0_0_30px_rgba(255,215,0,0.1)] backdrop-blur-[24px]">
                 <div className="mb-4 flex items-center gap-2 text-[#FFD700]">
@@ -464,7 +518,7 @@ export function CreatePoolPage() {
                 >
                   <span className="flex items-center justify-center gap-3">
                     <RocketLaunchIcon className="h-5 w-5" />
-                    INITIALIZE POOL
+                    CONFIRM CREATION - LOCK BOND {creationBondAmount.toFixed(2)} USDC
                   </span>
                 </button>
               </div>
@@ -475,6 +529,30 @@ export function CreatePoolPage() {
               >
                 SAVE AS DRAFT
               </button>
+
+              <div className="mt-6 border-t border-[#4D4732]/10 pt-6">
+                <h3 className="mb-4 font-headline text-[10px] font-black uppercase tracking-[0.2em] text-[#D0C6AB]">
+                  Creation Notes
+                </h3>
+                <ul className="space-y-3">
+                  <li className="flex items-start gap-3">
+                    <LockClosedIcon className="mt-0.5 h-4 w-4 shrink-0 text-[#E9C400]" />
+                    <p className="text-[11px] leading-relaxed text-[#D0C6AB]">
+                      Bond will be locked in the contract until the pool ends.
+                    </p>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <ShieldCheckIcon className="mt-0.5 h-4 w-4 shrink-0 text-[#E9C400]" />
+                    <p className="text-[11px] leading-relaxed text-[#D0C6AB]">
+                      Prize structure is encrypted via FHE and cannot be tampered with.
+                    </p>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <BanknotesIcon className="mt-0.5 h-4 w-4 shrink-0 text-[#E9C400]" />
+                    <p className="text-[11px] leading-relaxed text-[#D0C6AB]">Platform charges an 8% sales fee.</p>
+                  </li>
+                </ul>
+              </div>
             </div>
           </div>
         </div>
