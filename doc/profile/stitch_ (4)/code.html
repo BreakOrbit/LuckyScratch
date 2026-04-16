@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-background": "#dce2f9",
+                        "on-surface-variant": "#d0c6ab",
+                        "inverse-surface": "#dce2f9",
+                        "on-primary-container": "#705e00",
+                        "background": "#0c1323",
+                        "tertiary": "#e5faff",
+                        "surface-bright": "#32394a",
+                        "surface-variant": "#2e3546",
+                        "secondary": "#cabeff",
+                        "on-secondary-container": "#b8aaff",
+                        "primary-fixed": "#ffe16d",
+                        "error": "#ffb4ab",
+                        "secondary-fixed": "#e6deff",
+                        "surface": "#0c1323",
+                        "tertiary-fixed-dim": "#00daf3",
+                        "surface-container-lowest": "#070e1d",
+                        "on-primary-fixed": "#221b00",
+                        "outline": "#999077",
+                        "on-surface": "#dce2f9",
+                        "surface-container-high": "#232a3b",
+                        "primary": "#fff6df",
+                        "surface-container": "#181f30",
+                        "on-primary": "#3a3000",
+                        "surface-container-low": "#141b2c",
+                        "on-tertiary-fixed-variant": "#004f58",
+                        "on-secondary-fixed": "#1c0062",
+                        "on-secondary": "#30009b",
+                        "tertiary-fixed": "#9cf0ff",
+                        "on-secondary-fixed-variant": "#4719c9",
+                        "on-primary-fixed-variant": "#544600",
+                        "inverse-primary": "#705d00",
+                        "secondary-container": "#4719c9",
+                        "error-container": "#93000a",
+                        "primary-fixed-dim": "#e9c400",
+                        "surface-dim": "#0c1323",
+                        "on-error-container": "#ffdad6",
+                        "surface-tint": "#e9c400",
+                        "inverse-on-surface": "#293041",
+                        "secondary-fixed-dim": "#cabeff",
+                        "outline-variant": "#4d4732",
+                        "tertiary-container": "#72ebff",
+                        "surface-container-highest": "#2e3546",
+                        "primary-container": "#ffd700",
+                        "on-tertiary-fixed": "#001f24",
+                        "on-tertiary-container": "#006976",
+                        "on-error": "#690005",
+                        "on-tertiary": "#00363d"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+        }
+        .gold-gradient {
+            background: linear-gradient(135deg, #ffd700 0%, #e9c400 50%, #ffe16d 100%);
+        }
+        .gold-shimmer {
+            background: linear-gradient(90deg, transparent, rgba(255, 215, 0, 0.1), transparent);
+            background-size: 200% 100%;
+        }
+        .glow-gold {
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.15);
+        }
+        .search-inner-shadow {
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body min-h-screen">
+<!-- TopNavBar (Shared Component) -->
+<header class="fixed top-0 w-full z-50 flex justify-between items-center px-6 py-4 bg-[#0C1323] shadow-[0_0_20px_rgba(230,222,255,0.08)]">
+<div class="flex items-center gap-8">
+<span class="text-2xl font-bold text-[#FFD700] uppercase italic font-['Space_Grotesk'] tracking-tight">CELESTIAL VAULT</span>
+<nav class="hidden md:flex gap-6 items-center">
+<a class="text-[#D0C6AB] hover:text-[#FFE16D] font-['Space_Grotesk'] tracking-tight transition-colors duration-300" href="#">Marketplace</a>
+<a class="text-[#FFD700] border-b-2 border-[#FFD700] pb-1 font-['Space_Grotesk'] tracking-tight" href="#">Pools</a>
+<a class="text-[#D0C6AB] hover:text-[#FFE16D] font-['Space_Grotesk'] tracking-tight transition-colors duration-300" href="#">Leaderboard</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 text-[#D0C6AB] hover:bg-[#181F30] rounded-full transition-colors duration-300 active:scale-95 transition-transform">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="p-2 text-[#D0C6AB] hover:bg-[#181F30] rounded-full transition-colors duration-300 active:scale-95 transition-transform">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+<div class="w-10 h-10 rounded-full border-2 border-primary-container overflow-hidden">
+<img alt="User Avatar" class="w-full h-full object-cover" data-alt="close up profile portrait of a futuristic cyber warrior with glowing gold accents and high tech armor" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAjlV_-Dy8ajP4JwZdYyRoF1XS9BFy30R1zNNwalR9srpA3s_zlel9ztLZGexl-KRe_VN6kM7B6e1OXOtU5aKZ_lMMzkyxi5Q8xI1y26kMRbKaXwF9vYzs5Lcu2kR_GgatwoxsFyKnNUArBHPinnZg-INPcT_UCkLqyacKTsGMkcQXd5GNS2n0ZzrUmRlRab8AO2pElxX7Dx_eCGdGU_C8TUdzvFw8UwuD5oR4Lbcl0RcWlNYv4NBw2krMiGc___sdZj3NMTX9Ufzcn"/>
+</div>
+</div>
+</header>
+<div class="flex pt-20">
+<!-- SideNavBar (Shared Component) -->
+<aside class="fixed left-0 top-0 h-screen w-64 border-r-0 flex flex-col py-8 border-r border-[#141B2C] bg-[#0C1323] shadow-2xl z-40">
+<div class="px-6 mb-8 mt-16">
+<div class="flex items-center gap-3 p-4 bg-surface-container rounded-xl border-l-4 border-primary-container">
+<img alt="Pro User Profile" class="w-10 h-10 rounded-lg" data-alt="stylized emblem of a golden celestial dragon on a deep navy background high detail digital art" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCkoToAZ3GnAMB66sHMrSfkXPsTa9FVzq_GyRE_4OPGZ2x2aoHB81foazztHih5Xvsie1VytFbjDO_Mmjxn9ee0TcADuwkQu70jhJgaTkgUCppWGTjjIDJyLLGdYyK1mMIAk7iaBbpF7dqxxndcfpLmCdv7b2LRFvWfIyemFF1hJIY7uGItkSI4SdaJ6kE0sbLFqP4vNOJ6Srfx17fTtAVeMhJq9UI1Ztvvk0T_AwIOfo8BI6JitJ-0KfJpvXsqKvL7nQc5GDDlM7DM"/>
+<div>
+<p class="text-on-surface font-headline font-bold text-sm">Deck Commander</p>
+<p class="text-on-surface-variant text-xs font-medium">Legendary Status</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 flex flex-col gap-1 px-2">
+<a class="flex items-center gap-3 text-[#D0C6AB] px-4 py-3 hover:bg-[#141B2C] font-['Inter'] font-medium text-sm transition-all duration-200 hover:translate-x-1" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span> Dashboard
+                </a>
+<a class="flex items-center gap-3 text-[#D0C6AB] px-4 py-3 hover:bg-[#141B2C] font-['Inter'] font-medium text-sm transition-all duration-200 hover:translate-x-1" href="#">
+<span class="material-symbols-outlined" data-icon="token">token</span> Active Pools
+                </a>
+<a class="flex items-center gap-3 text-[#D0C6AB] px-4 py-3 hover:bg-[#141B2C] font-['Inter'] font-medium text-sm transition-all duration-200 hover:translate-x-1" href="#">
+<span class="material-symbols-outlined" data-icon="history">history</span> Transaction History
+                </a>
+<a class="flex items-center gap-3 text-[#FFD700] bg-[#181F30] border-r-4 border-[#FFD700] px-4 py-3 font-['Inter'] font-medium text-sm" href="#">
+<span class="material-symbols-outlined" data-icon="style">style</span> My Cards
+                </a>
+<a class="flex items-center gap-3 text-[#D0C6AB] px-4 py-3 hover:bg-[#141B2C] font-['Inter'] font-medium text-sm transition-all duration-200 hover:translate-x-1" href="#">
+<span class="material-symbols-outlined" data-icon="lock">lock</span> Vault Settings
+                </a>
+</nav>
+<div class="px-4 mb-6">
+<button class="w-full py-3 bg-primary-container text-on-primary-container font-headline font-bold rounded-xl active:scale-95 transition-transform gold-gradient shadow-lg">
+                    Create New Pool
+                </button>
+</div>
+<div class="mt-auto px-2 flex flex-col gap-1 border-t border-[#141B2C] pt-4">
+<a class="flex items-center gap-3 text-[#D0C6AB] px-4 py-3 hover:bg-[#141B2C] font-['Inter'] font-medium text-sm" href="#">
+<span class="material-symbols-outlined" data-icon="help">help</span> Support
+                </a>
+<a class="flex items-center gap-3 text-[#D0C6AB] px-4 py-3 hover:bg-[#141B2C] font-['Inter'] font-medium text-sm" href="#">
+<span class="material-symbols-outlined" data-icon="logout">logout</span> Logout
+                </a>
+</div>
+</aside>
+<!-- Main Content (Right Side) -->
+<main class="ml-64 flex-1 min-h-screen p-8 bg-surface">
+<!-- Top Header Action Row -->
+<div class="flex justify-between items-end mb-8">
+<div>
+<h1 class="text-4xl font-headline font-extrabold text-on-surface tracking-tight">MY POOLS</h1>
+<p class="text-on-surface-variant text-sm mt-1">Manage and track your issued liquidity pools</p>
+</div>
+<button class="px-6 py-3 bg-primary-container text-on-primary-container font-headline font-bold rounded-xl active:scale-95 transition-transform gold-gradient shadow-[0_0_20px_rgba(255,215,0,0.2)] flex items-center gap-2">
+<span class="material-symbols-outlined text-xl">add_circle</span>
+                    Create New Pool
+                </button>
+</div>
+<!-- Summary Stats Bar -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+<div class="bg-surface-container-low p-6 rounded-xl border-l-2 border-primary-container/30 relative overflow-hidden group">
+<div class="absolute inset-0 gold-shimmer opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<p class="text-on-surface-variant text-xs uppercase tracking-widest font-bold mb-2">Total Pools</p>
+<div class="flex items-end gap-2">
+<p class="text-3xl font-headline font-bold text-primary-fixed">12</p>
+<span class="text-tertiary-fixed-dim text-xs mb-1">+2 active</span>
+</div>
+</div>
+<div class="bg-surface-container-low p-6 rounded-xl border-l-2 border-secondary/30 relative overflow-hidden group">
+<p class="text-on-surface-variant text-xs uppercase tracking-widest font-bold mb-2">Total Revenue</p>
+<div class="flex items-end gap-2">
+<p class="text-3xl font-headline font-bold text-on-surface">4.8k <span class="text-sm font-normal text-on-surface-variant">USDC</span></p>
+</div>
+</div>
+<div class="bg-surface-container-low p-6 rounded-xl border-l-2 border-tertiary-fixed-dim/30 relative overflow-hidden group">
+<p class="text-on-surface-variant text-xs uppercase tracking-widest font-bold mb-2">Tickets Sold</p>
+<div class="flex items-end gap-2">
+<p class="text-3xl font-headline font-bold text-on-surface">1,248</p>
+<span class="text-secondary text-xs mb-1">84% fill</span>
+</div>
+</div>
+<div class="bg-surface-container-low p-6 rounded-xl border-l-2 border-error/30 relative overflow-hidden group">
+<p class="text-on-surface-variant text-xs uppercase tracking-widest font-bold mb-2">Bonds Locked</p>
+<div class="flex items-end gap-2">
+<p class="text-3xl font-headline font-bold text-on-surface">650 <span class="text-sm font-normal text-on-surface-variant">USDC</span></p>
+</div>
+</div>
+</div>
+<!-- Search & Sort Bar -->
+<div class="flex flex-col md:flex-row gap-4 mb-8 items-center">
+<div class="flex-1 w-full relative">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+<input class="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-xl py-3 pl-12 pr-4 text-on-surface focus:outline-none focus:border-primary-container/50 focus:ring-1 focus:ring-primary-container/50 transition-all placeholder:text-on-surface-variant/50 search-inner-shadow" placeholder="Search by pool name, ID, or asset..." type="text"/>
+</div>
+<div class="flex items-center gap-3 bg-surface-container-high px-4 py-2 rounded-xl border border-outline-variant/10 glow-gold">
+<span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mr-2">Sort By</span>
+<div class="flex gap-1">
+<button class="px-4 py-1.5 rounded-lg bg-[#1a2133] border border-primary-container/50 text-primary-fixed text-xs font-bold transition-all shadow-inner">Latest</button>
+<button class="px-4 py-1.5 rounded-lg hover:bg-surface-container-highest text-on-surface-variant text-xs font-bold transition-all">Popular</button>
+<button class="px-4 py-1.5 rounded-lg hover:bg-surface-container-highest text-on-surface-variant text-xs font-bold transition-all">Win Rate</button>
+<button class="px-4 py-1.5 rounded-lg hover:bg-surface-container-highest text-on-surface-variant text-xs font-bold transition-all">Price</button>
+</div>
+</div>
+</div>
+<!-- Pool Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
+<!-- Pool Card 1 -->
+<div class="bg-surface-container-high rounded-xl overflow-hidden shadow-2xl hover:shadow-primary-container/5 transition-all duration-300 group flex flex-col border border-outline-variant/10">
+<div class="relative h-48 overflow-hidden">
+<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" data-alt="digital painting of a glowing ancient relic floating in a cosmic nebula with golden energy particles and deep blue space background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA3ND9YwXzvEoy3V0VhPWUL4xZDOPxvB7oQvyiQq8M-GQNs8bEcc5Exu3lblAXRMeVSsW3TBzC3094B3ZoHnI3Ls0873740p0LaamHc7lrpIqD4bLf6UJBgo2ofzmDXhhFGq72ceGuXCfCPOltcNpR7oNfypwhtGt1MEffMbwn95hGDUpiklWcNrhtP-K9DLCLcb_ag1ihg14wSi6jJMj7vFA8aMPgxeK7M1o-QwqEz8pkhi5wkx7n_6ksluD25VR9gN9TbuOGFUBJV"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface-container-high via-transparent to-transparent"></div>
+<div class="absolute top-4 left-4 flex gap-2">
+<span class="bg-primary-container/90 text-on-primary-container px-3 py-1 rounded-full text-[10px] font-bold tracking-tighter uppercase backdrop-blur-md">OPERATING</span>
+<span class="bg-secondary-container/90 text-on-secondary-container px-3 py-1 rounded-full text-[10px] font-bold tracking-tighter uppercase backdrop-blur-md">LOOP</span>
+</div>
+</div>
+<div class="px-6 py-4">
+<h3 class="text-xl font-headline font-bold text-primary-fixed mb-1 uppercase tracking-tight">Ancient Solar Engine</h3>
+<p class="text-on-surface-variant text-xs mb-4">Pool #8842 • Launched 3 days ago</p>
+<div class="mb-4">
+<div class="flex justify-between text-xs font-bold mb-1">
+<span class="text-on-surface">SALES PROGRESS</span>
+<span class="text-tertiary-fixed-dim">34 / 56</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container-lowest rounded-full overflow-hidden">
+<div class="h-full bg-tertiary-fixed-dim shadow-[0_0_8px_rgba(0,218,243,0.5)]" style="width: 60%;"></div>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-4 mb-6">
+<div class="bg-surface-container p-3 rounded-lg border border-outline-variant/5">
+<p class="text-[10px] text-on-surface-variant font-bold uppercase mb-1">Revenue</p>
+<p class="text-sm font-headline font-bold text-on-surface">68 USDC</p>
+</div>
+<div class="bg-surface-container p-3 rounded-lg border border-outline-variant/5">
+<p class="text-[10px] text-on-surface-variant font-bold uppercase mb-1">Platform Fee</p>
+<p class="text-sm font-headline font-bold text-on-surface">5.44 USDC</p>
+</div>
+<div class="bg-surface-container p-3 rounded-lg border border-outline-variant/5">
+<p class="text-[10px] text-on-surface-variant font-bold uppercase mb-1">Paid Prizes</p>
+<p class="text-sm font-headline font-bold text-on-surface">45 USDC</p>
+</div>
+<div class="bg-surface-container p-3 rounded-lg border border-outline-variant/5">
+<p class="text-[10px] text-tertiary-fixed-dim font-bold uppercase mb-1">Claimable</p>
+<p class="text-sm font-headline font-bold text-primary-fixed">12.56 USDC</p>
+</div>
+</div>
+<div class="flex items-center gap-2 mb-6 px-3 py-2 bg-surface-container-lowest/50 rounded-lg border border-outline-variant/10">
+<span class="material-symbols-outlined text-sm text-error" data-icon="lock" style="font-variation-settings: 'FILL' 1;">lock</span>
+<span class="text-[10px] font-bold text-on-surface-variant">BOND STATUS: <span class="text-error">LOCKED</span></span>
+</div>
+</div>
+<div class="mt-auto px-4 pb-6 grid grid-cols-3 gap-2">
+<button class="bg-primary-container text-on-primary-container text-[10px] font-bold py-2 rounded uppercase active:scale-95 transition-transform gold-gradient">Withdraw</button>
+<button class="bg-surface-container-highest text-on-surface text-[10px] font-bold py-2 rounded border border-outline-variant/20 uppercase active:scale-95 transition-transform">Close</button>
+<button class="bg-surface-container-highest text-on-surface text-[10px] font-bold py-2 rounded border border-outline-variant/20 uppercase active:scale-95 transition-transform">Details</button>
+</div>
+</div>
+<!-- Pool Card 2 -->
+<div class="bg-surface-container-high rounded-xl overflow-hidden shadow-2xl hover:shadow-secondary/5 transition-all duration-300 group flex flex-col border border-outline-variant/10">
+<div class="relative h-48 overflow-hidden">
+<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" data-alt="grand celestial forge with liquid gold metal pouring into star shaped molds dark cosmic workshop atmosphere" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBs2K1Ua8xWrOfweu3nv-_D86oeNbbIZRtDkirECJhvX03fj4KjQgCsZxwdCHZaYPvpXEoF4Cst6f8SXQyfHRnEnnh_grgxsZa5Pff1ZqX6zOhZJLsHUJLl8P1wpUGZ7Tzq7UqziRFu_t46jeByNb8VpOk8tYPu2Ma2oLGRpo4M1ZP6gmRdnOZsl1CpREoRxooisEEqX8c9-woKtho719H0wnYdctvVmnS2LBnQ2pbryFoXukRgfhk_rhcWzvkHY-UnRrpnvxVT8HD4"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface-container-high via-transparent to-transparent"></div>
+<div class="absolute top-4 left-4 flex gap-2">
+<span class="bg-on-surface-variant/90 text-on-surface px-3 py-1 rounded-full text-[10px] font-bold tracking-tighter uppercase backdrop-blur-md">CLOSED</span>
+<span class="bg-secondary-container/90 text-on-secondary-container px-3 py-1 rounded-full text-[10px] font-bold tracking-tighter uppercase backdrop-blur-md">ONE-TIME</span>
+</div>
+</div>
+<div class="px-6 py-4">
+<h3 class="text-xl font-headline font-bold text-on-surface-variant mb-1 uppercase tracking-tight">Shadow Realm Gate</h3>
+<p class="text-on-surface-variant text-xs mb-4">Pool #8712 • Finalized 2h ago</p>
+<div class="mb-4">
+<div class="flex justify-between text-xs font-bold mb-1">
+<span class="text-on-surface-variant">SALES PROGRESS</span>
+<span class="text-on-surface-variant">100 / 100</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container-lowest rounded-full overflow-hidden">
+<div class="h-full bg-on-surface-variant" style="width: 100%;"></div>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-4 mb-6">
+<div class="bg-surface-container p-3 rounded-lg opacity-60">
+<p class="text-[10px] text-on-surface-variant font-bold uppercase mb-1">Revenue</p>
+<p class="text-sm font-headline font-bold text-on-surface">450 USDC</p>
+</div>
+<div class="bg-surface-container p-3 rounded-lg opacity-60">
+<p class="text-[10px] text-on-surface-variant font-bold uppercase mb-1">Platform Fee</p>
+<p class="text-sm font-headline font-bold text-on-surface">36.00 USDC</p>
+</div>
+<div class="bg-surface-container p-3 rounded-lg opacity-60">
+<p class="text-[10px] text-on-surface-variant font-bold uppercase mb-1">Paid Prizes</p>
+<p class="text-sm font-headline font-bold text-on-surface">300 USDC</p>
+</div>
+<div class="bg-surface-container p-3 rounded-lg border-2 border-primary-container/40">
+<p class="text-[10px] text-primary-fixed font-bold uppercase mb-1">Total Profit</p>
+<p class="text-sm font-headline font-bold text-primary-fixed">114.00 USDC</p>
+</div>
+</div>
+<div class="flex items-center gap-2 mb-6 px-3 py-2 bg-surface-container-lowest/50 rounded-lg border border-tertiary-fixed-dim/20">
+<span class="material-symbols-outlined text-sm text-tertiary-fixed-dim" data-icon="key">key</span>
+<span class="text-[10px] font-bold text-on-surface-variant">BOND STATUS: <span class="text-tertiary-fixed-dim">REFUNDABLE</span></span>
+</div>
+</div>
+<div class="mt-auto px-4 pb-6 grid grid-cols-2 gap-2">
+<button class="col-span-1 bg-tertiary-container text-on-tertiary-container text-[10px] font-bold py-2 rounded uppercase active:scale-95 transition-transform">Refund Bond</button>
+<button class="col-span-1 bg-surface-container-highest text-on-surface text-[10px] font-bold py-2 rounded border border-outline-variant/20 uppercase active:scale-95 transition-transform">Details</button>
+</div>
+</div>
+<!-- Pool Card 3 -->
+<div class="bg-surface-container-high rounded-xl overflow-hidden shadow-2xl hover:shadow-tertiary-fixed-dim/5 transition-all duration-300 group flex flex-col border border-outline-variant/10">
+<div class="relative h-48 overflow-hidden">
+<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" data-alt="shattered fragments of a crystal orb floating in a dark purple void with streaks of electric cyan lightning neon effects" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCQzFh1u-R5nYyGV80XUOVVDxMQOf0FFjbsZQUqzqV1z3uOlbfHrtN77Q_u7SgjBjfu23i7XPiVY2btZh6Hh_SgQW40WyF3wlZ0W0IZNFXZ-CZejoQ4sLK5dWRo0Nc_UR82wVCc4SM76kJdBj7gEOb1SLBiLZrHxiuvqpimePgiNxlYvGso7t1Y6oUNFoB4u5l2zvpbUDgla8lHPfIaHRoN3SUNAY6crOYUIL1QChX1ZAt6p0nWZkIPX8LBVDqrVCKv7svKjYAszc4t"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface-container-high via-transparent to-transparent"></div>
+<div class="absolute top-4 left-4 flex gap-2">
+<span class="bg-primary-container/90 text-on-primary-container px-3 py-1 rounded-full text-[10px] font-bold tracking-tighter uppercase backdrop-blur-md">OPERATING</span>
+<span class="bg-secondary-container/90 text-on-secondary-container px-3 py-1 rounded-full text-[10px] font-bold tracking-tighter uppercase backdrop-blur-md">LOOP</span>
+</div>
+</div>
+<div class="px-6 py-4">
+<h3 class="text-xl font-headline font-bold text-primary-fixed mb-1 uppercase tracking-tight">Void Shard Lottery</h3>
+<p class="text-on-surface-variant text-xs mb-4">Pool #8901 • Just Launched</p>
+<div class="mb-4">
+<div class="flex justify-between text-xs font-bold mb-1">
+<span class="text-on-surface">SALES PROGRESS</span>
+<span class="text-tertiary-fixed-dim">2 / 200</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container-lowest rounded-full overflow-hidden">
+<div class="h-full bg-tertiary-fixed-dim" style="width: 1%;"></div>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-4 mb-6">
+<div class="bg-surface-container p-3 rounded-lg">
+<p class="text-[10px] text-on-surface-variant font-bold uppercase mb-1">Revenue</p>
+<p class="text-sm font-headline font-bold text-on-surface">5 USDC</p>
+</div>
+<div class="bg-surface-container p-3 rounded-lg">
+<p class="text-[10px] text-on-surface-variant font-bold uppercase mb-1">Platform Fee</p>
+<p class="text-sm font-headline font-bold text-on-surface">0.40 USDC</p>
+</div>
+<div class="bg-surface-container p-3 rounded-lg">
+<p class="text-[10px] text-on-surface-variant font-bold uppercase mb-1">Paid Prizes</p>
+<p class="text-sm font-headline font-bold text-on-surface">0 USDC</p>
+</div>
+<div class="bg-surface-container p-3 rounded-lg">
+<p class="text-[10px] text-tertiary-fixed-dim font-bold uppercase mb-1">Claimable</p>
+<p class="text-sm font-headline font-bold text-primary-fixed">0.60 USDC</p>
+</div>
+</div>
+<div class="flex items-center gap-2 mb-6 px-3 py-2 bg-surface-container-lowest/50 rounded-lg border border-outline-variant/10">
+<span class="material-symbols-outlined text-sm text-error" data-icon="lock" style="font-variation-settings: 'FILL' 1;">lock</span>
+<span class="text-[10px] font-bold text-on-surface-variant">BOND STATUS: <span class="text-error">LOCKED</span></span>
+</div>
+</div>
+<div class="mt-auto px-4 pb-6 grid grid-cols-3 gap-2">
+<button class="bg-primary-container/20 text-on-surface-variant text-[10px] font-bold py-2 rounded uppercase cursor-not-allowed">Withdraw</button>
+<button class="bg-surface-container-highest text-on-surface text-[10px] font-bold py-2 rounded border border-outline-variant/20 uppercase active:scale-95 transition-transform">Close</button>
+<button class="bg-surface-container-highest text-on-surface text-[10px] font-bold py-2 rounded border border-outline-variant/20 uppercase active:scale-95 transition-transform">Details</button>
+</div>
+</div>
+</div>
+<!-- Pagination -->
+<div class="mt-12 flex justify-center items-center gap-6">
+<button class="w-10 h-10 rounded-full bg-surface-container-high border border-outline-variant/20 flex items-center justify-center text-on-surface-variant hover:border-primary-container hover:text-primary-container transition-colors">
+<span class="material-symbols-outlined" data-icon="chevron_left">chevron_left</span>
+</button>
+<div class="flex gap-2">
+<button class="w-10 h-10 rounded-full bg-primary-container text-on-primary-container font-headline font-bold gold-gradient">1</button>
+<button class="w-10 h-10 rounded-full bg-surface-container-high text-on-surface font-headline font-bold border border-outline-variant/10 hover:border-primary-container transition-colors">2</button>
+<button class="w-10 h-10 rounded-full bg-surface-container-high text-on-surface font-headline font-bold border border-outline-variant/10 hover:border-primary-container transition-colors">3</button>
+<span class="w-10 h-10 flex items-center justify-center text-on-surface-variant">...</span>
+<button class="w-10 h-10 rounded-full bg-surface-container-high text-on-surface font-headline font-bold border border-outline-variant/10 hover:border-primary-container transition-colors">8</button>
+</div>
+<button class="w-10 h-10 rounded-full bg-surface-container-high border border-outline-variant/20 flex items-center justify-center text-on-surface-variant hover:border-primary-container hover:text-primary-container transition-colors">
+<span class="material-symbols-outlined" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+</main>
+</div>
+</body></html>
