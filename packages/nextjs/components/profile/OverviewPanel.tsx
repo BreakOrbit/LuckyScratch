@@ -1,15 +1,15 @@
 import {
-  WalletIcon,
-  TrophyIcon,
+  ArrowRightIcon,
   ArrowTrendingUpIcon,
   CommandLineIcon,
   CpuChipIcon,
-  ArrowRightIcon,
+  TrophyIcon,
+  WalletIcon,
 } from "@heroicons/react/24/outline";
 
 export function OverviewPanel() {
   return (
-    <>
+    <div className="space-y-8">
       {/* Section 1: Wallet Overview */}
       <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="glass-panel rounded-xl p-8 bg-gradient-to-br from-ns-surface-container to-ns-surface-container-high border-t-2 border-ns-primary-container/20">
@@ -20,9 +20,7 @@ export function OverviewPanel() {
             <WalletIcon className="w-6 h-6 text-ns-primary" />
           </div>
           <div className="flex items-baseline gap-3 mb-2">
-            <h3 className="text-4xl font-headline font-black text-ns-on-surface tracking-tighter">
-              12,450.00
-            </h3>
+            <h3 className="text-4xl font-headline font-black text-ns-on-surface tracking-tighter">12,450.00</h3>
             <span className="text-ns-primary-container font-bold text-sm">USDC</span>
           </div>
           <p className="text-xs text-ns-on-surface-variant mb-6 flex items-center gap-1">
@@ -42,9 +40,7 @@ export function OverviewPanel() {
             <TrophyIcon className="w-6 h-6 text-ns-secondary" />
           </div>
           <div className="flex items-baseline gap-3 mb-6">
-            <h3 className="text-4xl font-headline font-black text-ns-on-surface tracking-tighter">
-              45,892.40
-            </h3>
+            <h3 className="text-4xl font-headline font-black text-ns-on-surface tracking-tighter">45,892.40</h3>
             <span className="text-ns-secondary font-bold text-sm">USDC</span>
           </div>
           <div className="flex gap-2">
@@ -65,16 +61,14 @@ export function OverviewPanel() {
           </h4>
           <div className="h-px flex-1 bg-gradient-to-l from-transparent to-ns-outline-variant/30"></div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-ns-surface-container-high border border-ns-outline-variant/10 rounded-xl p-5 hover:bg-ns-surface-container-highest transition-colors">
-            <div className="text-[10px] text-ns-on-surface-variant uppercase font-semibold mb-2">
-              Purchased
-            </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="border border-ns-outline-variant/10 rounded-xl p-5 hover:bg-ns-surface-container-highest transition-colors">
+            <div className="text-[10px] text-ns-on-surface-variant uppercase font-semibold mb-2">Purchased</div>
             <div className="text-2xl font-headline font-bold">
               1,240 <span className="text-xs text-ns-on-surface-variant">TIX</span>
             </div>
           </div>
-          <div className="bg-ns-surface-container-high border border-ns-outline-variant/10 rounded-xl p-5 hover:bg-ns-surface-container-highest transition-colors">
+          <div className="border border-ns-outline-variant/10 rounded-xl p-5 hover:bg-ns-surface-container-highest transition-colors">
             <div className="text-[10px] text-ns-on-surface-variant uppercase font-semibold mb-2 text-ns-primary">
               Won
             </div>
@@ -82,13 +76,22 @@ export function OverviewPanel() {
               142 <span className="text-xs text-ns-on-surface-variant">PRIZES</span>
             </div>
           </div>
-          <div className="bg-ns-surface-container-high border border-ns-outline-variant/10 rounded-xl p-5 hover:bg-ns-surface-container-highest transition-colors">
+          <div className="border border-ns-outline-variant/10 rounded-xl p-5 hover:bg-ns-surface-container-highest transition-colors">
             <div className="text-[10px] text-ns-on-surface-variant uppercase font-semibold mb-2 text-ns-tertiary">
-              Yield
+              Rate
             </div>
             <div className="text-2xl font-headline font-bold text-ns-tertiary">
-              1.2 <span className="text-xs text-ns-on-surface-variant">ETH</span>
+              1.2 <span className="text-xs text-ns-on-surface-variant">%</span>
             </div>
+          </div>
+          <div className="border border-ns-outline-variant/10 rounded-xl p-5 hover:bg-ns-surface-container-highest transition-colors">
+            <div className="text-[10px] text-ns-on-surface-variant uppercase font-semibold mb-2 text-ns-primary-container">
+              MAX SINGLE
+            </div>
+            <div className="text-2xl font-headline font-bold text-ns-primary-container">
+              50 <span className="text-xs text-ns-on-surface-variant">USDC</span>
+            </div>
+            <div className="text-[10px] text-ns-primary-container/80 mt-1 font-semibold">黄金传奇</div>
           </div>
         </div>
       </section>
@@ -112,14 +115,16 @@ export function OverviewPanel() {
               </div>
               <div className="space-y-1">
                 <div className="text-[10px] text-ns-on-surface-variant uppercase tracking-widest">Total Revenue</div>
-                <div className="text-3xl font-headline font-bold text-ns-on-surface">1,500 <span className="text-sm">USDC</span></div>
+                <div className="text-3xl font-headline font-bold text-ns-on-surface">
+                  1,500 <span className="text-sm">USDC</span>
+                </div>
                 <div className="text-[10px] text-ns-tertiary font-mono">REVENUE_SHARE: 5%</div>
               </div>
               <div className="space-y-1">
                 <div className="text-[10px] text-ns-on-surface-variant uppercase tracking-widest">Tickets Sold</div>
                 <div className="text-3xl font-headline font-bold text-ns-on-surface">420/600</div>
                 <div className="w-full bg-ns-surface-container-lowest h-1.5 rounded-full mt-2">
-                  <div className="bg-ns-tertiary h-full rounded-full" style={{ width: '70%' }}></div>
+                  <div className="bg-ns-tertiary h-full rounded-full" style={{ width: "70%" }}></div>
                 </div>
               </div>
             </div>
@@ -187,6 +192,6 @@ export function OverviewPanel() {
           </table>
         </div>
       </section>
-    </>
+    </div>
   );
 }

@@ -1,18 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import {
-  BellAlertIcon,
-  BoltIcon,
-  CheckCircleIcon,
-  FingerPrintIcon,
-  LockClosedIcon,
-  PhotoIcon,
-  ShieldCheckIcon,
-  SparklesIcon,
-  UserCircleIcon,
-} from "@heroicons/react/24/outline";
-import { notification } from "~~/utils/scaffold-eth";
+import { BoltIcon, CheckCircleIcon, FingerPrintIcon, PhotoIcon, UserCircleIcon } from "@heroicons/react/24/outline";
 
 type SettingsState = {
   nickname: string;
@@ -29,38 +18,6 @@ const defaultSettings: SettingsState = {
   terminalHints: false,
   autoLock: true,
 };
-
-const settingCards = [
-  {
-    key: "broadcastWins",
-    title: "Broadcast Winning Moments",
-    description: "Show your nickname and avatar in global prize feeds and vault winner highlights.",
-    icon: SparklesIcon,
-    accent: "text-ns-primary-container",
-  },
-  {
-    key: "securityAlerts",
-    title: "Security Alerts",
-    description: "Send terminal prompts for profile changes, reveal approvals, and suspicious sessions.",
-    icon: ShieldCheckIcon,
-    accent: "text-ns-secondary",
-  },
-  {
-    key: "terminalHints",
-    title: "Terminal Hints",
-    description: "Display contextual helper hints while claiming rewards or managing creator pools.",
-    icon: BellAlertIcon,
-    accent: "text-ns-tertiary",
-  },
-  {
-    key: "autoLock",
-    title: "Auto Lock Vault",
-    description: "Require a quick re-auth after 15 minutes away from the profile terminal.",
-    icon: LockClosedIcon,
-    accent: "text-ns-primary",
-  },
-] as const;
-
 const isSameSettings = (left: SettingsState, right: SettingsState) =>
   left.nickname === right.nickname &&
   left.broadcastWins === right.broadcastWins &&
@@ -68,31 +25,10 @@ const isSameSettings = (left: SettingsState, right: SettingsState) =>
   left.terminalHints === right.terminalHints &&
   left.autoLock === right.autoLock;
 
-const SettingToggle = ({ enabled, onToggle }: { enabled: boolean; onToggle: () => void }) => {
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      aria-pressed={enabled}
-      className={`relative inline-flex h-7 w-12 items-center rounded-full border transition-all duration-300 ${
-        enabled
-          ? "border-ns-primary-container/60 bg-ns-primary-container/80 shadow-[0_0_20px_rgba(255,215,0,0.18)]"
-          : "border-ns-outline-variant/30 bg-ns-surface-container-lowest"
-      }`}
-    >
-      <span
-        className={`h-5 w-5 rounded-full bg-[#0c1323] transition-transform duration-300 ${
-          enabled ? "translate-x-6" : "translate-x-1"
-        }`}
-      />
-    </button>
-  );
-};
-
 export function SettingsPanel() {
   const [settings, setSettings] = useState(defaultSettings);
-  const [savedSettings, setSavedSettings] = useState(defaultSettings);
-  const [lastSavedAt, setLastSavedAt] = useState("Unsaved session");
+  const savedSettings = defaultSettings;
+  const lastSavedAt = "Unsaved session";
 
   const isDirty = !isSameSettings(settings, savedSettings);
 
@@ -101,17 +37,6 @@ export function SettingsPanel() {
       ...current,
       [key]: value,
     }));
-  };
-
-  const handleSave = () => {
-    setSavedSettings(settings);
-    setLastSavedAt(
-      new Date().toLocaleTimeString("en-US", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    );
-    notification.success("Terminal settings saved");
   };
 
   return (
@@ -271,48 +196,6 @@ export function SettingsPanel() {
           </div>
         </div>
       </section>
-
-      <section className="grid gap-4 md:grid-cols-2">
-        {settingCards.map(({ key, title, description, icon: Icon, accent }) => (
-          <div
-            key={key}
-            className="glass-panel rounded-2xl border border-ns-outline-variant/10 p-6 transition-colors hover:bg-ns-surface-container-high/70"
-          >
-            <div className="flex items-start justify-between gap-5">
-              <div className="flex gap-4">
-                <div className="mt-1 rounded-xl border border-ns-outline-variant/10 bg-ns-surface-container-high p-3">
-                  <Icon className={`h-6 w-6 ${accent}`} />
-                </div>
-                <div>
-                  <h3 className="font-headline text-lg font-bold text-ns-on-surface">{title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-ns-on-surface-variant">{description}</p>
-                </div>
-              </div>
-              <SettingToggle enabled={settings[key]} onToggle={() => updateSetting(key, !settings[key])} />
-            </div>
-          </div>
-        ))}
-      </section>
-
-      <div className="flex flex-col gap-4 rounded-2xl border border-ns-outline-variant/10 bg-gradient-to-r from-ns-surface-container to-ns-surface-container-high p-6 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="text-[10px] font-black uppercase tracking-[0.25em] text-ns-on-surface-variant">
-            Final Action
-          </div>
-          <div className="mt-2 font-headline text-xl font-bold text-ns-on-surface">
-            Commit terminal settings to your profile shell
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={!isDirty}
-          className="btn border-none bg-gradient-to-r from-ns-primary-container to-ns-primary px-8 text-xs font-black uppercase tracking-[0.25em] text-ns-on-primary shadow-[0_0_30px_rgba(255,215,0,0.25)] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <BoltIcon className="h-5 w-5" />
-          Save Changes
-        </button>
-      </div>
     </div>
   );
 }
