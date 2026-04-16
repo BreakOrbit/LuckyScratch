@@ -37,6 +37,7 @@ This repository is currently running in **Hardhat flavor**.
 - The profile frontend sidebar `Setting` action now renders a converted settings terminal panel from `doc/profile/user_profile_settings_terminal/code.html` via `packages/nextjs/components/profile/SettingsPanel.tsx`
 - The profile frontend sidebar `My Pools` action now renders the converted right-side card grid layout from `doc/profile/stitch_ (4)/code.html` via `packages/nextjs/components/profile/MyPoolsPanel.tsx`
 - The profile `My Pools` panel CTA now routes to `/create-pool`
+- `packages/nextjs/app/tickets/` now provides a wallet-driven ticket inventory page plus a ticket-specific reveal/decrypt workspace wired to the backend read model and Zama proxy flow
 - Product and contract design inputs live in `doc/`, especially `doc/smart-contract-design.md` and `doc/smart-contract-implementation-plan.md`
 - Backend implementation planning and codegen guidance now live in `doc/backend-design.md` and `doc/backend-codegen-plan.md`
 - The backend migration now includes the LuckyScratch read model, `deployment_registry`, `indexed_logs`, recurring `jobs`, `gasless_controls`, and audit/cost tables needed by the live API/worker
@@ -72,6 +73,8 @@ Current LuckyScratch rule highlights:
 - Gasless success is represented onchain by `GaslessExecuted`; rejected gasless attempts are tracked by the relayer service and transaction receipts rather than a persisted onchain `GaslessRejected` event
 - The backend gasless relayer now prechecks Treasury token allowance before gasless purchase execution, and it rejects gasless `batch-scratch` requests that span multiple pools or rounds because the current risk/cost attribution model is single-scope
 - The backend reveal service now emits official Zama relayer-sdk context by default on Sepolia, but the relayer URL handed to clients is a ticket-scoped backend proxy that fronts Zama `keyurl` / `user-decrypt`; if `ZAMA_API_KEY` is configured, keep it server-side and never expose it to the client
+- The frontend now boots the browser-side relayer SDK from the official UMD script, keeps ticket decryption keypairs in an in-memory runtime provider, and initializes against the backend-issued ticket-scoped relayer URL rather than a direct upstream relayer URL
+- The frontend ticket workspace currently covers `GET /users/{address}/tickets`, `GET /tickets/{ticketId}`, `POST /tickets/{ticketId}/reveal-auth`, `GET /tickets/{ticketId}/claim-precheck`, and browser-side `user-decrypt` through the backend proxy; claim submission UI is present but remains blocked until a dedicated claim-proof assembly path exists on top of the current `user-decrypt` flow
 - The backend Zama proxy now returns a stable local decryption `jobId` based on `zama_request_ref`, persists a `submitting` state before outbound relayer calls, fails reveal-auth fast when it cannot construct a public proxy URL, and includes a worker-side reconcile loop that advances submitted upstream jobs while timing out stale `submitting` rows
 - The backend worker now reclaims stale PostgreSQL `jobs.status='running'` locks after `JOB_LOCK_TIMEOUT`, the gasless relayer persists the signed `tx_hash` before send and lets the indexer backfill missing receipt fields from `GaslessExecuted`, and the API now maps service-level validation/conflict errors to stable public HTTP responses instead of leaking raw internal errors
 - Because the currently pinned `@zama-fhe/relayer-sdk` 0.4.1 / relayer v2 POST flow does not expose a client-controlled idempotency key or lookup-by-local-request-ref API, the backend still cannot losslessly recover the rare case where the upstream relayer already accepted a decrypt request but the backend crashed before persisting the returned upstream `jobId`
@@ -143,6 +146,11 @@ Backend runtime prerequisites:
 - `API_PUBLIC_BASE_URL` is optional for direct deployments, but effectively required when the backend sits behind a reverse proxy that does not forward the public host/proto headers and reveal-auth must emit a stable absolute Zama proxy URL
 - `REVEAL_SUBMIT_TIMEOUT` is optional and controls how long a local Zama decrypt request may remain in `submitting` before the worker marks it failed
 - `JOB_LOCK_TIMEOUT` is optional and controls when a stale PostgreSQL-backed recurring job lock is reclaimed after a worker crash
+
+Frontend runtime prerequisites:
+
+- `NEXT_PUBLIC_BACKEND_URL` is optional but recommended whenever Next.js is not reverse-proxying the backend on the same origin; the current frontend falls back to `http://127.0.0.1:8080` on localhost
+- `packages/nextjs/public/tfhe_bg.wasm` and `packages/nextjs/public/kms_lib_bg.wasm` must remain present for browser-side relayer SDK initialization
 
 ### Current Verification Commands
 
