@@ -16,8 +16,9 @@ export const menuLinks: HeaderMenuLink[] = [
   { label: "Home", href: "/" },
   { label: "Store", href: "/store" },
   { label: "My Tickets", href: "/my-tickets" },
-  { label: "Create Pool", href: "/create-pool" },
+  { label: "Reveal Workspace", href: "/tickets" },
   { label: "My Profile", href: "/profile" },
+  { label: "Debug", href: "/debug" },
 ];
 
 export const HeaderMenuLinks = () => {

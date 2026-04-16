@@ -1,6 +1,7 @@
+import { Inter, Space_Grotesk } from "next/font/google";
+import Script from "next/script";
 import "@rainbow-me/rainbowkit/styles.css";
 import "@scaffold-ui/components/styles.css";
-import { Space_Grotesk, Inter } from "next/font/google";
 import { ScaffoldEthAppWithProviders } from "~~/components/ScaffoldEthAppWithProviders";
 import { ThemeProvider } from "~~/components/ThemeProvider";
 import "~~/styles/globals.css";
@@ -29,7 +30,11 @@ export const metadata = getMetadata({
 const ScaffoldEthApp = ({ children }: { children: React.ReactNode }) => {
   return (
     <html suppressHydrationWarning className={`${spaceGrotesk.variable} ${inter.variable}`}>
-      <body className="bg-ns-background text-ns-on-surface font-body selection:bg-ns-primary selection:text-ns-background">
+      <body
+        suppressHydrationWarning
+        className="bg-ns-background text-ns-on-surface font-body selection:bg-ns-primary selection:text-ns-background"
+      >
+        <Script src="https://cdn.zama.org/relayer-sdk-js/0.4.1/relayer-sdk-js.umd.cjs" strategy="beforeInteractive" />
         <ThemeProvider defaultTheme="dark" forcedTheme="dark" enableSystem={false}>
           <ScaffoldEthAppWithProviders>{children}</ScaffoldEthAppWithProviders>
         </ThemeProvider>
