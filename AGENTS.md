@@ -33,7 +33,9 @@ This repository is currently running in **Hardhat flavor**.
 - Production deployment now targets real `cUSDC` addresses and real Chainlink VRF v2.5 network settings on supported networks such as Sepolia; no local mock token is deployed by the LuckyScratch deploy script
 - The homepage no longer exposes a scaffold demo contract panel; it is now a project status entry page
 - The store frontend now renders a client-side sortable, paginated pool grid under `packages/nextjs/app/store/page.tsx` with supporting UI components in `packages/nextjs/components/store/`
+- The create-pool frontend now renders a converted creator terminal page under `packages/nextjs/app/create-pool/page.tsx` with the main body in `packages/nextjs/components/create-pool/CreatePoolPage.tsx`; the page currently includes editable numeric inputs, an interactive loop-mode toggle, and add/remove/edit reward tiers while global header/footer continue to come from the shared app shell
 - The profile frontend sidebar `Setting` action now renders a converted settings terminal panel from `doc/profile/user_profile_settings_terminal/code.html` via `packages/nextjs/components/profile/SettingsPanel.tsx`
+- The profile `My Pools` panel CTA now routes to `/create-pool`
 - Product and contract design inputs live in `doc/`, especially `doc/smart-contract-design.md` and `doc/smart-contract-implementation-plan.md`
 - Backend implementation planning and codegen guidance now live in `doc/backend-design.md` and `doc/backend-codegen-plan.md`
 - The backend migration now includes the LuckyScratch read model, `deployment_registry`, `indexed_logs`, recurring `jobs`, `gasless_controls`, and audit/cost tables needed by the live API/worker
@@ -273,6 +275,15 @@ SE-2 also provides other hooks to interact with blockchain data: `useScaffoldWat
 - `Balance`: Show ETH balance in ether and USD
 - `EtherInput`: Number input with ETH/USD conversion toggle
 - `IntegerInput`: Integer-only input with wei conversion
+
+### Frontend Route Map
+
+- Shared global header/footer are mounted by `packages/nextjs/components/ScaffoldEthAppWithProviders.tsx`
+- Home route: `packages/nextjs/app/page.tsx`
+- Store route: `packages/nextjs/app/store/page.tsx`
+- My Tickets route: `packages/nextjs/app/my-tickets/page.tsx`
+- Profile route: `packages/nextjs/app/profile/page.tsx`
+- Create Pool route: `packages/nextjs/app/create-pool/page.tsx`
 
 ### Notifications & Error Handling
 

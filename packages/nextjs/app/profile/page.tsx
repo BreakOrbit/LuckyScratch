@@ -17,8 +17,13 @@ import { SettingsPanel } from "~~/components/profile/SettingsPanel";
 export default function ProfilePage() {
   const [activeSection, setActiveSection] = useState("overview");
 
-  const renderSectionShell = (content: ReactNode, options?: { padded?: boolean }) => {
+  const renderSectionShell = (content: ReactNode, options?: { padded?: boolean; framed?: boolean }) => {
     const padded = options?.padded ?? true;
+    const framed = options?.framed ?? true;
+
+    if (!framed) {
+      return <div className={padded ? "w-full p-6 md:p-8" : "w-full"}>{content}</div>;
+    }
 
     return (
       <div className="relative z-20 w-full overflow-hidden rounded-xl border border-ns-outline-variant/30 bg-[#0c1323] shadow-2xl">
@@ -28,11 +33,11 @@ export default function ProfilePage() {
   };
 
   return (
-    <main className="pt-32 pb-12 px-4 md:px-8 max-w-[1600px] mx-auto relative min-h-screen font-body text-ns-on-surface">
+    <main className="w-full pt-32 pb-12 px-4 md:px-8 max-w-[1600px] mx-auto relative min-h-screen font-body text-ns-on-surface">
       {/* Background Glow */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-ns-secondary-container opacity-5 rounded-full blur-[120px] pointer-events-none -z-10"></div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
+      <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
         {/* Left Column: Profile Hub */}
         <aside className="lg:col-span-3 space-y-6">
           <div className="glass-panel rounded-xl p-8 relative overflow-hidden group">
@@ -122,7 +127,7 @@ export default function ProfilePage() {
 
           {activeSection === "my-tickets" && renderSectionShell(<MyTicketsPage />, { padded: false })}
 
-          {activeSection === "my-pools" && renderSectionShell(<MyPoolsPanel />)}
+          {activeSection === "my-pools" && renderSectionShell(<MyPoolsPanel />, { framed: false })}
 
           {activeSection === "setting" && renderSectionShell(<SettingsPanel />)}
         </div>
