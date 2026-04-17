@@ -2,18 +2,30 @@
 
 import { useMemo, useState } from "react";
 import {
+  AdjustmentsHorizontalIcon,
   ArrowUpTrayIcon,
   BanknotesIcon,
+  BuildingLibraryIcon,
   CalculatorIcon,
+  ChartBarIcon,
+  CheckCircleIcon,
+  CommandLineIcon,
+  ExclamationTriangleIcon,
   InformationCircleIcon,
+  ListBulletIcon,
   LockClosedIcon,
   PencilSquareIcon,
+  PhotoIcon,
+  PlusIcon,
   RocketLaunchIcon,
   ShieldCheckIcon,
+  SparklesIcon,
   TrashIcon,
 } from "@heroicons/react/24/outline";
+import { CheckCircleIcon as CheckCircleSolidIcon } from "@heroicons/react/24/solid";
 
 type PoolType = "official" | "community";
+type LotteryWinType = "highWinRate" | "highMultiplier" | "balanced";
 
 type RewardTier = {
   id: string;
@@ -39,12 +51,9 @@ const panelClassName = "rounded-xl border border-[#4D4732]/15 bg-[rgba(24,31,48,
 
 const tierAccentClasses = ["border-[#FFD700]", "border-[#CABEFF]", "border-[#00DAF3]"];
 
-const MaterialIcon = ({ name, className = "" }: { name: string; className?: string }) => (
-  <span className={`material-symbols-outlined ${className}`}>{name}</span>
-);
-
 export function CreatePoolPage() {
   const [poolType, setPoolType] = useState<PoolType>("official");
+  const [lotteryWinType, setLotteryWinType] = useState<LotteryWinType>("balanced");
   const [poolName, setPoolName] = useState("Celestial Legends #1");
   const [ticketPrice, setTicketPrice] = useState(5);
   const [description, setDescription] = useState("Legend-grade scratch vault tuned for cinematic prize reveals.");
@@ -52,6 +61,52 @@ export function CreatePoolPage() {
   const [totalTickets, setTotalTickets] = useState(1000);
   const [winRate, setWinRate] = useState(35);
   const [loopMode, setLoopMode] = useState(false);
+
+  const LOTTERY_WIN_TYPES: {
+    key: LotteryWinType;
+    label: string;
+    subtitle: string;
+    description: string;
+    icon: string;
+    accent: string;
+    defaultWinRate: number;
+  }[] = [
+    {
+      key: "highWinRate",
+      label: "High Win Rate",
+      subtitle: "Frequent small wins",
+      description: "High win probability with smaller prize amounts — most players win often.",
+      icon: "🎯",
+      accent: "#00DAF3",
+      defaultWinRate: 60,
+    },
+    {
+      key: "highMultiplier",
+      label: "High Multiplier",
+      subtitle: "Rare big jackpots",
+      description: "Low win rate but massive prize payouts — fortune favors the bold.",
+      icon: "💎",
+      accent: "#CABEFF",
+      defaultWinRate: 25,
+    },
+    {
+      key: "balanced",
+      label: "Balanced",
+      subtitle: "Even distribution",
+      description: "Prizes spread across big and small tiers — the best of both worlds.",
+      icon: "⚖️",
+      accent: "#FFD700",
+      defaultWinRate: 35,
+    },
+  ];
+
+  const handleLotteryWinTypeChange = (type: LotteryWinType) => {
+    setLotteryWinType(type);
+    const selected = LOTTERY_WIN_TYPES.find(t => t.key === type);
+    if (selected) {
+      setWinRate(selected.defaultWinRate);
+    }
+  };
   const [rewardTiers, setRewardTiers] = useState(INITIAL_REWARD_TIERS);
 
   const allocatedPrize = useMemo(
@@ -100,7 +155,7 @@ export function CreatePoolPage() {
       <div className="mx-auto max-w-7xl px-4 pb-12 pt-10 md:px-8 md:pt-12">
         <header className="mb-10">
           <div className="mb-2 flex items-center gap-3 text-[#9CF0FF]">
-            <MaterialIcon name="terminal" className="text-sm" />
+            <CommandLineIcon className="h-4 w-4" />
             <span className="font-headline text-xs uppercase tracking-widest">Terminal Protocol v2.4</span>
           </div>
           <h1 className="font-headline text-4xl font-bold tracking-tight text-[#DCE2F9] md:text-5xl">
@@ -116,7 +171,7 @@ export function CreatePoolPage() {
           <div className="space-y-6 lg:col-span-8">
             <section className={panelClassName}>
               <div className="mb-6 flex items-center gap-3">
-                <MaterialIcon name="verified_user" className="text-xl text-[#E9C400]" />
+                <ShieldCheckIcon className="h-6 w-6 text-[#E9C400]" />
                 <h2 className="font-headline text-xl font-bold text-[#DCE2F9]">Pool Type Selection</h2>
               </div>
 
@@ -134,10 +189,11 @@ export function CreatePoolPage() {
                     </p>
                     <p className="mt-1 text-xs text-[#D0C6AB]">Verified by LuckyScratch Core</p>
                   </div>
-                  <MaterialIcon
-                    name={poolType === "official" ? "radio_button_checked" : "radio_button_unchecked"}
-                    className={poolType === "official" ? "text-[#FFD700]" : "text-[#D0C6AB]"}
-                  />
+                  {poolType === "official" ? (
+                    <CheckCircleSolidIcon className="h-6 w-6 text-[#FFD700]" />
+                  ) : (
+                    <div className="h-6 w-6 rounded-full border-2 border-[#D0C6AB]" />
+                  )}
                 </button>
 
                 <button
@@ -153,17 +209,71 @@ export function CreatePoolPage() {
                     </p>
                     <p className="mt-1 text-xs text-[#D0C6AB]">User-generated and autonomous</p>
                   </div>
-                  <MaterialIcon
-                    name={poolType === "community" ? "radio_button_checked" : "radio_button_unchecked"}
-                    className={poolType === "community" ? "text-[#FFD700]" : "text-[#D0C6AB]"}
-                  />
+                  {poolType === "community" ? (
+                    <CheckCircleSolidIcon className="h-6 w-6 text-[#FFD700]" />
+                  ) : (
+                    <div className="h-6 w-6 rounded-full border-2 border-[#D0C6AB]" />
+                  )}
                 </button>
               </div>
             </section>
 
             <section className={panelClassName}>
               <div className="mb-6 flex items-center gap-3">
-                <MaterialIcon name="settings_input_component" className="text-xl text-[#E9C400]" />
+                <SparklesIcon className="h-6 w-6 text-[#E9C400]" />
+                <h2 className="font-headline text-xl font-bold text-[#DCE2F9]">Lottery Win Type</h2>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                {LOTTERY_WIN_TYPES.map(type => {
+                  const isSelected = lotteryWinType === type.key;
+                  return (
+                    <button
+                      key={type.key}
+                      type="button"
+                      onClick={() => handleLotteryWinTypeChange(type.key)}
+                      className={`group relative flex flex-col rounded-xl p-5 text-left transition-all duration-200 ${
+                        isSelected ? "bg-[#2E3546] shadow-lg" : "bg-[#181F30] hover:bg-[#232A3B] hover:shadow-md"
+                      }`}
+                      style={
+                        isSelected
+                          ? {
+                              boxShadow: `0 0 24px ${type.accent}22`,
+                              outline: `2px solid ${type.accent}`,
+                              outlineOffset: "-2px",
+                            }
+                          : undefined
+                      }
+                    >
+                      {isSelected && (
+                        <div
+                          className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full text-[10px]"
+                          style={{ backgroundColor: type.accent, color: "#0C1323" }}
+                        >
+                          ✓
+                        </div>
+                      )}
+
+                      <span className="mb-2 text-2xl">{type.icon}</span>
+
+                      <p
+                        className="font-headline text-lg font-bold transition-colors"
+                        style={{ color: isSelected ? type.accent : "#DCE2F9" }}
+                      >
+                        {type.label}
+                      </p>
+                      <p className="text-[11px] font-medium text-[#D0C6AB]">{type.subtitle}</p>
+
+                      <p className="mt-3 text-[11px] leading-relaxed text-[#D0C6AB]/80">{type.description}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
+            <section className={panelClassName}>
+              <div className="mb-6 flex items-center gap-3">
+                <AdjustmentsHorizontalIcon className="h-6 w-6 text-[#E9C400]" />
                 <h2 className="font-headline text-xl font-bold text-[#DCE2F9]">Core Configuration</h2>
               </div>
 
@@ -219,7 +329,7 @@ export function CreatePoolPage() {
 
             <section className={panelClassName}>
               <div className="mb-6 flex items-center gap-3">
-                <MaterialIcon name="account_balance" className="text-xl text-[#E9C400]" />
+                <BuildingLibraryIcon className="h-6 w-6 text-[#E9C400]" />
                 <h2 className="font-headline text-xl font-bold text-[#DCE2F9]">Financial Architecture</h2>
               </div>
 
@@ -275,7 +385,7 @@ export function CreatePoolPage() {
 
             <section className={panelClassName}>
               <div className="mb-6 flex items-center gap-3">
-                <MaterialIcon name="query_stats" className="text-xl text-[#E9C400]" />
+                <ChartBarIcon className="h-6 w-6 text-[#E9C400]" />
                 <h2 className="font-headline text-xl font-bold text-[#DCE2F9]">Hit Rate &amp; Logic</h2>
               </div>
 
@@ -339,7 +449,7 @@ export function CreatePoolPage() {
             <section className={panelClassName}>
               <div className="mb-6 flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  <MaterialIcon name="format_list_bulleted" className="text-xl text-[#E9C400]" />
+                  <ListBulletIcon className="h-6 w-6 text-[#E9C400]" />
                   <h2 className="font-headline text-xl font-bold text-[#DCE2F9]">Reward Tiers</h2>
                 </div>
                 <button
@@ -347,7 +457,7 @@ export function CreatePoolPage() {
                   onClick={handleAddTier}
                   className="flex items-center gap-2 rounded-full border border-[#00DAF3]/20 bg-[#72EBFF]/10 px-3 py-1.5 text-xs font-bold text-[#9CF0FF] transition-all hover:bg-[#72EBFF]/20"
                 >
-                  <MaterialIcon name="add" className="text-sm" />
+                  <PlusIcon className="h-4 w-4" />
                   ADD TIER
                 </button>
               </div>
@@ -406,7 +516,11 @@ export function CreatePoolPage() {
                     isPrizeValidated ? "text-emerald-400" : "text-amber-300"
                   }`}
                 >
-                  <MaterialIcon name={isPrizeValidated ? "check_circle" : "warning"} className="text-sm" />
+                  {isPrizeValidated ? (
+                    <CheckCircleIcon className="h-4 w-4" />
+                  ) : (
+                    <ExclamationTriangleIcon className="h-4 w-4" />
+                  )}
                   {isPrizeValidated ? "VALIDATED" : "CHECK TOTALS"}
                 </div>
               </div>
@@ -416,7 +530,7 @@ export function CreatePoolPage() {
           <div className="space-y-6 lg:col-span-4">
             <section className={panelClassName}>
               <div className="mb-6 flex items-center gap-3">
-                <MaterialIcon name="image" className="text-xl text-[#E9C400]" />
+                <PhotoIcon className="h-6 w-6 text-[#E9C400]" />
                 <h2 className="font-headline text-xl font-bold text-[#DCE2F9]">Visual Assets</h2>
               </div>
 
