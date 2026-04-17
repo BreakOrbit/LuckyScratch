@@ -16,8 +16,9 @@ export const menuLinks: HeaderMenuLink[] = [
   { label: "Home", href: "/" },
   { label: "Store", href: "/store" },
   { label: "My Tickets", href: "/my-tickets" },
-  { label: "Reveal Workspace", href: "/tickets" },
+  { label: "Create Pool", href: "/create-pool" },
   { label: "My Profile", href: "/profile" },
+  { label: "Reveal Workspace", href: "/tickets" },
   { label: "Debug", href: "/debug" },
 ];
 
@@ -32,11 +33,10 @@ export const HeaderMenuLinks = () => {
           <Link
             key={href}
             href={href}
-            className={`font-headline tracking-tight uppercase text-sm transition-all duration-300 ${
-              isActive
+            className={`font-headline tracking-tight uppercase text-sm transition-all duration-300 ${isActive
                 ? "text-[#FFD700] border-b-2 border-[#FFD700] pb-1 shadow-[0_4px_10px_-2px_rgba(255,215,0,0.3)]"
                 : "text-[#D0C6AB] hover:text-[#FFE16D]"
-            }`}
+              }`}
           >
             {label}
           </Link>

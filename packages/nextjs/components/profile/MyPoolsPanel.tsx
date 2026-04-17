@@ -314,15 +314,29 @@ export function MyPoolsPanel() {
               <div
                 className={`mt-auto grid gap-2 px-4 pb-6 ${card.actions.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}
               >
-                {card.actions.map(action => (
-                  <button
-                    key={action.label}
-                    type="button"
-                    className={`rounded py-2 text-[10px] font-bold uppercase transition-transform active:scale-95 ${action.className}`}
-                  >
-                    {action.label}
-                  </button>
-                ))}
+                {card.actions.map(action => {
+                  if (action.label === "Details") {
+                    return (
+                      <Link
+                        key={action.label}
+                        href={`/pool-detail/${card.id}`}
+                        className={`flex items-center justify-center rounded py-2 text-[10px] font-bold uppercase transition-transform active:scale-95 ${action.className}`}
+                      >
+                        {action.label}
+                      </Link>
+                    );
+                  }
+                  
+                  return (
+                    <button
+                      key={action.label}
+                      type="button"
+                      className={`rounded py-2 text-[10px] font-bold uppercase transition-transform active:scale-95 ${action.className}`}
+                    >
+                      {action.label}
+                    </button>
+                  );
+                })}
               </div>
             </article>
           );
