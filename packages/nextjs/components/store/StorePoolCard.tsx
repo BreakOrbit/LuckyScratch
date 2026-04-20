@@ -1,16 +1,9 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 
-export type StorePoolTheme =
-  | "cosmic"
-  | "sakura"
-  | "diamond"
-  | "dragon"
-  | "lantern"
-  | "star"
-  | "crown"
-  | "rainbow";
+export type StorePoolTheme = "cosmic" | "sakura" | "diamond" | "dragon" | "lantern" | "star" | "crown" | "rainbow";
 
 export type StorePoolBadgeType = "big-prize" | "high-win-rate";
 
@@ -40,6 +33,7 @@ const themeColors: Record<StorePoolTheme, { text: string; border: string }> = {
 };
 
 export const StorePoolCard = ({
+  id,
   name,
   image,
   theme,
@@ -70,9 +64,7 @@ export const StorePoolCard = ({
           <span
             className={`px-3 py-1 bg-ns-surface-container-highest/80 backdrop-blur-md rounded-full text-[10px] font-bold uppercase tracking-tighter ${colors.text} ${colors.border} border`}
           >
-            <span className="material-symbols-outlined text-[12px] align-middle mr-1">
-              {themeIcon}
-            </span>
+            <span className="material-symbols-outlined text-[12px] align-middle mr-1">{themeIcon}</span>
             {themeLabel}
           </span>
         </div>
@@ -87,17 +79,11 @@ export const StorePoolCard = ({
       <div className="p-5">
         <div className="flex items-start justify-between mb-3">
           <div>
-            <h3 className="font-headline text-lg font-bold text-white mb-1">
-              {name}
-            </h3>
+            <h3 className="font-headline text-lg font-bold text-white mb-1">{name}</h3>
             {badgeType === "big-prize" ? (
-              <span className="text-[10px] uppercase tracking-widest text-[#FF7351] font-bold">
-                💥 Big Prize
-              </span>
+              <span className="text-[10px] uppercase tracking-widest text-[#FF7351] font-bold">💥 Big Prize</span>
             ) : (
-              <span className="text-[10px] uppercase tracking-widest text-[#7658F8] font-bold">
-                🎯 High Win Rate
-              </span>
+              <span className="text-[10px] uppercase tracking-widest text-[#7658F8] font-bold">🎯 High Win Rate</span>
             )}
           </div>
         </div>
@@ -120,9 +106,12 @@ export const StorePoolCard = ({
           </div>
 
           {/* Purchase Button */}
-          <button className="w-full bg-gradient-to-r from-[#00BCD4] to-[#4DD0E1] text-white font-headline font-bold py-3 rounded-lg uppercase tracking-widest text-xs transition-all hover:shadow-[0_0_20px_rgba(0,188,212,0.4)] active:scale-95">
+          <Link
+            href={`/purchase/${id}`}
+            className="block w-full bg-gradient-to-r from-[#00BCD4] to-[#4DD0E1] text-white font-headline font-bold py-3 rounded-lg uppercase tracking-widest text-xs transition-all hover:shadow-[0_0_20px_rgba(0,188,212,0.4)] active:scale-95 text-center"
+          >
             Purchase
-          </button>
+          </Link>
         </div>
       </div>
     </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 
 export type PoolRarity = "Common" | "Rare" | "Super Rare" | "Legendary";
 export type PoolAnimationType =
@@ -14,6 +15,7 @@ export type PoolAnimationType =
   | "cosmic";
 
 export type PoolCardData = {
+  id: string;
   name: string;
   image: string;
   rarity: PoolRarity;
@@ -41,12 +43,10 @@ const rarityCardStyles: Record<PoolRarity, string> = {
 const rarityButtonStyles: Record<PoolRarity, string> = {
   Common:
     "bg-ns-surface-container-high border border-ns-primary/20 text-ns-on-surface group-hover:bg-ns-primary group-hover:text-ns-background",
-  Rare:
-    "bg-ns-surface-container-high border border-ns-secondary/20 text-ns-on-surface group-hover:bg-ns-secondary group-hover:text-white",
+  Rare: "bg-ns-surface-container-high border border-ns-secondary/20 text-ns-on-surface group-hover:bg-ns-secondary group-hover:text-white",
   "Super Rare":
     "bg-ns-surface-container-high border border-ns-secondary/20 text-ns-on-surface group-hover:bg-ns-secondary group-hover:text-white",
-  Legendary:
-    "bg-gradient-to-r from-ns-primary to-[#B8860B] text-ns-background",
+  Legendary: "bg-gradient-to-r from-ns-primary to-[#B8860B] text-ns-background",
 };
 
 /* ---------- Animation Overlays ---------- */
@@ -84,10 +84,7 @@ const SakuraOverlay = () => (
 
 const StarlightOverlay = () => (
   <div className="animated-overlay">
-    <div
-      className="particle w-1 h-1 bg-white"
-      style={{ left: "15%", top: "20%", animation: "twinkle 3s infinite" }}
-    />
+    <div className="particle w-1 h-1 bg-white" style={{ left: "15%", top: "20%", animation: "twinkle 3s infinite" }} />
     <div
       className="absolute w-[100px] h-[1px] bg-gradient-to-r from-ns-primary to-transparent"
       style={{ animation: "shooting-star 6s linear infinite 1s" }}
@@ -109,8 +106,7 @@ const DiamondOverlay = () => (
     <div
       className="absolute top-[40%] left-[60%] w-4 h-4 bg-white"
       style={{
-        clipPath:
-          "polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)",
+        clipPath: "polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)",
         animation: "glint 3s infinite 1s",
       }}
     />
@@ -136,10 +132,7 @@ const CosmicOverlay = () => (
       className="absolute top-1/4 left-1/4 w-[200px] h-[200px] bg-ns-secondary/10 blur-[60px] rounded-full"
       style={{ animation: "nebula-swirl 20s linear infinite" }}
     />
-    <div
-      className="particle w-1 h-1 bg-white"
-      style={{ left: "20%", top: "30%", animation: "twinkle 4s infinite" }}
-    />
+    <div className="particle w-1 h-1 bg-white" style={{ left: "20%", top: "30%", animation: "twinkle 4s infinite" }} />
   </div>
 );
 
@@ -154,7 +147,7 @@ const overlayMap: Record<PoolAnimationType, React.FC> = {
   cosmic: CosmicOverlay,
 };
 
-export const PoolCard = ({ name, image, rarity, price, animationType, hiddenOnMobile }: PoolCardData) => {
+export const PoolCard = ({ id, name, image, rarity, price, animationType, hiddenOnMobile }: PoolCardData) => {
   const AnimOverlay = overlayMap[animationType];
   const badgeClasses = rarityBadgeStyles[rarity];
   const cardClasses = rarityCardStyles[rarity];
@@ -174,23 +167,22 @@ export const PoolCard = ({ name, image, rarity, price, animationType, hiddenOnMo
         />
         <AnimOverlay />
         <div className="absolute inset-0 bg-gradient-to-t from-ns-surface-container-low via-transparent to-transparent" />
-        <div
-          className={`absolute top-4 right-4 px-3 py-1 font-label text-[10px] font-black uppercase ${badgeClasses}`}
-        >
+        <div className={`absolute top-4 right-4 px-3 py-1 font-label text-[10px] font-black uppercase ${badgeClasses}`}>
           {rarity}
         </div>
       </div>
       <div className="p-6">
-        <h3 className="font-headline font-bold text-xl text-ns-on-surface mb-1 uppercase">
-          {name}
-        </h3>
+        <h3 className="font-headline font-bold text-xl text-ns-on-surface mb-1 uppercase">{name}</h3>
         <div className="flex justify-between items-center mb-6">
           <span className="text-ns-on-surface-variant text-sm font-body">Available Now</span>
           <span className="text-ns-primary font-headline font-bold">{price}</span>
         </div>
-        <button className={`w-full py-3 font-headline font-bold uppercase tracking-widest transition-all rounded-sm ${buttonClasses}`}>
+        <Link
+          href={`/purchase/${id}`}
+          className={`block w-full py-3 text-center font-headline font-bold uppercase tracking-widest transition-all rounded-sm ${buttonClasses}`}
+        >
           Purchase
-        </button>
+        </Link>
       </div>
     </div>
   );

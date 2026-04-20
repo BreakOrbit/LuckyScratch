@@ -1,14 +1,16 @@
+import { use } from "react";
 import type { NextPage } from "next";
 import { PoolDetailPage } from "~~/components/pool-detail/PoolDetailPage";
 
 type PageProps = {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 };
 
 const PoolDetailRoute: NextPage<PageProps> = ({ params }) => {
-  return <PoolDetailPage poolId={params.id} />;
+  const { id } = use(params);
+  return <PoolDetailPage poolId={id} />;
 };
 
 export default PoolDetailRoute;
