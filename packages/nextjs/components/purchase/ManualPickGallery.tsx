@@ -10,6 +10,7 @@ type ManualPickGalleryProps = {
   selectedIds: string[];
   onSelect: (id: string) => void;
   onDeselect: (id: string) => void;
+  onReadyStateChange: (isReady: boolean) => void;
   themeColor?: string;
 };
 
@@ -25,12 +26,19 @@ export const ManualPickGallery: React.FC<ManualPickGalleryProps> = ({
   selectedIds,
   onSelect,
   onDeselect,
+  onReadyStateChange,
   themeColor = "#C62828",
 }) => {
   const [offset, setOffset] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [phase, setPhase] = useState<"idle" | "shuffling" | "selected">("idle");
   const containerRef = useRef<HTMLDivElement>(null);
   const cardsRef = useRef<(HTMLDivElement | null)[]>([]);
+
+  /* Notify parent of checkout readiness */
+  useEffect(() => {
+    onReadyStateChange(phase === "selected");
+  }, [phase, onReadyStateChange]);
 
   /* Current batch */
   const currentBatch = availableIds.slice(offset, offset + DISPLAY_COUNT);
@@ -99,6 +107,57 @@ export const ManualPickGallery: React.FC<ManualPickGalleryProps> = ({
     });
   }, [isRefreshing, offset, availableIds.length]);
 
+  const handleConfirm = useCallback(() => {
+    if (selectedIds.length === 0) return;
+    setPhase("shuffling");
+
+    const cards = cardsRef.current.filter(Boolean);
+    const tl = gsap.timeline({
+      onComplete: () => {
+        setPhase("selected");
+      },
+    });
+
+    // 1. Initial pop-out
+    tl.to(cards, {
+      z: 100,
+      scale: 1.1,
+      duration: 0.3,
+      ease: "power2.out",
+    });
+
+    // 2. Crazy chaotic shuffle
+    tl.to(cards, {
+      x: () => (Math.random() - 0.5) * 500,
+      y: () => (Math.random() - 0.5) * 300,
+      rotateZ: () => (Math.random() - 0.5) * 720,
+      rotateY: () => (Math.random() - 0.5) * 360,
+      rotateX: () => (Math.random() - 0.5) * 360,
+      duration: 0.6,
+      ease: "power2.inOut",
+      stagger: 0.02,
+    });
+
+    // 3. Suck into vortex center and disappear
+    tl.to(
+      cards,
+      {
+        x: 0,
+        y: 0,
+        z: -500,
+        rotateZ: 0,
+        rotateY: 0,
+        rotateX: 0,
+        scale: 0,
+        opacity: 0,
+        duration: 0.5,
+        ease: "back.in(1.5)",
+        stagger: 0.015,
+      },
+      "+=0.1",
+    );
+  }, [selectedIds.length]);
+
   /* Initial entrance animation */
   useEffect(() => {
     const cards = cardsRef.current.filter(Boolean);
@@ -158,47 +217,143 @@ export const ManualPickGallery: React.FC<ManualPickGalleryProps> = ({
       </div>
 
       {/* Arc Gallery Container */}
-      <div
-        ref={containerRef}
-        className="ticket-3d-scene flex items-center justify-center gap-2 md:gap-4 py-10 px-4 min-h-[360px] flex-wrap"
-      >
-        {currentBatch.map((id, i) => (
+      {phase !== "selected" && (
+        <div className="relative z-10 w-full flex items-center justify-center min-h-[360px] mb-8">
           <div
-            key={`${offset}-${id}`}
-            ref={el => {
-              cardsRef.current[i] = el;
-            }}
-            style={getArcTransform(i, currentBatch.length)}
-            className="transition-transform duration-500"
+            ref={containerRef}
+            className="flex items-center justify-center gap-2 md:gap-4 py-10 px-4 w-full flex-wrap"
+            style={{ perspective: "1200px" }}
           >
-            <TicketCard3D
-              ticketId={id}
-              ticketIndex={offset + i}
-              state={selectedIds.includes(id) ? "selected" : "available"}
-              themeColor={themeColor}
-              onClick={() => handleCardClick(id)}
-            />
+            {currentBatch.map((id, i) => (
+              <div
+                key={`${offset}-${id}`}
+                ref={el => {
+                  cardsRef.current[i] = el;
+                }}
+                style={getArcTransform(i, currentBatch.length)}
+                className="transition-transform duration-500"
+              >
+                <div
+                  className="transition-transform duration-300 hover:scale-[1.15] cursor-pointer"
+                  onClick={() => handleCardClick(id)}
+                >
+                  <TicketCard3D
+                    ticketId={id}
+                    ticketIndex={offset + i}
+                    state={selectedIds.includes(id) ? "selected" : "available"}
+                    themeColor={themeColor}
+                  />
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+          {phase === "shuffling" && (
+            <div className="absolute inset-0 flex items-center justify-center z-50 mix-blend-screen pointer-events-none">
+              <div className="w-[300px] h-[300px] rounded-full bg-gradient-to-r from-[#FFD700]/30 to-[#C62828]/30 blur-[80px] animate-pulse" />
+            </div>
+          )}
+        </div>
+      )}
 
-      {/* Refresh Button */}
-      <div className="flex justify-center mt-4">
-        <button
-          onClick={handleRefresh}
-          disabled={isRefreshing}
-          className={`
+      {/* Selected Miniature Cards */}
+      {phase === "selected" && (
+        <div className="w-full max-w-5xl px-4 flex flex-wrap gap-4 items-center justify-center mb-8 perspective-[1000px] mx-auto min-h-[300px]">
+          {selectedIds.map((id, i) => (
+            <div
+              key={id}
+              className="relative w-[110px] h-[160px] rounded-2xl overflow-hidden shadow-2xl border border-[#FFD700]/30 transition-transform duration-300 hover:scale-105 hover:-translate-y-2"
+              style={{
+                animation: `batch-card-entrance 0.5s ease-out ${i * 0.08}s forwards`,
+                opacity: 0,
+                transformStyle: "preserve-3d",
+              }}
+            >
+              {/* Background Art */}
+              <img
+                src="https://lh3.googleusercontent.com/aida-public/AB6AXuCa81_llmwYhIHhOrGNhGlQmDeaH7Wiiz1lze6v73dEM3AjVEmNp3t7zTO6W1OHuosSPgaS-XPJDBj0Hi7Jy6T4hDmD7_-NnetVoWBGxyEEF6axbmQ5w_-YVbyLuKTLkQYhnyOniysfPtiFv_S70dnG8DxiPJHo5WwpM8vnkCUIkKqFz5QhDAW22MYPb0x6Vb7vXhTYxS9h56Og0sgl6zKEUKKUzdhUVUx8u6I838-qS4i5DRZMP0X2cArL-xpC5LhADStOmnfHBNEN"
+                className="absolute inset-0 w-full h-full object-cover opacity-80"
+                alt="Ticket BG"
+              />
+              <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/40 to-black/90" />
+
+              {/* Border effect */}
+              <div className="absolute inset-[2px] rounded-xl border border-white/10" />
+
+              {/* ID Tag */}
+              <div className="absolute bottom-3 inset-x-0 mx-auto w-max px-2 py-1 bg-black/60 rounded border border-[#FFD700]/20 backdrop-blur-sm">
+                <span className="font-headline font-black text-[11px] text-[#FFD700] tracking-wider">#{id}</span>
+              </div>
+
+              {/* Shimmer overlay */}
+              <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/20 to-white/0 opacity-0 hover:opacity-100 transition duration-500 rounded-2xl mix-blend-overlay" />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Action Buttons */}
+      {phase === "idle" && (
+        <div className="flex justify-center items-center gap-4 mt-4">
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className={`
             flex items-center gap-3 px-8 py-3.5 rounded-2xl font-headline font-bold text-sm uppercase tracking-[0.15em]
             cyber-glass border border-[#FFD700]/20 text-[#FFD700]/80
-            hover:text-[#FFD700] hover:border-[#FFD700]/40 hover:shadow-[0_0_20px_rgba(255,215,0,0.15)]
+             hover:text-[#FFD700] hover:border-[#FFD700]/40 hover:shadow-[0_0_20px_rgba(255,215,0,0.15)]
             active:scale-95 transition-all duration-300
             ${isRefreshing ? "opacity-50 pointer-events-none" : ""}
           `}
-        >
-          <ArrowPathIcon className={`h-5 w-5 ${isRefreshing ? "animate-spin" : ""}`} />
-          Shuffle New Batch
-        </button>
-      </div>
+          >
+            <ArrowPathIcon className={`h-5 w-5 ${isRefreshing ? "animate-spin" : ""}`} />
+            换一批
+          </button>
+
+          <button
+            onClick={handleConfirm}
+            disabled={selectedIds.length === 0}
+            className={`
+            flex items-center gap-3 px-8 py-3.5 rounded-2xl font-headline font-bold text-sm uppercase tracking-[0.15em]
+            ${
+              selectedIds.length > 0
+                ? "bg-gradient-to-r from-[#FFD700] to-[#FFE16D] text-[#3a3000] hover:shadow-[0_0_30px_rgba(255,215,0,0.4)]"
+                : "bg-white/5 text-white/30 border border-white/10"
+            }
+            active:scale-95 transition-all duration-300
+          `}
+          >
+            确定 ({selectedIds.length}张)
+          </button>
+        </div>
+      )}
+
+      {/* Selected Action Reshuffle */}
+      {phase === "selected" && (
+        <div className="flex justify-center mt-4">
+          <button
+            onClick={() => {
+              setPhase("idle");
+              const cards = cardsRef.current.filter(Boolean);
+              gsap.fromTo(
+                cards,
+                { opacity: 0, scale: 0.5, y: 60, rotateY: -30 },
+                {
+                  opacity: 1,
+                  scale: 1,
+                  y: 0,
+                  rotateY: 0,
+                  duration: 0.7,
+                  stagger: 0.06,
+                  ease: "back.out(1.7)",
+                },
+              );
+            }}
+            className="px-6 py-2 glass-panel rounded-full text-xs font-bold tracking-widest text-white/50 hover:text-white transition-colors"
+          >
+            继续选择
+          </button>
+        </div>
+      )}
     </div>
   );
 };

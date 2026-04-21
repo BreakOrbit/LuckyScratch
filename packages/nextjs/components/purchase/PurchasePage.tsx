@@ -55,7 +55,7 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
   const [mode, setMode] = useState<"manual" | "quick">("manual");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [quickQuantity, setQuickQuantity] = useState(3);
-  const [isBatchReady, setIsBatchReady] = useState(false);
+  const [isGalleryReady, setIsGalleryReady] = useState(false);
   const [phase, setPhase] = useState<GamePhase>("selecting");
 
   /* Available ticket IDs */
@@ -186,6 +186,7 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
               selectedIds={selectedIds}
               onSelect={handleSelect}
               onDeselect={handleDeselect}
+              onReadyStateChange={setIsGalleryReady}
               themeColor={pool.themeColor}
             />
           ) : (
@@ -194,14 +195,14 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
               availableIds={allIds}
               assignedIds={quickPickIds}
               onChangeQuantity={setQuickQuantity}
-              onReadyStateChange={setIsBatchReady}
+              onReadyStateChange={setIsGalleryReady}
               themeColor={pool.themeColor}
             />
           )}
         </div>
 
         {/* Checkout */}
-        {phase === "selecting" && (mode === "manual" ? activeCount > 0 : isBatchReady) && (
+        {phase === "selecting" && isGalleryReady && activeCount > 0 && (
           <div style={{ animation: "fade-in 0.5s ease-out forwards" }}>
             <CheckoutPanel
               selectedCount={activeCount}
