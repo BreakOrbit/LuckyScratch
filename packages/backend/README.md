@@ -20,6 +20,18 @@ Current boundaries:
 - Redis is not wired yet; recurring jobs currently use the PostgreSQL `jobs` table only
 - SIWE / JWT auth is not implemented; admin endpoints use `ADMIN_TOKEN` when configured
 
+Current backend layout:
+
+- `main.go`: single backend entrypoint with `all`, `api`, and `worker` modes
+- `go.mod`: local backend module path is `lucky-scratch`, so in-repo Go imports use `lucky-scratch/...`
+- top-level packages such as `app/`, `api/`, `store/`, `contracts/`, and `zama/`: the old `internal/` tree has been removed
+- `api/` and `jobs/`: depend on narrow service/store interfaces instead of binding directly to concrete service implementations
+- `readmodel/`: wraps read-only pool / round / ticket queries so HTTP handlers do not assemble sqlc params directly
+- `store/db`: `sqlc`-generated query layer; services now depend on its `Querier` interface rather than `*db.Queries`
+- `sql/migrations`: runtime PostgreSQL migrations
+- `sql/queries`: `sqlc` query sources
+- `store/db`: generated Go query layer
+
 Required environment variables:
 
 - `DATABASE_URL`
@@ -55,8 +67,14 @@ Quick start:
 ```bash
 cd packages/backend
 go test ./...
-go run ./cmd/api
-go run ./cmd/worker
+go run .
+```
+
+`go run .` starts both the HTTP API and the worker in one process. If you need to run them separately, use:
+
+```bash
+go run . api
+go run . worker
 ```
 
 The API and worker expect a reachable PostgreSQL instance plus a reachable EVM RPC.

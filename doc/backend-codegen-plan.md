@@ -43,22 +43,22 @@
 
 输出目录：
 
-- `packages/backend/cmd/api`
-- `packages/backend/cmd/worker`
-- `packages/backend/internal/app`
-- `packages/backend/internal/config`
-- `packages/backend/internal/api`
-- `packages/backend/internal/contracts`
-- `packages/backend/internal/chain`
-- `packages/backend/internal/indexer`
-- `packages/backend/internal/gasless`
-- `packages/backend/internal/reveal`
-- `packages/backend/internal/jobs`
-- `packages/backend/internal/risk`
-- `packages/backend/internal/store`
-- `packages/backend/internal/models`
-- `packages/backend/internal/admin`
-- `packages/backend/migrations`
+- `packages/backend`
+- `packages/backend/app`
+- `packages/backend/config`
+- `packages/backend/api`
+- `packages/backend/contracts`
+- `packages/backend/chain`
+- `packages/backend/indexer`
+- `packages/backend/gasless`
+- `packages/backend/reveal`
+- `packages/backend/jobs`
+- `packages/backend/risk`
+- `packages/backend/store`
+- `packages/backend/models`
+- `packages/backend/readmodel`
+- `packages/backend/admin`
+- `packages/backend/sql`
 - `packages/backend/openapi`
 
 输出文件：
@@ -71,16 +71,16 @@
 完成标准：
 
 - `go test ./...` 可通过
-- `cmd/api` 和 `cmd/worker` 可启动
+- `packages/backend/main.go` 可按 `all/api/worker` 模式启动
 - 配置结构已固定，后续代码按统一配置扩展
 
 ### 阶段 1：数据库与 SQL 代码生成
 
 输出文件：
 
-- `packages/backend/migrations/000001_init_core_tables.sql`
+- `packages/backend/sql/migrations/000001_init_core_tables.sql`
 - `packages/backend/sqlc.yaml`
-- `packages/backend/internal/store/queries/*.sql`
+- `packages/backend/sql/queries/*.sql`
 
 首批表：
 
@@ -135,9 +135,9 @@
 
 输出目录：
 
-- `packages/backend/internal/contracts/abi`
-- `packages/backend/internal/contracts/bindings`
-- `packages/backend/internal/chain`
+- `packages/backend/contracts/abi`
+- `packages/backend/contracts/bindings`
+- `packages/backend/chain`
 
 首批链上只读方法：
 
@@ -178,8 +178,8 @@
 
 输出目录：
 
-- `packages/backend/internal/indexer`
-- `packages/backend/internal/jobs`
+- `packages/backend/indexer`
+- `packages/backend/jobs`
 
 生成顺序：
 
@@ -206,7 +206,7 @@
 
 输出目录：
 
-- `packages/backend/internal/api`
+- `packages/backend/api`
 
 首批接口：
 
@@ -230,9 +230,9 @@
 
 输出目录：
 
-- `packages/backend/internal/gasless`
-- `packages/backend/internal/risk`
-- `packages/backend/internal/jobs`
+- `packages/backend/gasless`
+- `packages/backend/risk`
+- `packages/backend/jobs`
 
 首批接口：
 
@@ -266,8 +266,8 @@
 
 输出目录：
 
-- `packages/backend/internal/reveal`
-- `packages/backend/internal/api`
+- `packages/backend/reveal`
+- `packages/backend/api`
 
 接口：
 

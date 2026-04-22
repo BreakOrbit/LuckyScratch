@@ -26,7 +26,10 @@ This repository is currently running in **Hardhat flavor**.
 
 - Smart contracts live in `packages/hardhat/contracts/`
 - The active LuckyScratch implementation lives in `packages/hardhat/contracts/luckyScratch/`
-- The Go backend now lives in `packages/backend/` and includes a real PostgreSQL-backed API/worker implementation
+- The Go backend now lives in `packages/backend/`, starts from a single `packages/backend/main.go` entrypoint, and includes a real PostgreSQL-backed API/worker implementation
+- The backend Go module path is now `lucky-scratch`, in-repo Go imports use `lucky-scratch/...` module-local paths, and the previous `packages/backend/internal/` layout has been flattened into top-level backend packages such as `packages/backend/app/`, `packages/backend/api/`, and `packages/backend/store/`
+- The backend structure now keeps `api/` and `jobs/` behind narrow dependency interfaces, uses `store/db.Querier` as the primary storage boundary instead of wiring concrete `*db.Queries` types through upper layers, and routes read-only pool / round / ticket queries through `packages/backend/readmodel/`
+- Backend SQL sources are organized under `packages/backend/sql/` with `sql/migrations/` for runtime migrations and `sql/queries/` for `sqlc` query files
 - Scaffold template example contracts and demo tasks have been removed; LuckyScratch is the only active contract suite
 - Deployment wiring lives in `packages/hardhat/deploy/02_deploy_lucky_scratch.ts`
 - Contract tests for LuckyScratch live in `packages/hardhat/test/luckyScratch/`
@@ -137,8 +140,9 @@ Backend commands:
 ```bash
 cd packages/backend
 go test ./...
-go run ./cmd/api
-go run ./cmd/worker
+go run .
+go run . api
+go run . worker
 ```
 
 Backend runtime prerequisites:
@@ -177,6 +181,7 @@ Additional notes:
 - Account utility commands avoid the default Sepolia runtime now: `yarn account` runs against Hardhat's in-process network, while `yarn account:generate`, `yarn account:import`, and `yarn account:reveal-pk` run via `ts-node`
 - Live-network deploys are wrapped by `packages/hardhat/scripts/runHardhatDeployWithPK.ts`, which now compiles on the local `hardhat` network first and then runs `deploy --no-compile` on the target network to avoid fhEVM plugin RPC probing issues on Sepolia/mainnet
 - The current backend is no longer phase-0: it now includes `sqlc`-generated repositories, deployment import into `deployment_registry`, go-ethereum contract wrappers, read-model query APIs, gasless request validation/broadcast, reveal-auth + claim-precheck + Zama proxy reconciliation, recurring PostgreSQL-backed jobs, and an event indexer with minimal reorg rewind/replay
+- The backend now uses a single root `main.go` entrypoint that can run `all`, `api`, or `worker` modes, while SQL source files live under `packages/backend/sql/`
 - The backend docs now fix two important implementation boundaries: deployment metadata must be tracked independently of raw Hardhat deployment files, and reveal/claim stays client-driven for final proof submission while the backend only performs authorization/precheck orchestration
 - The backend currently uses PostgreSQL for recurring jobs and does not yet wire Redis; keep that in mind before assuming Redis locks or queues exist
 

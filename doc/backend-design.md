@@ -752,7 +752,7 @@ POST /admin/jobs/{jobId}/retry
 
 ## 10.1 服务进程
 
-建议至少拆为两个进程：
+建议至少保留两个运行模式：
 
 - `api`
 - `worker`
@@ -761,30 +761,33 @@ POST /admin/jobs/{jobId}/retry
 
 - `api` 处理 HTTP
 - `worker` 处理 indexer / jobs / 回执同步
+- 单一二进制也可以通过根级 `main.go` 同时启动两者
 
 ## 10.2 目录建议
 
 ```text
 packages/backend/
-  cmd/
-    api/
-    worker/
-  internal/
-    app/
-    config/
-    api/
-    auth/
-    chain/
-    contracts/
-    gasless/
-    reveal/
-    indexer/
-    jobs/
-    risk/
-    store/
-    models/
-    admin/
-  migrations/
+  main.go
+  admin/
+  api/
+  app/
+  apperrors/
+  chain/
+  config/
+  contracts/
+  gasless/
+  indexer/
+  jobs/
+  models/
+  readmodel/
+  reveal/
+  risk/
+  store/
+    db/
+  zama/
+  sql/
+    migrations/
+    queries/
   openapi/
 ```
 

@@ -1,4 +1,4 @@
-module github.com/yangyang/lucky-scratch/packages/backend
+module lucky-scratch
 
 go 1.25.0
 
