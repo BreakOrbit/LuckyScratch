@@ -221,6 +221,23 @@ WHERE chain_id = $1
 ORDER BY ticket_id DESC
 LIMIT $3 OFFSET $4;
 
+-- name: ListTicketsByPool :many
+SELECT *
+FROM tickets
+WHERE chain_id = $1
+  AND pool_id = $2
+ORDER BY ticket_id DESC
+LIMIT $3 OFFSET $4;
+
+-- name: ListTicketsByPoolAndRound :many
+SELECT *
+FROM tickets
+WHERE chain_id = $1
+  AND pool_id = $2
+  AND round_id = $3
+ORDER BY ticket_id DESC
+LIMIT $4 OFFSET $5;
+
 -- name: ListWinsByUser :many
 SELECT *
 FROM tickets

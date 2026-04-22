@@ -6,6 +6,7 @@ import (
 	"lucky-scratch/admin"
 	"lucky-scratch/chain"
 	"lucky-scratch/config"
+	"lucky-scratch/indexer"
 	"lucky-scratch/readmodel"
 	"lucky-scratch/reveal"
 	"lucky-scratch/store"
@@ -19,6 +20,7 @@ type Runtime struct {
 	Queries       db.Querier
 	Chain         *chain.Client
 	ReadModel     readmodel.Service
+	Indexer       indexer.Service
 	RevealService reveal.Service
 	AdminService  admin.Service
 }
@@ -36,6 +38,7 @@ func BuildRuntime(ctx context.Context, cfg config.Config) (*Runtime, error) {
 	}
 
 	readModelService := readmodel.NewService(cfg, dbStore.Queries())
+	indexerService := indexer.NewService(cfg, dbStore.Queries(), chainClient)
 	zamaClient, err := zama.NewClient(cfg.Zama)
 	if err != nil {
 		chainClient.Close()
@@ -43,7 +46,7 @@ func BuildRuntime(ctx context.Context, cfg config.Config) (*Runtime, error) {
 		return nil, err
 	}
 	revealService := reveal.NewService(cfg, dbStore.Queries(), chainClient, zamaClient)
-	adminService := admin.NewService(cfg, dbStore.Queries())
+	adminService := admin.NewService(cfg, dbStore.Queries(), chainClient, indexerService)
 
 	return &Runtime{
 		Config:        cfg,
@@ -51,6 +54,7 @@ func BuildRuntime(ctx context.Context, cfg config.Config) (*Runtime, error) {
 		Queries:       dbStore.Queries(),
 		Chain:         chainClient,
 		ReadModel:     readModelService,
+		Indexer:       indexerService,
 		RevealService: revealService,
 		AdminService:  adminService,
 	}, nil

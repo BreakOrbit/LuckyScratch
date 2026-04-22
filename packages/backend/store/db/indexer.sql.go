@@ -202,6 +202,126 @@ func (q *Queries) ListIndexedLogsFromBlock(ctx context.Context, arg ListIndexedL
 	return items, nil
 }
 
+const listIndexerCursors = `-- name: ListIndexerCursors :many
+SELECT chain_id, contract_name, last_processed_block, last_processed_log_index, updated_at
+FROM indexer_cursors
+WHERE chain_id = $1
+ORDER BY contract_name ASC
+`
+
+func (q *Queries) ListIndexerCursors(ctx context.Context, chainID int64) ([]IndexerCursor, error) {
+	rows, err := q.db.Query(ctx, listIndexerCursors, chainID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []IndexerCursor{}
+	for rows.Next() {
+		var i IndexerCursor
+		if err := rows.Scan(
+			&i.ChainID,
+			&i.ContractName,
+			&i.LastProcessedBlock,
+			&i.LastProcessedLogIndex,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTicketIDsByPoolAndRoundFromIndexedLogs = `-- name: ListTicketIDsByPoolAndRoundFromIndexedLogs :many
+SELECT DISTINCT ticket_id
+FROM indexed_logs
+WHERE chain_id = $1
+  AND pool_id = $2
+  AND round_id = $3
+  AND ticket_id IS NOT NULL
+ORDER BY ticket_id DESC
+LIMIT $4 OFFSET $5
+`
+
+type ListTicketIDsByPoolAndRoundFromIndexedLogsParams struct {
+	ChainID int64       `json:"chain_id"`
+	PoolID  pgtype.Int8 `json:"pool_id"`
+	RoundID pgtype.Int8 `json:"round_id"`
+	Limit   int32       `json:"limit"`
+	Offset  int32       `json:"offset"`
+}
+
+func (q *Queries) ListTicketIDsByPoolAndRoundFromIndexedLogs(ctx context.Context, arg ListTicketIDsByPoolAndRoundFromIndexedLogsParams) ([]pgtype.Int8, error) {
+	rows, err := q.db.Query(ctx, listTicketIDsByPoolAndRoundFromIndexedLogs,
+		arg.ChainID,
+		arg.PoolID,
+		arg.RoundID,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.Int8{}
+	for rows.Next() {
+		var ticket_id pgtype.Int8
+		if err := rows.Scan(&ticket_id); err != nil {
+			return nil, err
+		}
+		items = append(items, ticket_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTicketIDsByPoolFromIndexedLogs = `-- name: ListTicketIDsByPoolFromIndexedLogs :many
+SELECT DISTINCT ticket_id
+FROM indexed_logs
+WHERE chain_id = $1
+  AND pool_id = $2
+  AND ticket_id IS NOT NULL
+ORDER BY ticket_id DESC
+LIMIT $3 OFFSET $4
+`
+
+type ListTicketIDsByPoolFromIndexedLogsParams struct {
+	ChainID int64       `json:"chain_id"`
+	PoolID  pgtype.Int8 `json:"pool_id"`
+	Limit   int32       `json:"limit"`
+	Offset  int32       `json:"offset"`
+}
+
+func (q *Queries) ListTicketIDsByPoolFromIndexedLogs(ctx context.Context, arg ListTicketIDsByPoolFromIndexedLogsParams) ([]pgtype.Int8, error) {
+	rows, err := q.db.Query(ctx, listTicketIDsByPoolFromIndexedLogs,
+		arg.ChainID,
+		arg.PoolID,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.Int8{}
+	for rows.Next() {
+		var ticket_id pgtype.Int8
+		if err := rows.Scan(&ticket_id); err != nil {
+			return nil, err
+		}
+		items = append(items, ticket_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const upsertIndexerCursor = `-- name: UpsertIndexerCursor :one
 INSERT INTO indexer_cursors (
     chain_id,

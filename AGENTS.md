@@ -51,6 +51,7 @@ This repository is currently running in **Hardhat flavor**.
 - Backend implementation planning and codegen guidance now live in `doc/backend-design.md` and `doc/backend-codegen-plan.md`
 - The backend migration now includes the LuckyScratch read model, `deployment_registry`, `indexed_logs`, recurring `jobs`, and audit/cost tables needed by the live API/worker
 - When multiple active deployment rows exist for the same contract after a redeploy, the backend registry loader now keeps the newest deployment block per contract instead of falling back to an older still-active address
+- The backend indexer now paginates reconciliation / pending-VRF scans across all pools, filters logs to the supported LuckyScratchCore + ERC-721 event set before decoding, tracks admin-visible cursor lag, and exposes admin-triggered pool / round / ticket rebuild routes
 
 ### LuckyScratch Current Scope
 
@@ -86,6 +87,7 @@ Current LuckyScratch rule highlights:
 - The frontend ticket workspace currently covers `GET /users/{address}/tickets`, `GET /tickets/{ticketId}`, `POST /tickets/{ticketId}/reveal-auth`, `GET /tickets/{ticketId}/claim-precheck`, and browser-side `user-decrypt` through the backend proxy; claim submission UI is present but remains blocked until a dedicated claim-proof assembly path exists on top of the current `user-decrypt` flow
 - The backend Zama proxy now returns a stable local decryption `jobId` based on `zama_request_ref`, persists a `submitting` state before outbound relayer calls, fails reveal-auth fast when it cannot construct a public proxy URL, and includes a worker-side reconcile loop that advances submitted upstream jobs while timing out stale `submitting` rows
 - The backend worker now reclaims stale PostgreSQL `jobs.status='running'` locks after `JOB_LOCK_TIMEOUT`, and the API maps service-level validation/conflict errors to stable public HTTP responses instead of leaking raw internal errors
+- The indexer now processes only finalized/safe blocks using `CHAIN_CONFIRMATIONS` and `CHAIN_FINALIZATION_DEPTH`, and avoids re-reading every freshly applied event again during replay reconciliation
 - Because the currently pinned `@zama-fhe/relayer-sdk` 0.4.1 / relayer v2 POST flow does not expose a client-controlled idempotency key or lookup-by-local-request-ref API, the backend still cannot losslessly recover the rare case where the upstream relayer already accepted a decrypt request but the backend crashed before persisting the returned upstream `jobId`
 - Frontend/backend state reads should prefer the existing public getters on `LuckyScratchCore` (`poolConfigs`, `poolStates`, `poolAccounting`, `roundStates`, `tickets`), plus `getTicketRevealState`, `claimableCreatorProfit`, and ERC-721 `ownerOf`; list-style queries belong in the backend indexer
 - The core contract is gas- and bytecode-sensitive: avoid adding wrapper view functions, redundant replay-tracking storage, or duplicated struct-copy helpers unless the feature justifies the extra runtime size

@@ -338,6 +338,131 @@ func (q *Queries) ListTicketsByOwner(ctx context.Context, arg ListTicketsByOwner
 	return items, nil
 }
 
+const listTicketsByPool = `-- name: ListTicketsByPool :many
+SELECT id, chain_id, ticket_id, pool_id, round_id, owner, ticket_index, status, reveal_authorized, transferred_before_scratch, mint_tx_hash, claimed_by, claim_clear_reward_amount, last_event_block, last_event_tx_hash, last_event_log_index, last_event_block_hash, created_at, updated_at
+FROM tickets
+WHERE chain_id = $1
+  AND pool_id = $2
+ORDER BY ticket_id DESC
+LIMIT $3 OFFSET $4
+`
+
+type ListTicketsByPoolParams struct {
+	ChainID int64 `json:"chain_id"`
+	PoolID  int64 `json:"pool_id"`
+	Limit   int32 `json:"limit"`
+	Offset  int32 `json:"offset"`
+}
+
+func (q *Queries) ListTicketsByPool(ctx context.Context, arg ListTicketsByPoolParams) ([]Ticket, error) {
+	rows, err := q.db.Query(ctx, listTicketsByPool,
+		arg.ChainID,
+		arg.PoolID,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Ticket{}
+	for rows.Next() {
+		var i Ticket
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChainID,
+			&i.TicketID,
+			&i.PoolID,
+			&i.RoundID,
+			&i.Owner,
+			&i.TicketIndex,
+			&i.Status,
+			&i.RevealAuthorized,
+			&i.TransferredBeforeScratch,
+			&i.MintTxHash,
+			&i.ClaimedBy,
+			&i.ClaimClearRewardAmount,
+			&i.LastEventBlock,
+			&i.LastEventTxHash,
+			&i.LastEventLogIndex,
+			&i.LastEventBlockHash,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTicketsByPoolAndRound = `-- name: ListTicketsByPoolAndRound :many
+SELECT id, chain_id, ticket_id, pool_id, round_id, owner, ticket_index, status, reveal_authorized, transferred_before_scratch, mint_tx_hash, claimed_by, claim_clear_reward_amount, last_event_block, last_event_tx_hash, last_event_log_index, last_event_block_hash, created_at, updated_at
+FROM tickets
+WHERE chain_id = $1
+  AND pool_id = $2
+  AND round_id = $3
+ORDER BY ticket_id DESC
+LIMIT $4 OFFSET $5
+`
+
+type ListTicketsByPoolAndRoundParams struct {
+	ChainID int64 `json:"chain_id"`
+	PoolID  int64 `json:"pool_id"`
+	RoundID int64 `json:"round_id"`
+	Limit   int32 `json:"limit"`
+	Offset  int32 `json:"offset"`
+}
+
+func (q *Queries) ListTicketsByPoolAndRound(ctx context.Context, arg ListTicketsByPoolAndRoundParams) ([]Ticket, error) {
+	rows, err := q.db.Query(ctx, listTicketsByPoolAndRound,
+		arg.ChainID,
+		arg.PoolID,
+		arg.RoundID,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Ticket{}
+	for rows.Next() {
+		var i Ticket
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChainID,
+			&i.TicketID,
+			&i.PoolID,
+			&i.RoundID,
+			&i.Owner,
+			&i.TicketIndex,
+			&i.Status,
+			&i.RevealAuthorized,
+			&i.TransferredBeforeScratch,
+			&i.MintTxHash,
+			&i.ClaimedBy,
+			&i.ClaimClearRewardAmount,
+			&i.LastEventBlock,
+			&i.LastEventTxHash,
+			&i.LastEventLogIndex,
+			&i.LastEventBlockHash,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWinsByUser = `-- name: ListWinsByUser :many
 SELECT id, chain_id, ticket_id, pool_id, round_id, owner, ticket_index, status, reveal_authorized, transferred_before_scratch, mint_tx_hash, claimed_by, claim_clear_reward_amount, last_event_block, last_event_tx_hash, last_event_log_index, last_event_block_hash, created_at, updated_at
 FROM tickets

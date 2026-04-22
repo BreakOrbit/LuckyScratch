@@ -81,6 +81,9 @@ Zama Relayer APIs
 - `GET /api/v1/admin/jobs`
 - `POST /api/v1/admin/jobs/{jobId}/retry`
 - `GET /api/v1/admin/pools/{poolId}/costs`
+- `POST /api/v1/admin/pools/{poolId}/reindex`
+- `POST /api/v1/admin/pools/{poolId}/rounds/{roundId}/reindex`
+- `POST /api/v1/admin/tickets/{ticketId}/reindex`
 
 ## 3.2 `indexer`
 
@@ -100,6 +103,9 @@ Zama Relayer APIs
 - ERC-721 `Transfer`
 
 索引器不依赖额外的合约列表 view。分页和聚合查询统一落到本地读模型。
+当前实现会先按支持的 LuckyScratchCore + ERC-721 topic 集过滤日志，再解码并落库；未知未来事件不会再把整轮同步直接打停。
+索引游标只推进到 `safeHead`，由 `CHAIN_CONFIRMATIONS` 与 `CHAIN_FINALIZATION_DEPTH` 共同决定；回放窗口则取 `CHAIN_REORG_LOOKBACK` 与这两个安全深度中的较大值。
+周期性 reconciliation 和 pending VRF 检查已经改为分页扫描全部 pool，而不是只扫前一页。
 
 ## 3.3 `reveal`
 
@@ -129,8 +135,10 @@ worker 使用 PostgreSQL `jobs` 表持久化调度状态，并在 `JOB_LOCK_TIME
 保留最小运营能力：
 
 - 查看 recurring jobs
+- 查看 indexer `head` / `safeHead` / cursor lag
 - 触发 job retry
 - 查看 pool 维度成本汇总与近期流水
+- 触发 pool / round / ticket 级别的定向重建
 
 ---
 
@@ -206,6 +214,9 @@ Reveal 与 claim-precheck 必须把链上状态作为最终判断依据，不能
 - `DATABASE_URL`
 - `RPC_URL`
 - `ADMIN_TOKEN`
+- `CHAIN_CONFIRMATIONS`
+- `CHAIN_FINALIZATION_DEPTH`
+- `CHAIN_REORG_LOOKBACK`
 - `API_PUBLIC_BASE_URL`
 - `REVEAL_SUBMIT_TIMEOUT`
 - `JOB_LOCK_TIMEOUT`
@@ -242,3 +253,5 @@ go run . worker
 3. `POST /tickets/{ticketId}/reveal-auth` 能生成 ticket-scoped reveal 上下文
 4. `GET /tickets/{ticketId}/claim-precheck` 能正确识别可领奖条件
 5. `reveal.proxy_sync` 能推进本地 decryption job 状态
+6. `GET /api/v1/admin/jobs` 能看到 `safeHead` 与各合约 cursor lag
+7. `POST /api/v1/admin/pools/{poolId}/reindex` / `.../rounds/{roundId}/reindex` / `POST /api/v1/admin/tickets/{ticketId}/reindex` 能修复定向脏数据

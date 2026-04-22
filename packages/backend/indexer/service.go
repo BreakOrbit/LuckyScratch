@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"math"
 	"math/big"
 	"sort"
@@ -32,6 +33,10 @@ type Service struct {
 	chain   *chain.Client
 }
 
+const (
+	indexerPageSize = 500
+)
+
 func NewService(cfg config.Config, queries db.Querier, chainClient *chain.Client) Service {
 	return Service{
 		cfg:     cfg,
@@ -41,65 +46,221 @@ func NewService(cfg config.Config, queries db.Querier, chainClient *chain.Client
 }
 
 func (s Service) Sync(ctx context.Context) error {
+	startedAt := time.Now()
 	for _, contractName := range []string{contracts.CoreContractName, contracts.TicketContractName} {
 		if err := s.syncContract(ctx, contractName); err != nil {
 			return err
 		}
 	}
+	log.Printf("indexer sync completed in %s", time.Since(startedAt).Round(time.Millisecond))
 	return nil
 }
 
 func (s Service) Reconcile(ctx context.Context) error {
-	pools, err := s.queries.ListPools(ctx, db.ListPoolsParams{
-		ChainID: s.cfg.Chain.ID,
-		Limit:   500,
-		Offset:  0,
+	startedAt := time.Now()
+	var poolCount int
+	var roundCount int
+	var ticketCount int
+
+	err := s.forEachPool(ctx, func(pool db.Pool) error {
+		poolCount += 1
+		reconciledRounds, reconciledTickets, err := s.reconcilePool(ctx, uint64(pool.PoolID))
+		if err != nil {
+			return err
+		}
+		roundCount += reconciledRounds
+		ticketCount += reconciledTickets
+		return nil
 	})
 	if err != nil {
 		return err
 	}
 
-	for _, pool := range pools {
-		if err := s.syncPool(ctx, uint64(pool.PoolID), eventContext{}); err != nil {
-			return err
-		}
-		if err := s.syncRound(ctx, uint64(pool.PoolID), uint64(pool.CurrentRound), eventContext{}, nil, nil); err != nil {
-			return err
-		}
-	}
+	log.Printf(
+		"indexer state reconciliation completed in %s (pools=%d rounds=%d tickets=%d)",
+		time.Since(startedAt).Round(time.Millisecond),
+		poolCount,
+		roundCount,
+		ticketCount,
+	)
 	return nil
 }
 
 func (s Service) CheckPendingVRF(ctx context.Context) error {
-	pools, err := s.queries.ListPools(ctx, db.ListPoolsParams{
-		ChainID: s.cfg.Chain.ID,
-		Limit:   500,
-		Offset:  0,
-	})
-	if err != nil {
-		return err
-	}
-
 	var stalePools []int64
 	threshold := time.Now().Add(-2 * s.cfg.Jobs.VRFCheckInterval)
-	for _, pool := range pools {
+	err := s.forEachPool(ctx, func(pool db.Pool) error {
 		round, roundErr := s.queries.GetRound(ctx, db.GetRoundParams{
 			ChainID: s.cfg.Chain.ID,
 			PoolID:  pool.PoolID,
 			RoundID: pool.CurrentRound,
 		})
 		if roundErr != nil {
-			continue
+			return nil
 		}
 		if round.Status == models.RoundStatusPendingVRF && round.LastVrfRequestedAt.Valid && round.LastVrfRequestedAt.Time.Before(threshold) {
 			stalePools = append(stalePools, pool.PoolID)
 		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	if len(stalePools) > 0 {
+		log.Printf("indexer pending VRF check found stale pools: %v", stalePools)
 		return fmt.Errorf("stale pending VRF rounds detected for pools %v", stalePools)
 	}
+	log.Printf("indexer pending VRF check completed without stale pools")
 	return nil
+}
+
+func (s Service) RebuildPool(ctx context.Context, poolID uint64) error {
+	roundCount, ticketCount, err := s.reconcilePool(ctx, poolID)
+	if err != nil {
+		return err
+	}
+	log.Printf("indexer pool rebuild completed for pool=%d rounds=%d tickets=%d", poolID, roundCount, ticketCount)
+	return nil
+}
+
+func (s Service) RebuildRound(ctx context.Context, poolID uint64, roundID uint64) error {
+	if err := s.syncRound(ctx, poolID, roundID, eventContext{}, nil, nil); err != nil {
+		return err
+	}
+	ticketCount, err := s.syncIndexedTicketsByPoolAndRound(ctx, poolID, roundID)
+	if err != nil {
+		return err
+	}
+	log.Printf("indexer round rebuild completed for pool=%d round=%d tickets=%d", poolID, roundID, ticketCount)
+	return nil
+}
+
+func (s Service) RebuildTicket(ctx context.Context, ticketID uint64) error {
+	if err := s.syncTicket(ctx, ticketID, eventContext{}, "", 0); err != nil {
+		return err
+	}
+	log.Printf("indexer ticket rebuild completed for ticket=%d", ticketID)
+	return nil
+}
+
+func (s Service) forEachPool(ctx context.Context, fn func(pool db.Pool) error) error {
+	offset := 0
+	for {
+		pools, err := s.queries.ListPools(ctx, db.ListPoolsParams{
+			ChainID: s.cfg.Chain.ID,
+			Limit:   indexerPageSize,
+			Offset:  int32(offset),
+		})
+		if err != nil {
+			return err
+		}
+		if len(pools) == 0 {
+			return nil
+		}
+		for _, pool := range pools {
+			if err := fn(pool); err != nil {
+				return err
+			}
+		}
+		if len(pools) < indexerPageSize {
+			return nil
+		}
+		offset += len(pools)
+	}
+}
+
+func (s Service) reconcilePool(ctx context.Context, poolID uint64) (int, int, error) {
+	if err := s.syncPool(ctx, poolID, eventContext{}); err != nil {
+		return 0, 0, err
+	}
+
+	pool, err := s.queries.GetPool(ctx, db.GetPoolParams{
+		ChainID: s.cfg.Chain.ID,
+		PoolID:  int64(poolID),
+	})
+	if err != nil {
+		return 0, 0, err
+	}
+
+	roundCount := 0
+	for roundID := int64(1); roundID <= pool.CurrentRound; roundID++ {
+		if err := s.syncRound(ctx, poolID, uint64(roundID), eventContext{}, nil, nil); err != nil {
+			return roundCount, 0, err
+		}
+		roundCount += 1
+	}
+
+	ticketCount, err := s.syncIndexedTicketsByPool(ctx, poolID)
+	if err != nil {
+		return roundCount, ticketCount, err
+	}
+	return roundCount, ticketCount, nil
+}
+
+func (s Service) syncIndexedTicketsByPool(ctx context.Context, poolID uint64) (int, error) {
+	offset := 0
+	synced := 0
+	for {
+		ticketIDs, err := s.queries.ListTicketIDsByPoolFromIndexedLogs(ctx, db.ListTicketIDsByPoolFromIndexedLogsParams{
+			ChainID: s.cfg.Chain.ID,
+			PoolID:  store.Int8(int64(poolID)),
+			Limit:   indexerPageSize,
+			Offset:  int32(offset),
+		})
+		if err != nil {
+			return synced, err
+		}
+		if len(ticketIDs) == 0 {
+			return synced, nil
+		}
+		for _, ticketID := range ticketIDs {
+			if !ticketID.Valid || ticketID.Int64 <= 0 {
+				continue
+			}
+			if err := s.syncTicket(ctx, uint64(ticketID.Int64), eventContext{}, "", 0); err != nil {
+				return synced, err
+			}
+			synced += 1
+		}
+		if len(ticketIDs) < indexerPageSize {
+			return synced, nil
+		}
+		offset += len(ticketIDs)
+	}
+}
+
+func (s Service) syncIndexedTicketsByPoolAndRound(ctx context.Context, poolID uint64, roundID uint64) (int, error) {
+	offset := 0
+	synced := 0
+	for {
+		ticketIDs, err := s.queries.ListTicketIDsByPoolAndRoundFromIndexedLogs(ctx, db.ListTicketIDsByPoolAndRoundFromIndexedLogsParams{
+			ChainID: s.cfg.Chain.ID,
+			PoolID:  store.Int8(int64(poolID)),
+			RoundID: store.Int8(int64(roundID)),
+			Limit:   indexerPageSize,
+			Offset:  int32(offset),
+		})
+		if err != nil {
+			return synced, err
+		}
+		if len(ticketIDs) == 0 {
+			return synced, nil
+		}
+		for _, ticketID := range ticketIDs {
+			if !ticketID.Valid || ticketID.Int64 <= 0 {
+				continue
+			}
+			if err := s.syncTicket(ctx, uint64(ticketID.Int64), eventContext{}, "", 0); err != nil {
+				return synced, err
+			}
+			synced += 1
+		}
+		if len(ticketIDs) < indexerPageSize {
+			return synced, nil
+		}
+		offset += len(ticketIDs)
+	}
 }
 
 func (s Service) syncContract(ctx context.Context, contractName string) error {
@@ -112,6 +273,17 @@ func (s Service) syncContract(ctx context.Context, contractName string) error {
 	if err != nil {
 		return err
 	}
+	safeHead := finalizedHead(head, s.cfg.Chain.Confirmations, s.cfg.Chain.FinalizationDepth)
+	if safeHead == 0 {
+		log.Printf(
+			"indexer sync skipped for %s: head=%d, confirmations=%d, finalizationDepth=%d",
+			contractName,
+			head,
+			s.cfg.Chain.Confirmations,
+			s.cfg.Chain.FinalizationDepth,
+		)
+		return nil
+	}
 
 	startBlock := deployment.DeploymentBlock
 	cursor, err := s.queries.GetIndexerCursor(ctx, db.GetIndexerCursorParams{
@@ -120,25 +292,31 @@ func (s Service) syncContract(ctx context.Context, contractName string) error {
 	})
 	if err == nil && cursor.LastProcessedBlock > 0 {
 		rewind := uint64(cursor.LastProcessedBlock)
-		if rewind > s.cfg.Chain.ReorgLookback {
-			startBlock = rewind - s.cfg.Chain.ReorgLookback
+		replayDepth := replayWindow(s.cfg.Chain.ReorgLookback, s.cfg.Chain.Confirmations, s.cfg.Chain.FinalizationDepth)
+		if rewind > replayDepth {
+			startBlock = rewind - replayDepth
 		}
 	}
 	if errors.Is(err, pgx.ErrNoRows) && startBlock > 0 {
 		startBlock--
 	}
 
-	if head <= startBlock {
+	if safeHead <= startBlock {
 		_, upsertErr := s.queries.UpsertIndexerCursor(ctx, db.UpsertIndexerCursorParams{
 			ChainID:               s.cfg.Chain.ID,
 			ContractName:          contractName,
-			LastProcessedBlock:    int64(head),
+			LastProcessedBlock:    int64(safeHead),
 			LastProcessedLogIndex: 0,
 		})
 		return upsertErr
 	}
 
 	fromBlock := startBlock + 1
+	topics := supportedEventTopics(deployment)
+	if len(topics) == 0 {
+		log.Printf("indexer sync skipped for %s: no supported topics configured", contractName)
+		return nil
+	}
 	oldLogs, err := s.queries.ListIndexedLogsFromBlock(ctx, db.ListIndexedLogsFromBlockParams{
 		ChainID:      s.cfg.Chain.ID,
 		ContractName: contractName,
@@ -158,8 +336,9 @@ func (s Service) syncContract(ctx context.Context, contractName string) error {
 
 	logs, err := s.chain.FilterLogs(ctx, ethereum.FilterQuery{
 		FromBlock: big.NewInt(int64(fromBlock)),
-		ToBlock:   big.NewInt(int64(head)),
+		ToBlock:   big.NewInt(int64(safeHead)),
 		Addresses: []common.Address{deployment.Address},
+		Topics:    [][]common.Hash{topics},
 	})
 	if err != nil {
 		return err
@@ -180,6 +359,9 @@ func (s Service) syncContract(ctx context.Context, contractName string) error {
 	for _, logEntry := range logs {
 		decoded, decodeErr := s.decodeLog(deployment, logEntry)
 		if decodeErr != nil {
+			if errors.Is(decodeErr, errUnsupportedEvent) {
+				continue
+			}
 			return decodeErr
 		}
 
@@ -192,7 +374,6 @@ func (s Service) syncContract(ctx context.Context, contractName string) error {
 		if err := s.applyEvent(ctx, decoded); err != nil {
 			return err
 		}
-		impacts.addDecoded(decoded.Event)
 	}
 
 	if err := s.reconcileImpacts(ctx, impacts); err != nil {
@@ -202,15 +383,29 @@ func (s Service) syncContract(ctx context.Context, contractName string) error {
 	_, err = s.queries.UpsertIndexerCursor(ctx, db.UpsertIndexerCursorParams{
 		ChainID:               s.cfg.Chain.ID,
 		ContractName:          contractName,
-		LastProcessedBlock:    int64(head),
+		LastProcessedBlock:    int64(safeHead),
 		LastProcessedLogIndex: 0,
 	})
+	if err == nil {
+		log.Printf(
+			"indexer synced %s blocks %d-%d (logs=%d replayedLogs=%d head=%d safeHead=%d)",
+			contractName,
+			fromBlock,
+			safeHead,
+			len(logs),
+			len(oldLogs),
+			head,
+			safeHead,
+		)
+	}
 	return err
 }
 
 type decodedLog struct {
 	Event decodedEvent
 }
+
+var errUnsupportedEvent = errors.New("unsupported event")
 
 type decodedEvent struct {
 	ContractName string
@@ -302,7 +497,7 @@ func (s Service) decodeLog(deployment contracts.Deployment, logEntry types.Log) 
 		result.Event.Payload["from"] = topicAddress(logEntry.Topics[1]).Hex()
 		result.Event.Payload["to"] = topicAddress(logEntry.Topics[2]).Hex()
 	default:
-		return decodedLog{}, fmt.Errorf("unsupported event %s", event.Name)
+		return decodedLog{}, fmt.Errorf("%w %s", errUnsupportedEvent, event.Name)
 	}
 
 	return result, nil
@@ -759,6 +954,57 @@ func (i impactSet) addDecoded(event decodedEvent) {
 	if event.TicketID > 0 {
 		i.Tickets[event.TicketID] = struct{}{}
 	}
+}
+
+func supportedEventTopics(deployment contracts.Deployment) []common.Hash {
+	names := []string{
+		"PoolCreated",
+		"PoolRoundRequested",
+		"PoolRoundInitialized",
+		"RoundSettled",
+		"TicketPurchased",
+		"TicketScratched",
+		"RewardClaimed",
+		"CreatorProfitWithdrawn",
+		"BondRefunded",
+		"PoolClosed",
+		"PoolRolledToNextRound",
+	}
+	if deployment.Name == contracts.TicketContractName {
+		names = []string{"Transfer"}
+	}
+
+	topics := make([]common.Hash, 0, len(names))
+	for _, name := range names {
+		event, ok := deployment.ABI.Events[name]
+		if !ok {
+			continue
+		}
+		topics = append(topics, event.ID)
+	}
+	return topics
+}
+
+func finalizedHead(head uint64, confirmations uint64, finalizationDepth uint64) uint64 {
+	safetyDepth := confirmations
+	if finalizationDepth > safetyDepth {
+		safetyDepth = finalizationDepth
+	}
+	if head <= safetyDepth {
+		return 0
+	}
+	return head - safetyDepth
+}
+
+func replayWindow(reorgLookback uint64, confirmations uint64, finalizationDepth uint64) uint64 {
+	window := reorgLookback
+	if confirmations > window {
+		window = confirmations
+	}
+	if finalizationDepth > window {
+		window = finalizationDepth
+	}
+	return window
 }
 
 func topicUint64(topic common.Hash) int64 {

@@ -4,6 +4,12 @@ FROM indexer_cursors
 WHERE chain_id = $1
   AND contract_name = $2;
 
+-- name: ListIndexerCursors :many
+SELECT *
+FROM indexer_cursors
+WHERE chain_id = $1
+ORDER BY contract_name ASC;
+
 -- name: UpsertIndexerCursor :one
 INSERT INTO indexer_cursors (
     chain_id,
@@ -61,6 +67,25 @@ WHERE chain_id = $1
   AND contract_name = $2
   AND block_number >= $3
 ORDER BY block_number ASC, log_index ASC;
+
+-- name: ListTicketIDsByPoolFromIndexedLogs :many
+SELECT DISTINCT ticket_id
+FROM indexed_logs
+WHERE chain_id = $1
+  AND pool_id = $2
+  AND ticket_id IS NOT NULL
+ORDER BY ticket_id DESC
+LIMIT $3 OFFSET $4;
+
+-- name: ListTicketIDsByPoolAndRoundFromIndexedLogs :many
+SELECT DISTINCT ticket_id
+FROM indexed_logs
+WHERE chain_id = $1
+  AND pool_id = $2
+  AND round_id = $3
+  AND ticket_id IS NOT NULL
+ORDER BY ticket_id DESC
+LIMIT $4 OFFSET $5;
 
 -- name: DeleteIndexedLogsFromBlock :exec
 DELETE FROM indexed_logs

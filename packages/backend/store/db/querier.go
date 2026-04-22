@@ -6,6 +6,8 @@ package db
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Querier interface {
@@ -32,12 +34,17 @@ type Querier interface {
 	InsertRevealRequest(ctx context.Context, arg InsertRevealRequestParams) (RevealRequest, error)
 	ListActiveDeployments(ctx context.Context, chainID int64) ([]DeploymentRegistry, error)
 	ListIndexedLogsFromBlock(ctx context.Context, arg ListIndexedLogsFromBlockParams) ([]IndexedLog, error)
+	ListIndexerCursors(ctx context.Context, chainID int64) ([]IndexerCursor, error)
 	ListJobs(ctx context.Context) ([]Job, error)
 	ListPoolCostLedgers(ctx context.Context, arg ListPoolCostLedgersParams) ([]PoolCostLedger, error)
 	ListPools(ctx context.Context, arg ListPoolsParams) ([]Pool, error)
 	ListStaleSubmittingRevealRequests(ctx context.Context, arg ListStaleSubmittingRevealRequestsParams) ([]RevealRequest, error)
 	ListSubmittedRevealRequests(ctx context.Context, arg ListSubmittedRevealRequestsParams) ([]RevealRequest, error)
+	ListTicketIDsByPoolAndRoundFromIndexedLogs(ctx context.Context, arg ListTicketIDsByPoolAndRoundFromIndexedLogsParams) ([]pgtype.Int8, error)
+	ListTicketIDsByPoolFromIndexedLogs(ctx context.Context, arg ListTicketIDsByPoolFromIndexedLogsParams) ([]pgtype.Int8, error)
 	ListTicketsByOwner(ctx context.Context, arg ListTicketsByOwnerParams) ([]Ticket, error)
+	ListTicketsByPool(ctx context.Context, arg ListTicketsByPoolParams) ([]Ticket, error)
+	ListTicketsByPoolAndRound(ctx context.Context, arg ListTicketsByPoolAndRoundParams) ([]Ticket, error)
 	ListWinsByUser(ctx context.Context, arg ListWinsByUserParams) ([]Ticket, error)
 	MarkJobCompleted(ctx context.Context, arg MarkJobCompletedParams) (Job, error)
 	MarkJobFailed(ctx context.Context, arg MarkJobFailedParams) (Job, error)

@@ -7,11 +7,11 @@ Implemented scope:
 - PostgreSQL-backed read model and recurring job state via `pgx` + `sqlc`
 - startup migration runner and deployment metadata import from Hardhat artifacts into `deployment_registry`
 - go-ethereum chain client plus LuckyScratch contract wrappers for the required read calls
-- read-model indexer for core LuckyScratch events plus ERC-721 `Transfer`
+- read-model indexer for finalized/safe core LuckyScratch events plus ERC-721 `Transfer`
 - REST query API for pools, rounds, tickets, user tickets, user wins, and claim precheck
 - reveal auth / claim-precheck flow with real `ownerOf` and `getTicketRevealState` checks, short-lived auth request storage, backend-scoped Zama relayer-sdk context generation, and ticket-scoped Zama `keyurl` / `user-decrypt` proxy endpoints
-- worker-side recurring jobs for indexer catch-up, pending-VRF checks, state reconciliation, Zama reveal proxy reconciliation, and stale job-lock recovery
-- admin endpoints for jobs, pool costs, and job retry
+- worker-side recurring jobs for indexer catch-up, paginated pending-VRF checks, full-pool state reconciliation, Zama reveal proxy reconciliation, and stale job-lock recovery
+- admin endpoints for jobs, pool costs, job retry, and targeted pool / round / ticket reindex
 
 Current boundaries:
 
@@ -43,6 +43,9 @@ Recommended environment variables:
 - `DEPLOYMENTS_DIR`
 - `CHAIN_ID`
 - `CHAIN_NAME`
+- `CHAIN_CONFIRMATIONS`
+- `CHAIN_FINALIZATION_DEPTH`
+- `CHAIN_REORG_LOOKBACK`
 - `API_PUBLIC_BASE_URL`
 - `REVEAL_AUTH_TTL`
 - `REVEAL_SUBMIT_TIMEOUT`
@@ -58,6 +61,9 @@ For Sepolia, the backend now ships with official Zama relayer / contract default
 If reveal-auth needs to emit a public proxy URL from behind a reverse proxy, configure `API_PUBLIC_BASE_URL` or make sure forwarded host/proto headers are passed through correctly; the backend now fails fast instead of silently falling back to a direct upstream relayer URL.
 The worker also reconciles submitted Zama decrypt jobs in the background and times out stale local `submitting` requests after `REVEAL_SUBMIT_TIMEOUT` so they do not stay queued forever.
 Recurring PostgreSQL jobs also reclaim stale `running` locks after `JOB_LOCK_TIMEOUT`, so a worker crash does not strand background jobs forever.
+The indexer now processes only finalized/safe blocks, filters log queries to the supported LuckyScratchCore plus ERC-721 topic set before decode, and paginates reconciliation / pending-VRF scans across the full pool set instead of stopping at the first page.
+`GET /api/v1/admin/jobs` now includes indexer `head`, `safeHead`, per-contract cursor positions, and safe-block lag so operators can see whether replay is falling behind.
+Admin reindex routes are available at `POST /api/v1/admin/pools/{poolId}/reindex`, `POST /api/v1/admin/pools/{poolId}/rounds/{roundId}/reindex`, and `POST /api/v1/admin/tickets/{ticketId}/reindex`.
 With the currently pinned `@zama-fhe/relayer-sdk` 0.4.1 / relayer v2 flow, the backend can prevent duplicate local submits and reconcile known upstream jobs, but it cannot losslessly recover the narrow failure mode where the upstream relayer accepts a POST and the backend crashes before persisting the returned upstream `jobId`; the upstream protocol does not expose a client-supplied idempotency key or a lookup-by-local-request-ref path.
 
 Quick start:

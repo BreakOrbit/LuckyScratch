@@ -39,6 +39,9 @@ type AdminService interface {
 	Jobs(ctx context.Context) (map[string]any, error)
 	RetryJob(ctx context.Context, jobID int64, actor string) error
 	PoolCosts(ctx context.Context, poolID uint64) (map[string]any, error)
+	RebuildPool(ctx context.Context, poolID uint64, actor string) error
+	RebuildRound(ctx context.Context, poolID uint64, roundID uint64, actor string) error
+	RebuildTicket(ctx context.Context, ticketID uint64, actor string) error
 }
 
 type Dependencies struct {
@@ -75,6 +78,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/api/v1/admin/jobs", s.requireAdmin(s.handleAdminJobs))
 	mux.HandleFunc("/api/v1/admin/jobs/", s.requireAdmin(s.handleAdminJobRoutes))
 	mux.HandleFunc("/api/v1/admin/pools/", s.requireAdmin(s.handleAdminPoolRoutes))
+	mux.HandleFunc("/api/v1/admin/tickets/", s.requireAdmin(s.handleAdminTicketRoutes))
 
 	return mux
 }
@@ -421,12 +425,8 @@ func (s *Server) handleAdminJobRoutes(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleAdminPoolRoutes(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/v1/admin/pools/")
 	parts := splitPath(path)
-	if len(parts) != 2 || parts[1] != "costs" {
+	if len(parts) < 2 {
 		writeError(w, http.StatusNotFound, errors.New("route not found"))
-		return
-	}
-	if r.Method != http.MethodGet {
-		writeMethodNotAllowed(w)
 		return
 	}
 
@@ -436,12 +436,70 @@ func (s *Server) handleAdminPoolRoutes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := s.adminService.PoolCosts(r.Context(), poolID)
+	switch {
+	case len(parts) == 2 && parts[1] == "costs":
+		if r.Method != http.MethodGet {
+			writeMethodNotAllowed(w)
+			return
+		}
+		resp, err := s.adminService.PoolCosts(r.Context(), poolID)
+		if err != nil {
+			writeServiceError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, resp)
+	case len(parts) == 2 && parts[1] == "reindex":
+		if r.Method != http.MethodPost {
+			writeMethodNotAllowed(w)
+			return
+		}
+		if err := s.adminService.RebuildPool(r.Context(), poolID, s.adminActor(r)); err != nil {
+			writeServiceError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"poolId": poolID, "status": "reindexed"})
+	case len(parts) == 4 && parts[1] == "rounds" && parts[3] == "reindex":
+		if r.Method != http.MethodPost {
+			writeMethodNotAllowed(w)
+			return
+		}
+		roundID, parseErr := strconv.ParseUint(parts[2], 10, 64)
+		if parseErr != nil {
+			writeError(w, http.StatusBadRequest, parseErr)
+			return
+		}
+		if err := s.adminService.RebuildRound(r.Context(), poolID, roundID, s.adminActor(r)); err != nil {
+			writeServiceError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"poolId": poolID, "roundId": roundID, "status": "reindexed"})
+	default:
+		writeError(w, http.StatusNotFound, errors.New("route not found"))
+	}
+}
+
+func (s *Server) handleAdminTicketRoutes(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/api/v1/admin/tickets/")
+	parts := splitPath(path)
+	if len(parts) != 2 || parts[1] != "reindex" {
+		writeError(w, http.StatusNotFound, errors.New("route not found"))
+		return
+	}
+	if r.Method != http.MethodPost {
+		writeMethodNotAllowed(w)
+		return
+	}
+
+	ticketID, err := strconv.ParseUint(parts[0], 10, 64)
 	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	if err := s.adminService.RebuildTicket(r.Context(), ticketID, s.adminActor(r)); err != nil {
 		writeServiceError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, resp)
+	writeJSON(w, http.StatusOK, map[string]any{"ticketId": ticketID, "status": "reindexed"})
 }
 
 func (s *Server) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
