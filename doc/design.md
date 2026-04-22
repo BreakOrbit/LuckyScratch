@@ -70,9 +70,7 @@ LuckyScratch 通过：
 系统主链路：
 
 ```text
-Frontend
-  ↓
-Relayer（Gas 代付）
+Frontend（钱包直连 + Backend API）
   ↓
 Smart Contract（Solidity + Zama）
 ```
@@ -89,7 +87,7 @@ Smart Contract（Solidity + Zama）
 
 ## 4.1 多层奖池
 
-说明：这里的“单池规模”指单个池实例的总派奖预算，不包含平台利润、Gas Sponsor 成本或额外 Buffer。
+说明：这里的“单池规模”指单个池实例的总派奖预算，不包含平台利润、基础设施成本或额外 Buffer。
 同时也不包含协议侧承担的 Zama 协议费用与 Chainlink VRF 费用。
 
 | 类型 | 单池规模 | 单张票价 | 单池总票数 | 单池总销售额 | 目标 RTP | 预估利润 | 池实例数量 |
@@ -358,7 +356,7 @@ NFT 不存储：
 
 循环池可提利润口径：
 
-`可提利润 = 已实现收入 - 已结算奖金 - 平台手续费 - Sponsor/Infra 成本 - 下一轮保留奖金`
+`可提利润 = 已实现收入 - 已结算奖金 - 平台手续费 - Infra 成本 - 下一轮保留奖金`
 
 ## 9.2 100U 池（Small Pool）示例
 
@@ -372,14 +370,12 @@ NFT 不存储：
 
 | 项目 | 金额 |
 | --- | --- |
-| Gas Sponsor | 3U |
 | Infra | 1.5U |
-| 平台 | 4.5U |
+| 平台 | 7.5U |
 | Buffer | 3U |
 
 说明：
 
-- `Gas Sponsor` 负责支付购票、刮奖相关链上 Gas。
 - `Infra` 负责支付协议基础设施费用，包括 Zama 协议费用与 Chainlink VRF 费用。
 
 ## 9.3 其他池型利润概览
@@ -390,71 +386,7 @@ NFT 不存储：
 | Medium Pool | 590 USDC | 500 USDC | 90 USDC |
 | Large Pool | 1325 USDC | 1000 USDC | 325 USDC |
 
-# 10. Gasless 设计
-
-## 10.1 模式
-
-`用户签名 → Relayer → 合约执行`
-
-协议侧代付范围：
-
-- 购票与刮奖相关链上 Gas
-- Zama 协议费用
-- Chainlink VRF 预言机费用
-
-说明：
-
-- 上述费用统一由协议侧承担，并从 Sponsor / Infra 预算中结算。
-- 领奖交易仍由用户自行支付链上 Gas。
-
-## 10.2 覆盖范围
-
-- Gasless 适用于高频、体验敏感的操作：`purchaseTickets`、`purchaseTicketsWithSelection`、`scratchTicket`、`batchScratch`
-- 用户自行支付 Gas 的操作：`claimReward`、`batchClaimRewards`、`withdrawCreatorProfit`、`refundBond`
-- 原则：协议代付“促成消费与揭晓”的交易及其配套协议成本，不代付“资金流出平台”的交易
-
-## 10.3 签名内容
-
-每次 Gasless 请求至少包含：
-
-- `user`：发起地址
-- `action`：操作类型
-- `paramsHash`：本次调用参数摘要
-- `nonce`：用户递增 nonce，防重放
-- `deadline`：签名过期时间
-- `chainId`：限制链环境
-- `targetContract`：限制目标合约
-
-说明：
-
-- 前端先生成待执行操作的结构化消息，由用户签名确认。
-- Relayer 仅转发经过签名授权且未过期的请求。
-- 合约必须校验签名、nonce、deadline 与目标函数是否匹配。
-
-## 10.4 执行流程
-
-1. 用户在前端发起购票或刮奖操作。
-2. 前端构造签名消息，提示用户签名授权。
-3. Relayer 校验签名、nonce、deadline、风控规则。
-4. Relayer 代表用户提交链上交易并垫付 Gas。
-5. 合约再次校验授权内容，执行目标函数。
-6. 执行结果回传前端，展示成功或失败状态。
-
-## 10.5 风控与限制
-
-- 不设置按日 Gasless 次数上限，避免影响正常的连续购票与连续刮奖体验。
-- 单笔可代付的最大数量与最大 Gas 设上限，避免异常大单。
-- 仅允许白名单函数走 Relayer，禁止任意 calldata 透传。
-- 签名默认短时有效，过期后必须重新签名。
-- 同一 nonce 只能成功消费一次，失败后是否可重用由合约统一定义。
-
-## 10.6 降级策略
-
-- 当 Relayer 不可用时，前端可切换为普通链上直连交易。
-- 当 Gas Sponsor 预算不足时，仅关闭 Gasless 入口，不影响用户手动发交易。
-- 当风控命中时，用户仍可自行支付 Gas 完成操作。
-
-# 11. 随机性设计
+# 10. 随机性设计
 
 ## 11.1 方案
 

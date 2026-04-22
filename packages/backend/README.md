@@ -6,13 +6,12 @@ Implemented scope:
 
 - PostgreSQL-backed read model and recurring job state via `pgx` + `sqlc`
 - startup migration runner and deployment metadata import from Hardhat artifacts into `deployment_registry`
-- go-ethereum chain client plus LuckyScratch contract wrappers for the required read calls and gasless writes
+- go-ethereum chain client plus LuckyScratch contract wrappers for the required read calls
 - read-model indexer for core LuckyScratch events plus ERC-721 `Transfer`
-- REST query API for pools, rounds, tickets, user tickets, user wins, gasless nonce, and claim precheck
-- gasless relayer flow with EIP-712 validation, onchain nonce/deadline/paramsHash checks, gas estimation, risk checks, signed tx persistence before send, receipt sync, and sponsor cost ledger
+- REST query API for pools, rounds, tickets, user tickets, user wins, and claim precheck
 - reveal auth / claim-precheck flow with real `ownerOf` and `getTicketRevealState` checks, short-lived auth request storage, backend-scoped Zama relayer-sdk context generation, and ticket-scoped Zama `keyurl` / `user-decrypt` proxy endpoints
-- worker-side recurring jobs for indexer catch-up, gasless receipt sync, dropped-request retry, pending-VRF checks, state reconciliation, Zama reveal proxy reconciliation, and stale job-lock recovery
-- admin endpoints for jobs, relayer health, pool costs, per-pool gasless pause, per-user gasless block, and job retry
+- worker-side recurring jobs for indexer catch-up, pending-VRF checks, state reconciliation, Zama reveal proxy reconciliation, and stale job-lock recovery
+- admin endpoints for jobs, pool costs, and job retry
 
 Current boundaries:
 
@@ -36,7 +35,6 @@ Required environment variables:
 
 - `DATABASE_URL`
 - `RPC_URL`
-- `RELAYER_PRIVATE_KEY`
 
 Recommended environment variables:
 

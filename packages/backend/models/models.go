@@ -16,14 +16,6 @@ const (
 	TicketStatusScratched   = "Scratched"
 	TicketStatusClaimed     = "Claimed"
 
-	GaslessStatusCreated   = "created"
-	GaslessStatusValidated = "validated"
-	GaslessStatusSubmitted = "submitted"
-	GaslessStatusConfirmed = "confirmed"
-	GaslessStatusFinalized = "finalized"
-	GaslessStatusFailed    = "failed"
-	GaslessStatusDropped   = "dropped"
-
 	JobStatusPending   = "pending"
 	JobStatusRunning   = "running"
 	JobStatusCompleted = "completed"

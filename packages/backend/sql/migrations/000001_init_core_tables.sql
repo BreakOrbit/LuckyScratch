@@ -97,37 +97,6 @@ CREATE TABLE IF NOT EXISTS tickets (
     UNIQUE (chain_id, ticket_id)
 );
 
-CREATE TABLE IF NOT EXISTS gasless_requests (
-    id BIGSERIAL PRIMARY KEY,
-    chain_id BIGINT NOT NULL,
-    digest TEXT NOT NULL UNIQUE,
-    user_address TEXT NOT NULL,
-    action TEXT NOT NULL,
-    target_contract TEXT NOT NULL,
-    params_hash TEXT NOT NULL,
-    nonce BIGINT NOT NULL,
-    deadline BIGINT NOT NULL,
-    status TEXT NOT NULL,
-    failure_code TEXT NOT NULL DEFAULT '',
-    failure_reason TEXT NOT NULL DEFAULT '',
-    tx_hash TEXT NOT NULL DEFAULT '',
-    gas_used BIGINT,
-    effective_gas_price_wei BIGINT,
-    gas_cost_wei BIGINT,
-    pool_id BIGINT,
-    round_id BIGINT,
-    ticket_id BIGINT,
-    request_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
-    signature TEXT NOT NULL DEFAULT '',
-    receipt_block_number BIGINT,
-    receipt_block_hash TEXT NOT NULL DEFAULT '',
-    submitted_at TIMESTAMPTZ,
-    confirmed_at TIMESTAMPTZ,
-    finalized_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
 CREATE TABLE IF NOT EXISTS reveal_requests (
     id BIGSERIAL PRIMARY KEY,
     chain_id BIGINT NOT NULL,
@@ -193,7 +162,6 @@ CREATE TABLE IF NOT EXISTS indexed_logs (
     round_id BIGINT,
     ticket_id BIGINT,
     user_address TEXT NOT NULL DEFAULT '',
-    digest TEXT NOT NULL DEFAULT '',
     payload JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (chain_id, tx_hash, log_index)
@@ -227,19 +195,6 @@ CREATE TABLE IF NOT EXISTS jobs (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS gasless_controls (
-    id BIGSERIAL PRIMARY KEY,
-    scope_type TEXT NOT NULL,
-    scope_key TEXT NOT NULL,
-    control_type TEXT NOT NULL,
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    reason TEXT NOT NULL DEFAULT '',
-    expires_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (scope_type, scope_key, control_type)
-);
-
 CREATE TABLE IF NOT EXISTS audit_logs (
     id BIGSERIAL PRIMARY KEY,
     actor TEXT NOT NULL,
@@ -254,10 +209,7 @@ CREATE INDEX IF NOT EXISTS pools_chain_status_idx ON pools (chain_id, status, po
 CREATE INDEX IF NOT EXISTS rounds_chain_pool_idx ON rounds (chain_id, pool_id, round_id DESC);
 CREATE INDEX IF NOT EXISTS tickets_owner_idx ON tickets (chain_id, lower(owner), ticket_id DESC);
 CREATE INDEX IF NOT EXISTS tickets_claimed_by_idx ON tickets (chain_id, lower(claimed_by), ticket_id DESC);
-CREATE INDEX IF NOT EXISTS gasless_requests_status_idx ON gasless_requests (chain_id, status, created_at DESC);
-CREATE INDEX IF NOT EXISTS gasless_requests_user_idx ON gasless_requests (chain_id, lower(user_address), created_at DESC);
 CREATE INDEX IF NOT EXISTS reveal_requests_ticket_user_idx ON reveal_requests (chain_id, ticket_id, lower(request_user), created_at DESC);
 CREATE INDEX IF NOT EXISTS pool_cost_ledgers_pool_idx ON pool_cost_ledgers (chain_id, pool_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS indexed_logs_block_idx ON indexed_logs (chain_id, block_number, log_index);
 CREATE INDEX IF NOT EXISTS jobs_due_idx ON jobs (status, run_after);
-CREATE INDEX IF NOT EXISTS gasless_controls_active_idx ON gasless_controls (scope_type, scope_key, control_type, is_active);

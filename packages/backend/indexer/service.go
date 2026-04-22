@@ -225,7 +225,6 @@ type decodedEvent struct {
 	RoundID      int64
 	TicketID     int64
 	UserAddress  string
-	Digest       string
 	Payload      map[string]any
 }
 
@@ -297,10 +296,6 @@ func (s Service) decodeLog(deployment contracts.Deployment, logEntry types.Log) 
 	case "PoolRolledToNextRound":
 		result.Event.PoolID = topicUint64(logEntry.Topics[1])
 		result.Event.RoundID = topicUint64(logEntry.Topics[2])
-	case "GaslessExecuted":
-		result.Event.UserAddress = topicAddress(logEntry.Topics[1]).Hex()
-		result.Event.Payload["action"] = asUint8(out[0])
-		result.Event.Digest = bytes32Hex(out[1])
 	case "Transfer":
 		result.Event.UserAddress = topicAddress(logEntry.Topics[2]).Hex()
 		result.Event.TicketID = topicUint64(logEntry.Topics[3])
@@ -334,7 +329,6 @@ func (s Service) applyEvent(ctx context.Context, decoded decodedLog) error {
 		RoundID:         maybeInt8(decoded.Event.RoundID),
 		TicketID:        maybeInt8(decoded.Event.TicketID),
 		UserAddress:     decoded.Event.UserAddress,
-		Digest:          normalizeHex(decoded.Event.Digest),
 		Payload:         payload,
 	})
 	if err != nil {
@@ -389,79 +383,6 @@ func (s Service) applyEvent(ctx context.Context, decoded decodedLog) error {
 			return err
 		}
 		return s.syncPool(ctx, uint64(decoded.Event.PoolID), eventContext(decoded.Event.context()))
-	case "GaslessExecuted":
-		if decoded.Event.Digest == "" {
-			return nil
-		}
-		existing, err := s.queries.GetGaslessRequestByDigest(ctx, normalizeHex(decoded.Event.Digest))
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		if (existing.Status == models.GaslessStatusConfirmed || existing.Status == models.GaslessStatusFinalized) && hasGaslessReceiptState(existing) {
-			return nil
-		}
-		receipt, err := s.chain.TransactionReceipt(ctx, common.HexToHash(decoded.Event.TxHash))
-		if err != nil {
-			return err
-		}
-
-		status := models.GaslessStatusConfirmed
-		failureCode := ""
-		failureReason := ""
-		if receipt.Status != types.ReceiptStatusSuccessful {
-			status = models.GaslessStatusFailed
-			failureCode = "execution_reverted"
-			failureReason = "transaction reverted onchain"
-		}
-		gasUsed := clampUint64ToInt64(receipt.GasUsed)
-		gasPrice := bigIntToPg(receipt.EffectiveGasPrice)
-		totalCost := receipt.EffectiveGasPrice
-		if totalCost == nil {
-			totalCost = big.NewInt(0)
-		} else {
-			totalCost = new(big.Int).Mul(totalCost, new(big.Int).SetUint64(receipt.GasUsed))
-		}
-
-		updated, err := s.queries.BackfillGaslessRequestOnchainState(ctx, db.BackfillGaslessRequestOnchainStateParams{
-			Digest:               normalizeHex(decoded.Event.Digest),
-			Status:               status,
-			FailureCode:          failureCode,
-			FailureReason:        failureReason,
-			TxHash:               decoded.Event.TxHash,
-			GasUsed:              store.Int8(gasUsed),
-			EffectiveGasPriceWei: gasPrice,
-			GasCostWei:           bigIntToPg(totalCost),
-			ReceiptBlockNumber:   bigIntToPg(receipt.BlockNumber),
-			ReceiptBlockHash:     receipt.BlockHash.Hex(),
-		})
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		if receipt.Status == types.ReceiptStatusSuccessful && updated.PoolID.Valid {
-			metadata, _ := json.Marshal(map[string]any{
-				"digest":  updated.Digest,
-				"txHash":  decoded.Event.TxHash,
-				"gasUsed": gasUsed,
-			})
-			_, _ = s.queries.InsertPoolCostLedger(ctx, db.InsertPoolCostLedgerParams{
-				ChainID:  s.cfg.Chain.ID,
-				PoolID:   updated.PoolID.Int64,
-				RoundID:  updated.RoundID,
-				CostType: "SPONSOR_GAS",
-				Amount:   clampBigIntToInt64(totalCost),
-				TxHash:   decoded.Event.TxHash,
-				RefType:  "gasless_request",
-				RefID:    updated.Digest,
-				Metadata: metadata,
-			})
-		}
-		return nil
 	case "RoundSettled":
 		if err := s.syncRound(ctx, uint64(decoded.Event.PoolID), uint64(decoded.Event.RoundID), eventContext(decoded.Event.context()), nil, nil); err != nil {
 			return err
@@ -855,10 +776,6 @@ func mergeEventContext(meta eventContext, blockNumber int64, txHash string, logI
 	return meta
 }
 
-func hasGaslessReceiptState(record db.GaslessRequest) bool {
-	return record.TxHash != "" && record.GasCostWei.Valid && record.ReceiptBlockNumber.Valid
-}
-
 func topicAddress(topic common.Hash) common.Address {
 	return common.BytesToAddress(topic.Bytes()[12:])
 }
@@ -886,19 +803,6 @@ func asUint32(value interface{}) uint32 {
 		return uint32(casted)
 	case *big.Int:
 		return uint32(casted.Uint64())
-	default:
-		return 0
-	}
-}
-
-func asUint8(value interface{}) uint8 {
-	switch casted := value.(type) {
-	case uint8:
-		return casted
-	case uint16:
-		return uint8(casted)
-	case *big.Int:
-		return uint8(casted.Uint64())
 	default:
 		return 0
 	}

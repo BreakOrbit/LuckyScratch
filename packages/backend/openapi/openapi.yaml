@@ -82,78 +82,6 @@ paths:
       responses:
         "200":
           description: Win list
-  /api/v1/gasless/nonce/{address}:
-    get:
-      summary: Read the current LuckyScratch gasless nonce onchain
-      parameters:
-        - in: path
-          name: address
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Nonce payload
-  /api/v1/gasless/purchase:
-    post:
-      summary: Submit a gasless purchase request
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PurchaseRequest"
-      responses:
-        "202":
-          description: Accepted
-  /api/v1/gasless/purchase-selection:
-    post:
-      summary: Submit a gasless purchase-selection request
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PurchaseSelectionRequest"
-      responses:
-        "202":
-          description: Accepted
-  /api/v1/gasless/scratch:
-    post:
-      summary: Submit a gasless scratch request
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ScratchRequest"
-      responses:
-        "202":
-          description: Accepted
-  /api/v1/gasless/batch-scratch:
-    post:
-      summary: Submit a gasless batch-scratch request
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/BatchScratchRequest"
-      responses:
-        "202":
-          description: Accepted
-  /api/v1/gasless/requests/{digest}:
-    get:
-      summary: Get persisted gasless request status
-      parameters:
-        - in: path
-          name: digest
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Gasless request status
   /api/v1/tickets/{ticketId}/reveal-auth:
     post:
       summary: Build reveal authorization payload for a scratched ticket, including a ticket-scoped Zama relayer proxy URL when enabled
@@ -253,12 +181,6 @@ paths:
       responses:
         "200":
           description: Retry accepted
-  /api/v1/admin/relayer/health:
-    get:
-      summary: Get relayer address and balance health
-      responses:
-        "200":
-          description: Relayer health
   /api/v1/admin/pools/{poolId}/costs:
     get:
       summary: Get per-pool cost summary and recent ledgers
@@ -271,135 +193,8 @@ paths:
       responses:
         "200":
           description: Pool cost summary
-  /api/v1/admin/gasless/pools/{poolId}/pause:
-    post:
-      summary: Pause gasless for a pool
-      parameters:
-        - in: path
-          name: poolId
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Pool paused
-  /api/v1/admin/gasless/users/{address}/block:
-    post:
-      summary: Block gasless for a user
-      parameters:
-        - in: path
-          name: address
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: User blocked
 components:
   schemas:
-    GaslessRequest:
-      type: object
-      required:
-        - user
-        - action
-        - targetContract
-        - paramsHash
-        - nonce
-        - deadline
-        - chainId
-      properties:
-        user:
-          type: string
-        action:
-          oneOf:
-            - type: string
-            - type: integer
-        targetContract:
-          type: string
-        paramsHash:
-          type: string
-        nonce:
-          oneOf:
-            - type: string
-            - type: integer
-        deadline:
-          oneOf:
-            - type: string
-            - type: integer
-        chainId:
-          oneOf:
-            - type: string
-            - type: integer
-    PurchaseRequest:
-      type: object
-      required:
-        - request
-        - signature
-        - poolId
-        - quantity
-      properties:
-        request:
-          $ref: "#/components/schemas/GaslessRequest"
-        signature:
-          type: string
-        poolId:
-          oneOf:
-            - type: string
-            - type: integer
-        quantity:
-          type: integer
-    PurchaseSelectionRequest:
-      type: object
-      required:
-        - request
-        - signature
-        - poolId
-        - ticketIndexes
-      properties:
-        request:
-          $ref: "#/components/schemas/GaslessRequest"
-        signature:
-          type: string
-        poolId:
-          oneOf:
-            - type: string
-            - type: integer
-        ticketIndexes:
-          type: array
-          items:
-            type: integer
-    ScratchRequest:
-      type: object
-      required:
-        - request
-        - signature
-        - ticketId
-      properties:
-        request:
-          $ref: "#/components/schemas/GaslessRequest"
-        signature:
-          type: string
-        ticketId:
-          oneOf:
-            - type: string
-            - type: integer
-    BatchScratchRequest:
-      type: object
-      required:
-        - request
-        - signature
-        - ticketIds
-      properties:
-        request:
-          $ref: "#/components/schemas/GaslessRequest"
-        signature:
-          type: string
-        ticketIds:
-          type: array
-          items:
-            oneOf:
-              - type: string
-              - type: integer
     RevealAuthRequest:
       type: object
       required:

@@ -35,10 +35,9 @@ INSERT INTO indexed_logs (
     round_id,
     ticket_id,
     user_address,
-    digest,
     payload
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
 )
 ON CONFLICT (chain_id, tx_hash, log_index) DO UPDATE SET
     contract_name = EXCLUDED.contract_name,
@@ -52,7 +51,6 @@ ON CONFLICT (chain_id, tx_hash, log_index) DO UPDATE SET
     round_id = EXCLUDED.round_id,
     ticket_id = EXCLUDED.ticket_id,
     user_address = EXCLUDED.user_address,
-    digest = EXCLUDED.digest,
     payload = EXCLUDED.payload
 RETURNING *;
 

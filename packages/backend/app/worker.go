@@ -15,7 +15,6 @@ func RunWorker(ctx context.Context, cfg config.Config, runtime *Runtime) error {
 		Config:         cfg,
 		Queries:        runtime.Queries,
 		IndexerService: indexerService,
-		GaslessService: runtime.GaslessService,
 		RevealService:  runtime.RevealService,
 	})
 	err := worker.Run(ctx)

@@ -11,11 +11,10 @@ import (
 
 func RunAPI(ctx context.Context, cfg config.Config, runtime *Runtime) error {
 	handler := api.NewServer(api.Dependencies{
-		Config:         cfg,
-		ReadService:    runtime.ReadModel,
-		GaslessService: runtime.GaslessService,
-		RevealService:  runtime.RevealService,
-		AdminService:   runtime.AdminService,
+		Config:        cfg,
+		ReadService:   runtime.ReadModel,
+		RevealService: runtime.RevealService,
+		AdminService:  runtime.AdminService,
 	}).Routes()
 
 	srv := &http.Server{

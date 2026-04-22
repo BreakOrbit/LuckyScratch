@@ -160,7 +160,6 @@ const deployLuckyScratch: DeployFunction = async function (hre: HardhatRuntimeEn
     "setVrfAdapter",
     vrfDeployment.address,
   );
-  await execute("LuckyScratchCore", { from: deployer, log: true, autoMine: true }, "setRelayer", deployer, true);
 
   log(`LuckyScratch payment token: ${paymentTokenAddress}`);
   log(`LuckyScratch VRF coordinator: ${coordinator}`);

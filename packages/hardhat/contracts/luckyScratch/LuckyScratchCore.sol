@@ -2,7 +2,6 @@
 pragma solidity ^0.8.24;
 
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
-import { EIP712 } from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { FHE, euint64 } from "@fhevm/solidity/lib/FHE.sol";
@@ -11,15 +10,12 @@ import { ILuckyScratchCore } from "./interfaces/ILuckyScratchCore.sol";
 import { ILuckyScratchTicket } from "./interfaces/ILuckyScratchTicket.sol";
 import { ILuckyScratchTreasury } from "./interfaces/ILuckyScratchTreasury.sol";
 import { ILuckyScratchVRFAdapter } from "./interfaces/ILuckyScratchVRFAdapter.sol";
-import { GaslessVerifyLib } from "./libraries/GaslessVerifyLib.sol";
 import { PoolMathLib } from "./libraries/PoolMathLib.sol";
 import { PrizeShuffleLib } from "./libraries/PrizeShuffleLib.sol";
 import { TicketStateLib } from "./libraries/TicketStateLib.sol";
 import {
     EncryptedTicketState,
     EncryptedUserState,
-    GaslessAction,
-    GaslessRequest,
     PoolAccounting,
     PoolConfig,
     PoolMode,
@@ -32,11 +28,10 @@ import {
     TicketStatus
 } from "./types/LuckyScratchTypes.sol";
 
-contract LuckyScratchCore is AccessControl, EIP712, ReentrancyGuard, Pausable, ZamaEthereumConfig, ILuckyScratchCore {
+contract LuckyScratchCore is AccessControl, ReentrancyGuard, Pausable, ZamaEthereumConfig, ILuckyScratchCore {
     using PoolMathLib for PoolAccounting;
 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-    bytes32 public constant RELAYER_ROLE = keccak256("RELAYER_ROLE");
 
     uint32 internal constant MAX_BATCH_SIZE = 64;
     uint16 internal constant MAX_BPS = 10_000;
@@ -75,13 +70,7 @@ contract LuckyScratchCore is AccessControl, EIP712, ReentrancyGuard, Pausable, Z
     error DuplicateTicketIndex(uint32 ticketIndex);
     error InvalidVrfCaller(address caller);
     error InvalidRequest(bytes32 requestId);
-    error InvalidGaslessAction();
-    error InvalidGaslessNonce(uint256 expectedNonce, uint256 receivedNonce);
-    error InvalidGaslessSignature();
-    error ExpiredGaslessRequest(uint256 deadline, uint256 currentTimestamp);
-    error InvalidGaslessParamsHash(bytes32 expectedHash, bytes32 receivedHash);
     error InvalidTargetContract(address expectedTarget, address receivedTarget);
-    error InvalidChainId(uint256 expectedChainId, uint256 receivedChainId);
     error NotPoolCreator(uint256 poolId, address caller);
     error PoolNotSettled(uint256 poolId, uint256 roundId);
     error PoolNotLoopMode(uint256 poolId);
@@ -98,7 +87,6 @@ contract LuckyScratchCore is AccessControl, EIP712, ReentrancyGuard, Pausable, Z
     event BondRefunded(uint256 indexed poolId, address indexed creator, uint256 amount);
     event PoolClosed(uint256 indexed poolId);
     event PoolRolledToNextRound(uint256 indexed poolId, uint256 indexed newRoundId);
-    event GaslessExecuted(address indexed user, GaslessAction action, bytes32 digest);
 
     struct VrfRequestContext {
         uint256 poolId;
@@ -121,12 +109,11 @@ contract LuckyScratchCore is AccessControl, EIP712, ReentrancyGuard, Pausable, Z
     mapping(uint256 ticketId => TicketData) public tickets;
     mapping(uint256 ticketId => EncryptedTicketState) private encryptedTickets;
     mapping(address user => EncryptedUserState) private users;
-    mapping(address user => uint256) public nonces;
     mapping(bytes32 requestId => VrfRequestContext) private vrfRequests;
     mapping(uint256 poolId => mapping(uint256 roundId => mapping(uint32 ticketIndex => bool))) public soldTicketSlots;
     mapping(uint256 poolId => mapping(uint256 roundId => uint32 cursor)) private nextAutoTicketIndex;
 
-    constructor(address admin) EIP712("LuckyScratch", "1") {
+    constructor(address admin) {
         if (admin == address(0)) revert ZeroAddress();
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
@@ -139,16 +126,6 @@ contract LuckyScratchCore is AccessControl, EIP712, ReentrancyGuard, Pausable, Z
             revert NotPoolCreator(poolId, msg.sender);
         }
         _;
-    }
-
-    function setRelayer(address relayer, bool allowed) external override onlyRole(ADMIN_ROLE) {
-        if (relayer == address(0)) revert ZeroAddress();
-
-        if (allowed) {
-            _grantRole(RELAYER_ROLE, relayer);
-        } else {
-            _revokeRole(RELAYER_ROLE, relayer);
-        }
     }
 
     function setVrfAdapter(address adapter) external override onlyRole(ADMIN_ROLE) {
@@ -324,60 +301,6 @@ contract LuckyScratchCore is AccessControl, EIP712, ReentrancyGuard, Pausable, Z
         for (uint256 i = 0; i < ticketIds.length; i++) {
             _claimReward(msg.sender, ticketIds[i], clearRewardAmounts[i], decryptionProofs[i]);
         }
-    }
-
-    function executeGaslessPurchase(
-        GaslessRequest calldata req,
-        bytes calldata signature,
-        uint256 poolId,
-        uint32 quantity
-    ) external override nonReentrant whenNotPaused onlyRole(RELAYER_ROLE) {
-        bytes32 paramsHash = GaslessVerifyLib.hashPurchaseParams(poolId, quantity);
-        bytes32 digest = _consumeGaslessRequest(req, signature, GaslessAction.Purchase, paramsHash);
-        _purchaseTickets(req.user, poolId, quantity);
-        emit GaslessExecuted(req.user, req.action, digest);
-    }
-
-    function executeGaslessPurchaseSelection(
-        GaslessRequest calldata req,
-        bytes calldata signature,
-        uint256 poolId,
-        uint32[] calldata ticketIndexes
-    ) external override nonReentrant whenNotPaused onlyRole(RELAYER_ROLE) {
-        bytes32 paramsHash = GaslessVerifyLib.hashSelectionParams(poolId, ticketIndexes);
-        bytes32 digest = _consumeGaslessRequest(req, signature, GaslessAction.PurchaseSelection, paramsHash);
-        _purchaseTicketsWithSelection(req.user, poolId, ticketIndexes);
-        emit GaslessExecuted(req.user, req.action, digest);
-    }
-
-    function executeGaslessScratch(GaslessRequest calldata req, bytes calldata signature, uint256 ticketId)
-        external
-        override
-        nonReentrant
-        whenNotPaused
-        onlyRole(RELAYER_ROLE)
-    {
-        bytes32 paramsHash = GaslessVerifyLib.hashScratchParams(ticketId);
-        bytes32 digest = _consumeGaslessRequest(req, signature, GaslessAction.Scratch, paramsHash);
-        _scratchTicket(req.user, ticketId);
-        emit GaslessExecuted(req.user, req.action, digest);
-    }
-
-    function executeGaslessBatchScratch(
-        GaslessRequest calldata req,
-        bytes calldata signature,
-        uint256[] calldata ticketIds
-    ) external override nonReentrant whenNotPaused onlyRole(RELAYER_ROLE) {
-        if (ticketIds.length == 0 || ticketIds.length > MAX_BATCH_SIZE) revert InvalidQuantity();
-
-        bytes32 paramsHash = GaslessVerifyLib.hashBatchScratchParams(ticketIds);
-        bytes32 digest = _consumeGaslessRequest(req, signature, GaslessAction.BatchScratch, paramsHash);
-
-        for (uint256 i = 0; i < ticketIds.length; i++) {
-            _scratchTicket(req.user, ticketIds[i]);
-        }
-
-        emit GaslessExecuted(req.user, req.action, digest);
     }
 
     function fulfillPoolRandomness(bytes32 requestId, uint256 randomWord) external override {
@@ -611,30 +534,6 @@ contract LuckyScratchCore is AccessControl, EIP712, ReentrancyGuard, Pausable, Z
         ILuckyScratchTreasury(treasury).payoutReward(user, ticketData.poolId, clearRewardAmount);
         _maybeSettleRound(ticketData.poolId, ticketData.roundId);
         emit RewardClaimed(user, ticketId, ticketData.poolId, ticketData.roundId);
-    }
-
-    function _consumeGaslessRequest(
-        GaslessRequest calldata req,
-        bytes calldata signature,
-        GaslessAction expectedAction,
-        bytes32 expectedParamsHash
-    ) internal returns (bytes32 digest) {
-        if (req.action != expectedAction) revert InvalidGaslessAction();
-        if (req.targetContract != address(this)) revert InvalidTargetContract(address(this), req.targetContract);
-        if (req.chainId != block.chainid) revert InvalidChainId(block.chainid, req.chainId);
-        if (req.deadline < block.timestamp) revert ExpiredGaslessRequest(req.deadline, block.timestamp);
-        if (req.paramsHash != expectedParamsHash) revert InvalidGaslessParamsHash(expectedParamsHash, req.paramsHash);
-
-        uint256 currentNonce = nonces[req.user];
-        if (req.nonce != currentNonce) revert InvalidGaslessNonce(currentNonce, req.nonce);
-
-        bytes32 structHash = GaslessVerifyLib.hashRequest(req);
-        digest = _hashTypedDataV4(structHash);
-
-        address recoveredSigner = GaslessVerifyLib.recoverSigner(digest, signature);
-        if (recoveredSigner != req.user) revert InvalidGaslessSignature();
-
-        nonces[req.user] = currentNonce + 1;
     }
 
     function _requireDependenciesConfigured() internal view {

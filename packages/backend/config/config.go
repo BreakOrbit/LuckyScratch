@@ -14,7 +14,6 @@ type Config struct {
 	Database    DatabaseConfig
 	Chain       ChainConfig
 	Deployments DeploymentsConfig
-	Relayer     RelayerConfig
 	Risk        RiskConfig
 	Reveal      RevealConfig
 	Zama        ZamaConfig
@@ -61,21 +60,8 @@ type DeploymentsConfig struct {
 	Version    string
 }
 
-type RelayerConfig struct {
-	PrivateKey           string
-	MaxBatchTickets      int
-	MaxGasCostWei        int64
-	HealthMinBalanceWei  int64
-	ReceiptSyncBatchSize int
-	RetryBackoff         time.Duration
-}
-
 type RiskConfig struct {
-	GlobalSponsorBudgetWei      int64
-	DefaultPoolSponsorBudgetWei int64
-	UserWindow                  time.Duration
-	UserWindowMaxRequests       int
-	RevealUnitCostWei           int64
+	RevealUnitCostWei int64
 }
 
 type RevealConfig struct {
@@ -101,14 +87,12 @@ type ZamaConfig struct {
 }
 
 type JobsConfig struct {
-	WorkerID              string
-	ClaimBatchSize        int
-	LockTimeout           time.Duration
-	IndexerInterval       time.Duration
-	ReceiptSyncInterval   time.Duration
-	RetryFailedTxInterval time.Duration
-	VRFCheckInterval      time.Duration
-	ReconcileInterval     time.Duration
+	WorkerID          string
+	ClaimBatchSize    int
+	LockTimeout       time.Duration
+	IndexerInterval   time.Duration
+	VRFCheckInterval  time.Duration
+	ReconcileInterval time.Duration
 }
 
 type AdminConfig struct {
@@ -154,20 +138,8 @@ func Load() Config {
 			AutoImport: getEnvBool("AUTO_IMPORT_DEPLOYMENTS", true),
 			Version:    getEnv("DEPLOYMENT_VERSION", "v1"),
 		},
-		Relayer: RelayerConfig{
-			PrivateKey:           strings.TrimPrefix(getEnv("RELAYER_PRIVATE_KEY", ""), "0x"),
-			MaxBatchTickets:      getEnvInt("RELAYER_MAX_BATCH_TICKETS", 20),
-			MaxGasCostWei:        getEnvInt64("RELAYER_MAX_GAS_COST_WEI", 30_000_000_000_000_000),
-			HealthMinBalanceWei:  getEnvInt64("RELAYER_MIN_BALANCE_WEI", 20_000_000_000_000_000),
-			ReceiptSyncBatchSize: getEnvInt("RELAYER_RECEIPT_SYNC_BATCH_SIZE", 50),
-			RetryBackoff:         getEnvDuration("RELAYER_RETRY_BACKOFF", 30*time.Second),
-		},
 		Risk: RiskConfig{
-			GlobalSponsorBudgetWei:      getEnvInt64("RISK_GLOBAL_SPONSOR_BUDGET_WEI", 500_000_000_000_000_000),
-			DefaultPoolSponsorBudgetWei: getEnvInt64("RISK_DEFAULT_POOL_SPONSOR_BUDGET_WEI", 100_000_000_000_000_000),
-			UserWindow:                  getEnvDuration("RISK_USER_WINDOW", 10*time.Minute),
-			UserWindowMaxRequests:       getEnvInt("RISK_USER_WINDOW_MAX_REQUESTS", 20),
-			RevealUnitCostWei:           getEnvInt64("RISK_REVEAL_UNIT_COST_WEI", 0),
+			RevealUnitCostWei: getEnvInt64("RISK_REVEAL_UNIT_COST_WEI", 0),
 		},
 		Reveal: RevealConfig{
 			AuthTTL:       getEnvDuration("REVEAL_AUTH_TTL", 10*time.Minute),
@@ -190,14 +162,12 @@ func Load() Config {
 			MaxUserDecryptBits:                        getEnvInt("ZAMA_MAX_USER_DECRYPT_BITS", zamaDefaults.MaxUserDecryptBits),
 		},
 		Jobs: JobsConfig{
-			WorkerID:              getEnv("WORKER_ID", hostnameOr("worker-1")),
-			ClaimBatchSize:        getEnvInt("JOB_CLAIM_BATCH_SIZE", 8),
-			LockTimeout:           getEnvDuration("JOB_LOCK_TIMEOUT", 10*time.Minute),
-			IndexerInterval:       getEnvDuration("JOB_INDEXER_INTERVAL", 15*time.Second),
-			ReceiptSyncInterval:   getEnvDuration("JOB_RECEIPT_SYNC_INTERVAL", 15*time.Second),
-			RetryFailedTxInterval: getEnvDuration("JOB_RETRY_FAILED_TX_INTERVAL", 45*time.Second),
-			VRFCheckInterval:      getEnvDuration("JOB_VRF_CHECK_INTERVAL", 2*time.Minute),
-			ReconcileInterval:     getEnvDuration("JOB_RECONCILE_INTERVAL", 2*time.Minute),
+			WorkerID:          getEnv("WORKER_ID", hostnameOr("worker-1")),
+			ClaimBatchSize:    getEnvInt("JOB_CLAIM_BATCH_SIZE", 8),
+			LockTimeout:       getEnvDuration("JOB_LOCK_TIMEOUT", 10*time.Minute),
+			IndexerInterval:   getEnvDuration("JOB_INDEXER_INTERVAL", 15*time.Second),
+			VRFCheckInterval:  getEnvDuration("JOB_VRF_CHECK_INTERVAL", 2*time.Minute),
+			ReconcileInterval: getEnvDuration("JOB_RECONCILE_INTERVAL", 2*time.Minute),
 		},
 		Admin: AdminConfig{
 			Token: getEnv("ADMIN_TOKEN", ""),

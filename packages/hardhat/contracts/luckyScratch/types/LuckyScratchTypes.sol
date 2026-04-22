@@ -29,13 +29,6 @@ enum TicketStatus {
     Claimed
 }
 
-enum GaslessAction {
-    Purchase,
-    PurchaseSelection,
-    Scratch,
-    BatchScratch
-}
-
 struct PrizeTierInput {
     uint64 prizeAmount;
     uint32 count;
@@ -105,14 +98,4 @@ struct EncryptedUserState {
 struct EncryptedTicketState {
     euint64 encryptedPrizeAmount;
     bool revealAuthorized;
-}
-
-struct GaslessRequest {
-    address user;
-    GaslessAction action;
-    address targetContract;
-    bytes32 paramsHash;
-    uint256 nonce;
-    uint256 deadline;
-    uint256 chainId;
 }

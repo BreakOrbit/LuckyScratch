@@ -33,49 +33,6 @@ type DeploymentRegistry struct {
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 }
 
-type GaslessControl struct {
-	ID          int64              `json:"id"`
-	ScopeType   string             `json:"scope_type"`
-	ScopeKey    string             `json:"scope_key"`
-	ControlType string             `json:"control_type"`
-	IsActive    bool               `json:"is_active"`
-	Reason      string             `json:"reason"`
-	ExpiresAt   pgtype.Timestamptz `json:"expires_at"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
-}
-
-type GaslessRequest struct {
-	ID                   int64              `json:"id"`
-	ChainID              int64              `json:"chain_id"`
-	Digest               string             `json:"digest"`
-	UserAddress          string             `json:"user_address"`
-	Action               string             `json:"action"`
-	TargetContract       string             `json:"target_contract"`
-	ParamsHash           string             `json:"params_hash"`
-	Nonce                int64              `json:"nonce"`
-	Deadline             int64              `json:"deadline"`
-	Status               string             `json:"status"`
-	FailureCode          string             `json:"failure_code"`
-	FailureReason        string             `json:"failure_reason"`
-	TxHash               string             `json:"tx_hash"`
-	GasUsed              pgtype.Int8        `json:"gas_used"`
-	EffectiveGasPriceWei pgtype.Int8        `json:"effective_gas_price_wei"`
-	GasCostWei           pgtype.Int8        `json:"gas_cost_wei"`
-	PoolID               pgtype.Int8        `json:"pool_id"`
-	RoundID              pgtype.Int8        `json:"round_id"`
-	TicketID             pgtype.Int8        `json:"ticket_id"`
-	RequestPayload       []byte             `json:"request_payload"`
-	Signature            string             `json:"signature"`
-	ReceiptBlockNumber   pgtype.Int8        `json:"receipt_block_number"`
-	ReceiptBlockHash     string             `json:"receipt_block_hash"`
-	SubmittedAt          pgtype.Timestamptz `json:"submitted_at"`
-	ConfirmedAt          pgtype.Timestamptz `json:"confirmed_at"`
-	FinalizedAt          pgtype.Timestamptz `json:"finalized_at"`
-	CreatedAt            pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
-}
-
 type IndexedLog struct {
 	ID              int64              `json:"id"`
 	ChainID         int64              `json:"chain_id"`
@@ -92,7 +49,6 @@ type IndexedLog struct {
 	RoundID         pgtype.Int8        `json:"round_id"`
 	TicketID        pgtype.Int8        `json:"ticket_id"`
 	UserAddress     string             `json:"user_address"`
-	Digest          string             `json:"digest"`
 	Payload         []byte             `json:"payload"`
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 }

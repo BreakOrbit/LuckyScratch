@@ -2,7 +2,6 @@ package chain
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"math/big"
@@ -10,10 +9,8 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	gethabi "github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 
 	"lucky-scratch/config"
@@ -25,7 +22,6 @@ import (
 var erc20ABI = mustABI(`[{"inputs":[{"internalType":"address","name":"owner","type":"address"},{"internalType":"address","name":"spender","type":"address"}],"name":"allowance","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"}]`)
 
 type Client struct {
-	cfg          config.Config
 	rpc          *ethclient.Client
 	registry     contracts.Registry
 	core         *bindings.Core
@@ -60,7 +56,6 @@ func NewClient(ctx context.Context, cfg config.Config, queries db.Querier) (*Cli
 	treasuryDeployment, _ := registry.Get(contracts.TreasuryContractName)
 
 	return &Client{
-		cfg:          cfg,
 		rpc:          rpc,
 		registry:     registry,
 		core:         bindings.NewCore(coreDeployment.Address, coreDeployment.ABI, rpc),
@@ -141,43 +136,6 @@ func (c *Client) CoreABI() bindings.Core {
 	return *c.core
 }
 
-func (c *Client) EstimateGaslessPurchase(ctx context.Context, relayer common.Address, req bindings.GaslessRequest, signature []byte, poolID uint64, quantity uint32) (uint64, *big.Int, error) {
-	data, err := c.core.PackExecuteGaslessPurchase(req, signature, poolID, quantity)
-	if err != nil {
-		return 0, nil, err
-	}
-	return c.estimateGas(ctx, relayer, data)
-}
-
-func (c *Client) EstimateGaslessPurchaseSelection(ctx context.Context, relayer common.Address, req bindings.GaslessRequest, signature []byte, poolID uint64, indexes []uint32) (uint64, *big.Int, error) {
-	data, err := c.core.PackExecuteGaslessPurchaseSelection(req, signature, poolID, indexes)
-	if err != nil {
-		return 0, nil, err
-	}
-	return c.estimateGas(ctx, relayer, data)
-}
-
-func (c *Client) EstimateGaslessScratch(ctx context.Context, relayer common.Address, req bindings.GaslessRequest, signature []byte, ticketID uint64) (uint64, *big.Int, error) {
-	data, err := c.core.PackExecuteGaslessScratch(req, signature, ticketID)
-	if err != nil {
-		return 0, nil, err
-	}
-	return c.estimateGas(ctx, relayer, data)
-}
-
-func (c *Client) EstimateGaslessBatchScratch(ctx context.Context, relayer common.Address, req bindings.GaslessRequest, signature []byte, ticketIDs []uint64) (uint64, *big.Int, error) {
-	ids := make([]*big.Int, 0, len(ticketIDs))
-	for _, ticketID := range ticketIDs {
-		ids = append(ids, new(big.Int).SetUint64(ticketID))
-	}
-
-	data, err := c.core.PackExecuteGaslessBatchScratch(req, signature, ids)
-	if err != nil {
-		return 0, nil, err
-	}
-	return c.estimateGas(ctx, relayer, data)
-}
-
 func (c *Client) PoolConfig(ctx context.Context, poolID uint64) (bindings.PoolConfig, error) {
 	return c.core.PoolConfig(ctx, poolID)
 }
@@ -208,10 +166,6 @@ func (c *Client) TicketPrizeHandle(ctx context.Context, ticketID uint64) ([32]by
 
 func (c *Client) OwnerOf(ctx context.Context, ticketID uint64) (common.Address, error) {
 	return c.ticket.OwnerOf(ctx, ticketID)
-}
-
-func (c *Client) Nonce(ctx context.Context, user common.Address) (*big.Int, error) {
-	return c.core.Nonce(ctx, user)
 }
 
 func (c *Client) ClaimableCreatorProfit(ctx context.Context, poolID uint64) (*big.Int, error) {
@@ -250,121 +204,6 @@ func (c *Client) ERC20Allowance(ctx context.Context, token common.Address, owner
 	return allowance, nil
 }
 
-func (c *Client) NewRelayerTransactor(ctx context.Context) (*bind.TransactOpts, common.Address, error) {
-	if strings.TrimSpace(c.cfg.Relayer.PrivateKey) == "" {
-		return nil, common.Address{}, errors.New("RELAYER_PRIVATE_KEY is required")
-	}
-
-	privateKey, err := crypto.HexToECDSA(c.cfg.Relayer.PrivateKey)
-	if err != nil {
-		return nil, common.Address{}, fmt.Errorf("decode relayer private key: %w", err)
-	}
-
-	chainID := big.NewInt(c.cfg.Chain.ID)
-	opts, err := bind.NewKeyedTransactorWithChainID(privateKey, chainID)
-	if err != nil {
-		return nil, common.Address{}, fmt.Errorf("create relayer transactor: %w", err)
-	}
-
-	from := crypto.PubkeyToAddress(privateKey.PublicKey)
-	opts.Context = ctx
-	return opts, from, nil
-}
-
-func (c *Client) RelayerAddress() (common.Address, error) {
-	if strings.TrimSpace(c.cfg.Relayer.PrivateKey) == "" {
-		return common.Address{}, errors.New("RELAYER_PRIVATE_KEY is required")
-	}
-
-	privateKey, err := crypto.HexToECDSA(c.cfg.Relayer.PrivateKey)
-	if err != nil {
-		return common.Address{}, err
-	}
-	return publicAddress(privateKey), nil
-}
-
-func (c *Client) ExecuteGaslessPurchase(ctx context.Context, req bindings.GaslessRequest, signature []byte, poolID uint64, quantity uint32) (*types.Transaction, common.Address, error) {
-	tx, from, err := c.BuildGaslessPurchaseTx(ctx, req, signature, poolID, quantity)
-	if err != nil {
-		return nil, common.Address{}, err
-	}
-	return tx, from, c.SendTransaction(ctx, tx)
-}
-
-func (c *Client) BuildGaslessPurchaseTx(ctx context.Context, req bindings.GaslessRequest, signature []byte, poolID uint64, quantity uint32) (*types.Transaction, common.Address, error) {
-	opts, from, err := c.NewRelayerTransactor(ctx)
-	if err != nil {
-		return nil, common.Address{}, err
-	}
-	opts.NoSend = true
-	tx, err := c.core.ExecuteGaslessPurchase(opts, req, signature, poolID, quantity)
-	return tx, from, err
-}
-
-func (c *Client) ExecuteGaslessPurchaseSelection(ctx context.Context, req bindings.GaslessRequest, signature []byte, poolID uint64, indexes []uint32) (*types.Transaction, common.Address, error) {
-	tx, from, err := c.BuildGaslessPurchaseSelectionTx(ctx, req, signature, poolID, indexes)
-	if err != nil {
-		return nil, common.Address{}, err
-	}
-	return tx, from, c.SendTransaction(ctx, tx)
-}
-
-func (c *Client) BuildGaslessPurchaseSelectionTx(ctx context.Context, req bindings.GaslessRequest, signature []byte, poolID uint64, indexes []uint32) (*types.Transaction, common.Address, error) {
-	opts, from, err := c.NewRelayerTransactor(ctx)
-	if err != nil {
-		return nil, common.Address{}, err
-	}
-	opts.NoSend = true
-	tx, err := c.core.ExecuteGaslessPurchaseSelection(opts, req, signature, poolID, indexes)
-	return tx, from, err
-}
-
-func (c *Client) ExecuteGaslessScratch(ctx context.Context, req bindings.GaslessRequest, signature []byte, ticketID uint64) (*types.Transaction, common.Address, error) {
-	tx, from, err := c.BuildGaslessScratchTx(ctx, req, signature, ticketID)
-	if err != nil {
-		return nil, common.Address{}, err
-	}
-	return tx, from, c.SendTransaction(ctx, tx)
-}
-
-func (c *Client) BuildGaslessScratchTx(ctx context.Context, req bindings.GaslessRequest, signature []byte, ticketID uint64) (*types.Transaction, common.Address, error) {
-	opts, from, err := c.NewRelayerTransactor(ctx)
-	if err != nil {
-		return nil, common.Address{}, err
-	}
-	opts.NoSend = true
-	tx, err := c.core.ExecuteGaslessScratch(opts, req, signature, ticketID)
-	return tx, from, err
-}
-
-func (c *Client) ExecuteGaslessBatchScratch(ctx context.Context, req bindings.GaslessRequest, signature []byte, ticketIDs []uint64) (*types.Transaction, common.Address, error) {
-	tx, from, err := c.BuildGaslessBatchScratchTx(ctx, req, signature, ticketIDs)
-	if err != nil {
-		return nil, common.Address{}, err
-	}
-	return tx, from, c.SendTransaction(ctx, tx)
-}
-
-func (c *Client) BuildGaslessBatchScratchTx(ctx context.Context, req bindings.GaslessRequest, signature []byte, ticketIDs []uint64) (*types.Transaction, common.Address, error) {
-	opts, from, err := c.NewRelayerTransactor(ctx)
-	if err != nil {
-		return nil, common.Address{}, err
-	}
-	opts.NoSend = true
-
-	ids := make([]*big.Int, 0, len(ticketIDs))
-	for _, ticketID := range ticketIDs {
-		ids = append(ids, new(big.Int).SetUint64(ticketID))
-	}
-
-	tx, err := c.core.ExecuteGaslessBatchScratch(opts, req, signature, ids)
-	return tx, from, err
-}
-
-func publicAddress(privateKey *ecdsa.PrivateKey) common.Address {
-	return crypto.PubkeyToAddress(privateKey.PublicKey)
-}
-
 func (c *Client) callView(ctx context.Context, contract common.Address, parsedABI gethabi.ABI, method string, args ...interface{}) ([]interface{}, error) {
 	data, err := parsedABI.Pack(method, args...)
 	if err != nil {
@@ -379,25 +218,6 @@ func (c *Client) callView(ctx context.Context, contract common.Address, parsedAB
 		return nil, err
 	}
 	return parsedABI.Unpack(method, raw)
-}
-
-func (c *Client) estimateGas(ctx context.Context, relayer common.Address, data []byte) (uint64, *big.Int, error) {
-	gasLimit, err := c.rpc.EstimateGas(ctx, ethereum.CallMsg{
-		From: relayer,
-		To:   ptr(c.core.Address()),
-		Data: data,
-	})
-	if err != nil {
-		return 0, nil, err
-	}
-
-	gasPrice, err := c.rpc.SuggestGasPrice(ctx)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	totalCost := new(big.Int).Mul(new(big.Int).SetUint64(gasLimit), gasPrice)
-	return gasLimit, totalCost, nil
 }
 
 func ptr[T any](value T) *T {

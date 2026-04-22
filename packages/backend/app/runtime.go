@@ -6,25 +6,21 @@ import (
 	"lucky-scratch/admin"
 	"lucky-scratch/chain"
 	"lucky-scratch/config"
-	"lucky-scratch/gasless"
 	"lucky-scratch/readmodel"
 	"lucky-scratch/reveal"
-	"lucky-scratch/risk"
 	"lucky-scratch/store"
 	"lucky-scratch/store/db"
 	"lucky-scratch/zama"
 )
 
 type Runtime struct {
-	Config         config.Config
-	Store          *store.Store
-	Queries        db.Querier
-	Chain          *chain.Client
-	ReadModel      readmodel.Service
-	RiskService    risk.Service
-	GaslessService gasless.Service
-	RevealService  reveal.Service
-	AdminService   admin.Service
+	Config        config.Config
+	Store         *store.Store
+	Queries       db.Querier
+	Chain         *chain.Client
+	ReadModel     readmodel.Service
+	RevealService reveal.Service
+	AdminService  admin.Service
 }
 
 func BuildRuntime(ctx context.Context, cfg config.Config) (*Runtime, error) {
@@ -39,9 +35,7 @@ func BuildRuntime(ctx context.Context, cfg config.Config) (*Runtime, error) {
 		return nil, err
 	}
 
-	riskService := risk.NewService(cfg, dbStore.Queries())
 	readModelService := readmodel.NewService(cfg, dbStore.Queries())
-	gaslessService := gasless.NewService(cfg, dbStore.Queries(), chainClient, riskService)
 	zamaClient, err := zama.NewClient(cfg.Zama)
 	if err != nil {
 		chainClient.Close()
@@ -49,18 +43,16 @@ func BuildRuntime(ctx context.Context, cfg config.Config) (*Runtime, error) {
 		return nil, err
 	}
 	revealService := reveal.NewService(cfg, dbStore.Queries(), chainClient, zamaClient)
-	adminService := admin.NewService(cfg, dbStore.Queries(), chainClient, riskService)
+	adminService := admin.NewService(cfg, dbStore.Queries())
 
 	return &Runtime{
-		Config:         cfg,
-		Store:          dbStore,
-		Queries:        dbStore.Queries(),
-		Chain:          chainClient,
-		ReadModel:      readModelService,
-		RiskService:    riskService,
-		GaslessService: gaslessService,
-		RevealService:  revealService,
-		AdminService:   adminService,
+		Config:        cfg,
+		Store:         dbStore,
+		Queries:       dbStore.Queries(),
+		Chain:         chainClient,
+		ReadModel:     readModelService,
+		RevealService: revealService,
+		AdminService:  adminService,
 	}, nil
 }
 

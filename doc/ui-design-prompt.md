@@ -82,7 +82,7 @@ The design MUST closely emulate the UI/UX and dark-tech, neon-lit aesthetic of t
    - 需要接收 `isScratched` (对应布尔值，决定显示卡背还是卡面)。
    - 需要接收 `prizeTier` (对应 UR/SR/N，决定卡面边框的反光特效和特效类名)。
 2. **动画处理**: 
-   - Stitch 生成的可能只是静态的 3D 转换（`rotateY`）。在实际连智能合约时，应在用户点击“翻开（刮卡）”，等待钱包签名及 `GaslessExecuted` 后，再触发卡牌翻转的 CSS 动画。
+   - Stitch 生成的可能只是静态的 3D 转换（`rotateY`）。在实际连智能合约时，应在用户点击“翻开（刮卡）”，等待钱包确认并拿到链上 `TicketScratched` 成功结果后，再触发卡牌翻转的 CSS 动画。
 3. **DaisyUI 兼容**: 
    - Scaffold-ETH 2 自带 DaisyUI。可以将 Stitch 生成的玻璃拟态面板转换为 `<div className="card glass">`。
    - 统一提取配色变量至 `tailwind.config.js`，例如：`ur-glow`: `#FFD700`，`sr-glow`: `#c0c0c0`。

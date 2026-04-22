@@ -70,10 +70,9 @@ INSERT INTO indexed_logs (
     round_id,
     ticket_id,
     user_address,
-    digest,
     payload
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
 )
 ON CONFLICT (chain_id, tx_hash, log_index) DO UPDATE SET
     contract_name = EXCLUDED.contract_name,
@@ -87,9 +86,8 @@ ON CONFLICT (chain_id, tx_hash, log_index) DO UPDATE SET
     round_id = EXCLUDED.round_id,
     ticket_id = EXCLUDED.ticket_id,
     user_address = EXCLUDED.user_address,
-    digest = EXCLUDED.digest,
     payload = EXCLUDED.payload
-RETURNING id, chain_id, contract_name, contract_address, event_name, tx_hash, log_index, block_number, block_hash, event_key, removed, pool_id, round_id, ticket_id, user_address, digest, payload, created_at
+RETURNING id, chain_id, contract_name, contract_address, event_name, tx_hash, log_index, block_number, block_hash, event_key, removed, pool_id, round_id, ticket_id, user_address, payload, created_at
 `
 
 type InsertIndexedLogParams struct {
@@ -107,7 +105,6 @@ type InsertIndexedLogParams struct {
 	RoundID         pgtype.Int8 `json:"round_id"`
 	TicketID        pgtype.Int8 `json:"ticket_id"`
 	UserAddress     string      `json:"user_address"`
-	Digest          string      `json:"digest"`
 	Payload         []byte      `json:"payload"`
 }
 
@@ -127,7 +124,6 @@ func (q *Queries) InsertIndexedLog(ctx context.Context, arg InsertIndexedLogPara
 		arg.RoundID,
 		arg.TicketID,
 		arg.UserAddress,
-		arg.Digest,
 		arg.Payload,
 	)
 	var i IndexedLog
@@ -147,7 +143,6 @@ func (q *Queries) InsertIndexedLog(ctx context.Context, arg InsertIndexedLogPara
 		&i.RoundID,
 		&i.TicketID,
 		&i.UserAddress,
-		&i.Digest,
 		&i.Payload,
 		&i.CreatedAt,
 	)
@@ -155,7 +150,7 @@ func (q *Queries) InsertIndexedLog(ctx context.Context, arg InsertIndexedLogPara
 }
 
 const listIndexedLogsFromBlock = `-- name: ListIndexedLogsFromBlock :many
-SELECT id, chain_id, contract_name, contract_address, event_name, tx_hash, log_index, block_number, block_hash, event_key, removed, pool_id, round_id, ticket_id, user_address, digest, payload, created_at
+SELECT id, chain_id, contract_name, contract_address, event_name, tx_hash, log_index, block_number, block_hash, event_key, removed, pool_id, round_id, ticket_id, user_address, payload, created_at
 FROM indexed_logs
 WHERE chain_id = $1
   AND contract_name = $2
@@ -194,7 +189,6 @@ func (q *Queries) ListIndexedLogsFromBlock(ctx context.Context, arg ListIndexedL
 			&i.RoundID,
 			&i.TicketID,
 			&i.UserAddress,
-			&i.Digest,
 			&i.Payload,
 			&i.CreatedAt,
 		); err != nil {

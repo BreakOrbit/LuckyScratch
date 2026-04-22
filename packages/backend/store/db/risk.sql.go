@@ -7,44 +7,7 @@ package db
 
 import (
 	"context"
-
-	"github.com/jackc/pgx/v5/pgtype"
 )
-
-const getActiveGaslessControl = `-- name: GetActiveGaslessControl :one
-SELECT id, scope_type, scope_key, control_type, is_active, reason, expires_at, created_at, updated_at
-FROM gasless_controls
-WHERE scope_type = $1
-  AND scope_key = $2
-  AND control_type = $3
-  AND is_active = TRUE
-  AND (expires_at IS NULL OR expires_at > NOW())
-ORDER BY updated_at DESC
-LIMIT 1
-`
-
-type GetActiveGaslessControlParams struct {
-	ScopeType   string `json:"scope_type"`
-	ScopeKey    string `json:"scope_key"`
-	ControlType string `json:"control_type"`
-}
-
-func (q *Queries) GetActiveGaslessControl(ctx context.Context, arg GetActiveGaslessControlParams) (GaslessControl, error) {
-	row := q.db.QueryRow(ctx, getActiveGaslessControl, arg.ScopeType, arg.ScopeKey, arg.ControlType)
-	var i GaslessControl
-	err := row.Scan(
-		&i.ID,
-		&i.ScopeType,
-		&i.ScopeKey,
-		&i.ControlType,
-		&i.IsActive,
-		&i.Reason,
-		&i.ExpiresAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
 
 const insertAuditLog = `-- name: InsertAuditLog :one
 INSERT INTO audit_logs (
@@ -84,58 +47,6 @@ func (q *Queries) InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) 
 		&i.TargetID,
 		&i.Payload,
 		&i.CreatedAt,
-	)
-	return i, err
-}
-
-const upsertGaslessControl = `-- name: UpsertGaslessControl :one
-INSERT INTO gasless_controls (
-    scope_type,
-    scope_key,
-    control_type,
-    is_active,
-    reason,
-    expires_at
-) VALUES (
-    $1, $2, $3, $4, $5, $6
-)
-ON CONFLICT (scope_type, scope_key, control_type) DO UPDATE SET
-    is_active = EXCLUDED.is_active,
-    reason = EXCLUDED.reason,
-    expires_at = EXCLUDED.expires_at,
-    updated_at = NOW()
-RETURNING id, scope_type, scope_key, control_type, is_active, reason, expires_at, created_at, updated_at
-`
-
-type UpsertGaslessControlParams struct {
-	ScopeType   string             `json:"scope_type"`
-	ScopeKey    string             `json:"scope_key"`
-	ControlType string             `json:"control_type"`
-	IsActive    bool               `json:"is_active"`
-	Reason      string             `json:"reason"`
-	ExpiresAt   pgtype.Timestamptz `json:"expires_at"`
-}
-
-func (q *Queries) UpsertGaslessControl(ctx context.Context, arg UpsertGaslessControlParams) (GaslessControl, error) {
-	row := q.db.QueryRow(ctx, upsertGaslessControl,
-		arg.ScopeType,
-		arg.ScopeKey,
-		arg.ControlType,
-		arg.IsActive,
-		arg.Reason,
-		arg.ExpiresAt,
-	)
-	var i GaslessControl
-	err := row.Scan(
-		&i.ID,
-		&i.ScopeType,
-		&i.ScopeKey,
-		&i.ControlType,
-		&i.IsActive,
-		&i.Reason,
-		&i.ExpiresAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
 	)
 	return i, err
 }

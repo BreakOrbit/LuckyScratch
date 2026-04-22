@@ -24,20 +24,6 @@ func (q *Queries) GetGlobalCostTotal(ctx context.Context, chainID int64) (int64,
 	return column_1, err
 }
 
-const getGlobalSponsorCostTotal = `-- name: GetGlobalSponsorCostTotal :one
-SELECT COALESCE(SUM(amount), 0)::BIGINT
-FROM pool_cost_ledgers
-WHERE chain_id = $1
-  AND cost_type = 'SPONSOR_GAS'
-`
-
-func (q *Queries) GetGlobalSponsorCostTotal(ctx context.Context, chainID int64) (int64, error) {
-	row := q.db.QueryRow(ctx, getGlobalSponsorCostTotal, chainID)
-	var column_1 int64
-	err := row.Scan(&column_1)
-	return column_1, err
-}
-
 const getPoolCostTotal = `-- name: GetPoolCostTotal :one
 SELECT COALESCE(SUM(amount), 0)::BIGINT
 FROM pool_cost_ledgers
@@ -96,26 +82,6 @@ func (q *Queries) GetPoolCostTotals(ctx context.Context, arg GetPoolCostTotalsPa
 		return nil, err
 	}
 	return items, nil
-}
-
-const getPoolSponsorCostTotal = `-- name: GetPoolSponsorCostTotal :one
-SELECT COALESCE(SUM(amount), 0)::BIGINT
-FROM pool_cost_ledgers
-WHERE chain_id = $1
-  AND pool_id = $2
-  AND cost_type = 'SPONSOR_GAS'
-`
-
-type GetPoolSponsorCostTotalParams struct {
-	ChainID int64 `json:"chain_id"`
-	PoolID  int64 `json:"pool_id"`
-}
-
-func (q *Queries) GetPoolSponsorCostTotal(ctx context.Context, arg GetPoolSponsorCostTotalParams) (int64, error) {
-	row := q.db.QueryRow(ctx, getPoolSponsorCostTotal, arg.ChainID, arg.PoolID)
-	var column_1 int64
-	err := row.Scan(&column_1)
-	return column_1, err
 }
 
 const insertPoolCostLedger = `-- name: InsertPoolCostLedger :one

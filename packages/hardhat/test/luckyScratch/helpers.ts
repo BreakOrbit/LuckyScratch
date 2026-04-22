@@ -28,31 +28,12 @@ export const DEFAULT_TARGET_RTP_BPS = 5000;
 export const DEFAULT_HIT_RATE_BPS = 4000;
 export const DEFAULT_MAX_PRIZE = 15n * UNIT;
 const MOCK_KMS_PRIVATE_KEY = "388b7680e4e1afa06efbfd45cdd1fe39f3c6af381df6555a19661f283b97de91";
-export const GASLESS_TYPES: Record<string, { name: string; type: string }[]> = {
-  GaslessRequest: [
-    { name: "user", type: "address" },
-    { name: "action", type: "uint8" },
-    { name: "targetContract", type: "address" },
-    { name: "paramsHash", type: "bytes32" },
-    { name: "nonce", type: "uint256" },
-    { name: "deadline", type: "uint256" },
-    { name: "chainId", type: "uint256" },
-  ],
-};
-
-export const GaslessAction = {
-  Purchase: 0,
-  PurchaseSelection: 1,
-  Scratch: 2,
-  BatchScratch: 3,
-} as const;
 
 export type Signers = {
   admin: HardhatEthersSigner;
   creator: HardhatEthersSigner;
   alice: HardhatEthersSigner;
   bob: HardhatEthersSigner;
-  relayer: HardhatEthersSigner;
 };
 
 export type DeployedLuckyScratch = Signers & {
@@ -132,7 +113,7 @@ export async function getCurrentRoundState(deployed: DeployedLuckyScratch, poolI
 }
 
 export async function deployLuckyScratchFixture(): Promise<DeployedLuckyScratch> {
-  const [admin, creator, alice, bob, relayer] = await ethers.getSigners();
+  const [admin, creator, alice, bob] = await ethers.getSigners();
 
   const tokenFactory = (await ethers.getContractFactory("TestUSDC")) as TestUSDC__factory;
   const ticketFactory = (await ethers.getContractFactory("LuckyScratchTicket")) as LuckyScratchTicket__factory;
@@ -153,14 +134,13 @@ export async function deployLuckyScratchFixture(): Promise<DeployedLuckyScratch>
   await core.connect(admin).setTicket(await ticket.getAddress());
   await core.connect(admin).setTreasury(await treasury.getAddress());
   await core.connect(admin).setVrfAdapter(await vrfAdapter.getAddress());
-  await core.connect(admin).setRelayer(relayer.address, true);
 
   const largeMint = 1_000_000n * UNIT;
   await token.connect(admin).mint(creator.address, largeMint);
   await token.connect(admin).mint(alice.address, largeMint);
   await token.connect(admin).mint(bob.address, largeMint);
 
-  return { admin, creator, alice, bob, relayer, token, ticket, treasury, vrfAdapter, core };
+  return { admin, creator, alice, bob, token, ticket, treasury, vrfAdapter, core };
 }
 
 export async function createPool(deployed: DeployedLuckyScratch, overrides: Partial<PoolConfigInput> = {}) {
@@ -257,52 +237,6 @@ export async function findTicketByReward(
   }
 
   throw new Error("No matching ticket found");
-}
-
-export async function signGaslessRequest(
-  signer: HardhatEthersSigner,
-  core: LuckyScratchCore,
-  request: {
-    user: string;
-    action: number;
-    targetContract: string;
-    paramsHash: string;
-    nonce: bigint;
-    deadline: bigint;
-    chainId: bigint;
-  },
-) {
-  return signer.signTypedData(
-    {
-      name: "LuckyScratch",
-      version: "1",
-      chainId: Number(request.chainId),
-      verifyingContract: await core.getAddress(),
-    },
-    GASLESS_TYPES,
-    request,
-  );
-}
-
-export function hashPurchaseParams(poolId: bigint, quantity: number) {
-  return ethers.keccak256(
-    ethers.AbiCoder.defaultAbiCoder().encode(
-      ["uint8", "uint256", "uint32"],
-      [GaslessAction.Purchase, poolId, quantity],
-    ),
-  );
-}
-
-export function hashScratchParams(ticketId: bigint) {
-  return ethers.keccak256(
-    ethers.AbiCoder.defaultAbiCoder().encode(["uint8", "uint256"], [GaslessAction.Scratch, ticketId]),
-  );
-}
-
-export function hashBatchScratchParams(ticketIds: bigint[]) {
-  return ethers.keccak256(
-    ethers.AbiCoder.defaultAbiCoder().encode(["uint8", "uint256[]"], [GaslessAction.BatchScratch, ticketIds]),
-  );
 }
 
 export function extractTicketIds(core: LuckyScratchCore, logs: readonly unknown[]) {

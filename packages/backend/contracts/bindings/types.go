@@ -1,20 +1,6 @@
 package bindings
 
-import (
-	"math/big"
-
-	"github.com/ethereum/go-ethereum/common"
-)
-
-type GaslessRequest struct {
-	User           common.Address
-	Action         uint8
-	TargetContract common.Address
-	ParamsHash     [32]byte
-	Nonce          *big.Int
-	Deadline       *big.Int
-	ChainID        *big.Int
-}
+import "github.com/ethereum/go-ethereum/common"
 
 type PoolConfig struct {
 	Mode                  uint8

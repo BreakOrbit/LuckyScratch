@@ -12,7 +12,6 @@ import (
 
 	"lucky-scratch/apperrors"
 	"lucky-scratch/config"
-	"lucky-scratch/gasless"
 	"lucky-scratch/readmodel"
 	"lucky-scratch/reveal"
 	"lucky-scratch/store/db"
@@ -28,15 +27,6 @@ type ReadService interface {
 	GetTicket(ctx context.Context, ticketID uint64) (db.Ticket, error)
 }
 
-type GaslessService interface {
-	Nonce(ctx context.Context, address string) (gasless.NonceResponse, error)
-	SubmitPurchase(ctx context.Context, req gasless.PurchaseRequest) (gasless.RequestStatusResponse, error)
-	SubmitPurchaseSelection(ctx context.Context, req gasless.PurchaseSelectionRequest) (gasless.RequestStatusResponse, error)
-	SubmitScratch(ctx context.Context, req gasless.ScratchRequest) (gasless.RequestStatusResponse, error)
-	SubmitBatchScratch(ctx context.Context, req gasless.BatchScratchRequest) (gasless.RequestStatusResponse, error)
-	GetRequest(ctx context.Context, digest string) (gasless.RequestStatusResponse, error)
-}
-
 type RevealService interface {
 	BuildRevealAuth(ctx context.Context, ticketID uint64, userAddress string, backendBaseURL string) (reveal.RevealAuthResponse, error)
 	BuildClaimPrecheck(ctx context.Context, ticketID uint64) (reveal.ClaimPrecheckResponse, error)
@@ -48,35 +38,29 @@ type RevealService interface {
 type AdminService interface {
 	Jobs(ctx context.Context) (map[string]any, error)
 	RetryJob(ctx context.Context, jobID int64, actor string) error
-	RelayerHealth(ctx context.Context) (map[string]any, error)
 	PoolCosts(ctx context.Context, poolID uint64) (map[string]any, error)
-	PausePoolGasless(ctx context.Context, poolID uint64, reason string, actor string) error
-	BlockUserGasless(ctx context.Context, address string, reason string, actor string) error
 }
 
 type Dependencies struct {
-	Config         config.Config
-	ReadService    ReadService
-	GaslessService GaslessService
-	RevealService  RevealService
-	AdminService   AdminService
+	Config        config.Config
+	ReadService   ReadService
+	RevealService RevealService
+	AdminService  AdminService
 }
 
 type Server struct {
-	cfg            config.Config
-	readService    ReadService
-	gaslessService GaslessService
-	revealService  RevealService
-	adminService   AdminService
+	cfg           config.Config
+	readService   ReadService
+	revealService RevealService
+	adminService  AdminService
 }
 
 func NewServer(deps Dependencies) *Server {
 	return &Server{
-		cfg:            deps.Config,
-		readService:    deps.ReadService,
-		gaslessService: deps.GaslessService,
-		revealService:  deps.RevealService,
-		adminService:   deps.AdminService,
+		cfg:           deps.Config,
+		readService:   deps.ReadService,
+		revealService: deps.RevealService,
+		adminService:  deps.AdminService,
 	}
 }
 
@@ -87,19 +71,10 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/api/v1/pools", s.handlePools)
 	mux.HandleFunc("/api/v1/pools/", s.handlePoolRoutes)
 	mux.HandleFunc("/api/v1/users/", s.handleUserRoutes)
-	mux.HandleFunc("/api/v1/gasless/nonce/", s.handleGaslessNonce)
-	mux.HandleFunc("/api/v1/gasless/purchase", s.handleGaslessPurchase)
-	mux.HandleFunc("/api/v1/gasless/purchase-selection", s.handleGaslessPurchaseSelection)
-	mux.HandleFunc("/api/v1/gasless/scratch", s.handleGaslessScratch)
-	mux.HandleFunc("/api/v1/gasless/batch-scratch", s.handleGaslessBatchScratch)
-	mux.HandleFunc("/api/v1/gasless/requests/", s.handleGaslessRequest)
 	mux.HandleFunc("/api/v1/tickets/", s.handleTickets)
 	mux.HandleFunc("/api/v1/admin/jobs", s.requireAdmin(s.handleAdminJobs))
 	mux.HandleFunc("/api/v1/admin/jobs/", s.requireAdmin(s.handleAdminJobRoutes))
-	mux.HandleFunc("/api/v1/admin/relayer/health", s.requireAdmin(s.handleAdminRelayerHealth))
 	mux.HandleFunc("/api/v1/admin/pools/", s.requireAdmin(s.handleAdminPoolRoutes))
-	mux.HandleFunc("/api/v1/admin/gasless/pools/", s.requireAdmin(s.handleAdminGaslessPoolRoutes))
-	mux.HandleFunc("/api/v1/admin/gasless/users/", s.requireAdmin(s.handleAdminGaslessUserRoutes))
 
 	return mux
 }
@@ -248,116 +223,6 @@ func (s *Server) handleUserWins(w http.ResponseWriter, r *http.Request, address 
 		items = append(items, ticketResponse(row))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": items})
-}
-
-func (s *Server) handleGaslessNonce(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeMethodNotAllowed(w)
-		return
-	}
-
-	address := strings.TrimPrefix(r.URL.Path, "/api/v1/gasless/nonce/")
-	resp, err := s.gaslessService.Nonce(r.Context(), address)
-	if err != nil {
-		writeServiceError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, resp)
-}
-
-func (s *Server) handleGaslessPurchase(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeMethodNotAllowed(w)
-		return
-	}
-
-	var req gasless.PurchaseRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, err)
-		return
-	}
-
-	resp, err := s.gaslessService.SubmitPurchase(r.Context(), req)
-	if err != nil {
-		writeServiceError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusAccepted, resp)
-}
-
-func (s *Server) handleGaslessPurchaseSelection(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeMethodNotAllowed(w)
-		return
-	}
-
-	var req gasless.PurchaseSelectionRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, err)
-		return
-	}
-
-	resp, err := s.gaslessService.SubmitPurchaseSelection(r.Context(), req)
-	if err != nil {
-		writeServiceError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusAccepted, resp)
-}
-
-func (s *Server) handleGaslessScratch(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeMethodNotAllowed(w)
-		return
-	}
-
-	var req gasless.ScratchRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, err)
-		return
-	}
-
-	resp, err := s.gaslessService.SubmitScratch(r.Context(), req)
-	if err != nil {
-		writeServiceError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusAccepted, resp)
-}
-
-func (s *Server) handleGaslessBatchScratch(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeMethodNotAllowed(w)
-		return
-	}
-
-	var req gasless.BatchScratchRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, err)
-		return
-	}
-
-	resp, err := s.gaslessService.SubmitBatchScratch(r.Context(), req)
-	if err != nil {
-		writeServiceError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusAccepted, resp)
-}
-
-func (s *Server) handleGaslessRequest(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeMethodNotAllowed(w)
-		return
-	}
-
-	digest := strings.TrimPrefix(r.URL.Path, "/api/v1/gasless/requests/")
-	resp, err := s.gaslessService.GetRequest(r.Context(), digest)
-	if err != nil {
-		writeLookupError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, resp)
 }
 
 func (s *Server) handleTickets(w http.ResponseWriter, r *http.Request) {
@@ -553,20 +418,6 @@ func (s *Server) handleAdminJobRoutes(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"jobId": jobID, "status": "pending"})
 }
 
-func (s *Server) handleAdminRelayerHealth(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeMethodNotAllowed(w)
-		return
-	}
-
-	resp, err := s.adminService.RelayerHealth(r.Context())
-	if err != nil {
-		writeServiceError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, resp)
-}
-
 func (s *Server) handleAdminPoolRoutes(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/v1/admin/pools/")
 	parts := splitPath(path)
@@ -591,58 +442,6 @@ func (s *Server) handleAdminPoolRoutes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, resp)
-}
-
-func (s *Server) handleAdminGaslessPoolRoutes(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/api/v1/admin/gasless/pools/")
-	parts := splitPath(path)
-	if len(parts) != 2 || parts[1] != "pause" {
-		writeError(w, http.StatusNotFound, errors.New("route not found"))
-		return
-	}
-	if r.Method != http.MethodPost {
-		writeMethodNotAllowed(w)
-		return
-	}
-
-	poolID, err := strconv.ParseUint(parts[0], 10, 64)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err)
-		return
-	}
-
-	var body struct {
-		Reason string `json:"reason"`
-	}
-	_ = json.NewDecoder(r.Body).Decode(&body)
-	if err := s.adminService.PausePoolGasless(r.Context(), poolID, body.Reason, s.adminActor(r)); err != nil {
-		writeServiceError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"poolId": poolID, "status": "paused"})
-}
-
-func (s *Server) handleAdminGaslessUserRoutes(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/api/v1/admin/gasless/users/")
-	parts := splitPath(path)
-	if len(parts) != 2 || parts[1] != "block" {
-		writeError(w, http.StatusNotFound, errors.New("route not found"))
-		return
-	}
-	if r.Method != http.MethodPost {
-		writeMethodNotAllowed(w)
-		return
-	}
-
-	var body struct {
-		Reason string `json:"reason"`
-	}
-	_ = json.NewDecoder(r.Body).Decode(&body)
-	if err := s.adminService.BlockUserGasless(r.Context(), parts[0], body.Reason, s.adminActor(r)); err != nil {
-		writeServiceError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"address": parts[0], "status": "blocked"})
 }
 
 func (s *Server) requireAdmin(next http.HandlerFunc) http.HandlerFunc {

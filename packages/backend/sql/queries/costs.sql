@@ -42,21 +42,8 @@ SELECT COALESCE(SUM(amount), 0)::BIGINT
 FROM pool_cost_ledgers
 WHERE chain_id = $1;
 
--- name: GetGlobalSponsorCostTotal :one
-SELECT COALESCE(SUM(amount), 0)::BIGINT
-FROM pool_cost_ledgers
-WHERE chain_id = $1
-  AND cost_type = 'SPONSOR_GAS';
-
 -- name: GetPoolCostTotal :one
 SELECT COALESCE(SUM(amount), 0)::BIGINT
 FROM pool_cost_ledgers
 WHERE chain_id = $1
   AND pool_id = $2;
-
--- name: GetPoolSponsorCostTotal :one
-SELECT COALESCE(SUM(amount), 0)::BIGINT
-FROM pool_cost_ledgers
-WHERE chain_id = $1
-  AND pool_id = $2
-  AND cost_type = 'SPONSOR_GAS';

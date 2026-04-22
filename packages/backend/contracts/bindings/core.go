@@ -8,7 +8,6 @@ import (
 	gethabi "github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 )
 
 type Core struct {
@@ -190,18 +189,6 @@ func (c *Core) Ticket(ctx context.Context, ticketID uint64) (TicketData, error) 
 	}, nil
 }
 
-func (c *Core) Nonce(ctx context.Context, user common.Address) (*big.Int, error) {
-	out, err := c.call(ctx, "nonces", user)
-	if err != nil {
-		return nil, err
-	}
-	converted, ok := gethabi.ConvertType(out[0], new(*big.Int)).(**big.Int)
-	if !ok || converted == nil || *converted == nil {
-		return nil, errors.New("unexpected nonce return type")
-	}
-	return *converted, nil
-}
-
 func (c *Core) ClaimableCreatorProfit(ctx context.Context, poolID uint64) (*big.Int, error) {
 	out, err := c.call(ctx, "claimableCreatorProfit", newBig(poolID))
 	if err != nil {
@@ -231,38 +218,6 @@ func (c *Core) TicketPrizeHandle(ctx context.Context, ticketID uint64) ([32]byte
 		return [32]byte{}, err
 	}
 	return *gethabi.ConvertType(out[0], new([32]byte)).(*[32]byte), nil
-}
-
-func (c *Core) ExecuteGaslessPurchase(opts *bind.TransactOpts, req GaslessRequest, signature []byte, poolID uint64, quantity uint32) (*types.Transaction, error) {
-	return c.contract.Transact(opts, "executeGaslessPurchase", req, signature, newBig(poolID), quantity)
-}
-
-func (c *Core) PackExecuteGaslessPurchase(req GaslessRequest, signature []byte, poolID uint64, quantity uint32) ([]byte, error) {
-	return c.abi.Pack("executeGaslessPurchase", req, signature, newBig(poolID), quantity)
-}
-
-func (c *Core) ExecuteGaslessPurchaseSelection(opts *bind.TransactOpts, req GaslessRequest, signature []byte, poolID uint64, indexes []uint32) (*types.Transaction, error) {
-	return c.contract.Transact(opts, "executeGaslessPurchaseSelection", req, signature, newBig(poolID), indexes)
-}
-
-func (c *Core) PackExecuteGaslessPurchaseSelection(req GaslessRequest, signature []byte, poolID uint64, indexes []uint32) ([]byte, error) {
-	return c.abi.Pack("executeGaslessPurchaseSelection", req, signature, newBig(poolID), indexes)
-}
-
-func (c *Core) ExecuteGaslessScratch(opts *bind.TransactOpts, req GaslessRequest, signature []byte, ticketID uint64) (*types.Transaction, error) {
-	return c.contract.Transact(opts, "executeGaslessScratch", req, signature, newBig(ticketID))
-}
-
-func (c *Core) PackExecuteGaslessScratch(req GaslessRequest, signature []byte, ticketID uint64) ([]byte, error) {
-	return c.abi.Pack("executeGaslessScratch", req, signature, newBig(ticketID))
-}
-
-func (c *Core) ExecuteGaslessBatchScratch(opts *bind.TransactOpts, req GaslessRequest, signature []byte, ticketIDs []*big.Int) (*types.Transaction, error) {
-	return c.contract.Transact(opts, "executeGaslessBatchScratch", req, signature, ticketIDs)
-}
-
-func (c *Core) PackExecuteGaslessBatchScratch(req GaslessRequest, signature []byte, ticketIDs []*big.Int) ([]byte, error) {
-	return c.abi.Pack("executeGaslessBatchScratch", req, signature, ticketIDs)
 }
 
 func newBig(value uint64) *big.Int {

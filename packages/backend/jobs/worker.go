@@ -12,8 +12,6 @@ import (
 
 const (
 	JobIndexerCatchUp      = "indexer.catch_up"
-	JobGaslessReceiptSync  = "gasless.receipt_sync"
-	JobGaslessRetryFailed  = "gasless.retry_failed"
 	JobPendingVRFChecker   = "indexer.pending_vrf_checker"
 	JobStateReconciliation = "indexer.state_reconciliation"
 	JobRevealProxySync     = "reveal.proxy_sync"
@@ -23,7 +21,6 @@ type Worker struct {
 	cfg            config.Config
 	queries        JobStore
 	indexerService IndexerService
-	gaslessService GaslessService
 	revealService  RevealService
 }
 
@@ -41,11 +38,6 @@ type IndexerService interface {
 	Reconcile(ctx context.Context) error
 }
 
-type GaslessService interface {
-	SyncReceipts(ctx context.Context) error
-	RetryFailed(ctx context.Context) error
-}
-
 type RevealService interface {
 	ReconcileProxyJobs(ctx context.Context) error
 }
@@ -54,7 +46,6 @@ type Dependencies struct {
 	Config         config.Config
 	Queries        JobStore
 	IndexerService IndexerService
-	GaslessService GaslessService
 	RevealService  RevealService
 }
 
@@ -63,7 +54,6 @@ func NewWorker(deps Dependencies) Worker {
 		cfg:            deps.Config,
 		queries:        deps.Queries,
 		indexerService: deps.IndexerService,
-		gaslessService: deps.GaslessService,
 		revealService:  deps.RevealService,
 	}
 }
@@ -95,8 +85,6 @@ func (w Worker) ensureJobs(ctx context.Context) error {
 		interval time.Duration
 	}{
 		{key: JobIndexerCatchUp, interval: w.cfg.Jobs.IndexerInterval},
-		{key: JobGaslessReceiptSync, interval: w.cfg.Jobs.ReceiptSyncInterval},
-		{key: JobGaslessRetryFailed, interval: w.cfg.Jobs.RetryFailedTxInterval},
 		{key: JobPendingVRFChecker, interval: w.cfg.Jobs.VRFCheckInterval},
 		{key: JobStateReconciliation, interval: w.cfg.Jobs.ReconcileInterval},
 		{key: JobRevealProxySync, interval: w.cfg.Jobs.ReconcileInterval},
@@ -163,10 +151,6 @@ func (w Worker) executeJob(ctx context.Context, jobType string) error {
 	switch jobType {
 	case JobIndexerCatchUp:
 		return w.indexerService.Sync(ctx)
-	case JobGaslessReceiptSync:
-		return w.gaslessService.SyncReceipts(ctx)
-	case JobGaslessRetryFailed:
-		return w.gaslessService.RetryFailed(ctx)
 	case JobPendingVRFChecker:
 		return w.indexerService.CheckPendingVRF(ctx)
 	case JobStateReconciliation:

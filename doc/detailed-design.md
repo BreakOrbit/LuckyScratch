@@ -20,7 +20,6 @@
 8. [用户自建池系统](#8-用户自建池系统)
 9. [中奖广播系统](#9-中奖广播系统)
 10. [收益分配模型](#10-收益分配模型)
-11. [Gasless 设计](#11-gasless-设计)
 12. [风控系统](#12-风控系统)
 13. [用户流程详细设计](#13-用户流程详细设计)
 14. [页面设计详细规范](#14-页面设计详细规范)
@@ -108,9 +107,7 @@ LuckyScratch 通过：
 系统主链路：
 
 ```text
-Frontend (Next.js + DaisyUI)
-  ↓
-Relayer（Gas 代付）
+Frontend (Next.js + DaisyUI + Backend API)
   ↓
 Smart Contract（Solidity + Zama FHE）
   ↓
@@ -150,7 +147,6 @@ graph TD
 | 钱包 | RainbowKit + Wagmi + Viem |
 | 加密 | Zama fhEVM（全同态加密） |
 | NFT | ERC-721 |
-| Gasless | Relayer 中继 |
 
 ---
 
@@ -862,7 +858,7 @@ graph TD
 | `withdrawCreatorProfit(poolId, amount)` | 创建者按金额提取利润 |
 | `refundBond(poolId)` | 退还保证金（池子结束后） |
 | `claimableCreatorProfit(poolId) → uint256` | 查询创建者当前可提利润 |
-| `poolConfigs / poolStates / poolAccounting / roundStates / tickets / nonces` | 链上字段查询走 public getter |
+| `poolConfigs / poolStates / poolAccounting / roundStates / tickets` | 链上字段查询走 public getter |
 | `getTicketRevealState(ticketId)` | 查询刮奖状态与 reveal 授权 |
 | `ownerOf(ticketId)` | 查询当前 NFT 持有人 |
 
@@ -881,7 +877,6 @@ graph TD
 | `CreatorProfitWithdrawn(poolId, creator, amount)` | 创建者提取利润 |
 | `PoolClosed(poolId)` | 池子关闭 |
 | `PoolRolledToNextRound(poolId, newRoundId)` | 循环池进入新一轮 |
-| `GaslessExecuted(user, action, digest)` | Gasless 请求链上执行成功 |
 
 ---
 
@@ -961,205 +956,15 @@ graph LR
 
 | 项目 | 金额 | 占利润比例 |
 | --- | --- | --- |
-| Gas Sponsor | 3U | 25% |
 | Infra | 1.8U | 15% |
-| 平台 | 4.2U | 35% |
+| 平台 | 7.2U | 60% |
 | Buffer | 3U | 25% |
 | **合计** | **12U** | **100%** |
 
 说明：
 
-- `Gas Sponsor` 用于承担购票、刮奖相关链上 Gas。
 - `Infra` 用于承担协议基础设施成本，包括 Zama 协议费用与 Chainlink VRF 费用。
-- 用户侧不单独支付上述三类成本。
-
----
-
-# 11. Gasless 设计
-
-## 11.1 模式
-
-`用户签名 → Relayer → 合约执行`
-
-协议侧代付范围：
-
-- 购票与刮奖相关链上 Gas
-- Zama 协议费用
-- Chainlink VRF 预言机费用
-
-说明：
-
-- 上述费用统一由协议侧承担，并从 Sponsor / Infra 预算中结算。
-- 领奖交易仍由用户自行支付链上 Gas。
-
-## 11.2 覆盖范围
-
-### 走 Gasless 的操作
-
-- `purchaseTickets(poolId, quantity)`
-- `purchaseTicketsWithSelection(poolId, ticketIndexes[])`
-- `scratchTicket(tokenId)`
-- `batchScratch(tokenIds[])`
-
-### 不走 Gasless 的操作
-
-- `claimReward(tokenId, clearRewardAmount, decryptionProof)`
-- `batchClaimRewards(tokenIds[], clearRewardAmounts[], decryptionProofs[])`
-- `withdrawCreatorProfit(poolId, amount)`
-- `refundBond(poolId)`
-
-设计原则：
-
-- 平台代付高频、强体验导向的交互。
-- 领奖与创建者资金操作默认由用户自行支付 Gas。
-- Relayer 不应成为任意合约调用代理，只服务固定白名单函数。
-- 与购票、刮奖配套的 Zama 协议费用和 Chainlink VRF 费用也由协议统一承担。
-
-## 11.3 参与角色
-
-| 角色 | 职责 |
-| --- | --- |
-| 用户前端 | 生成待签名消息、展示授权内容、提交到 Relayer |
-| 用户钱包 | 对指定操作进行签名授权 |
-| Chainlink VRF | 在建池时提供可验证随机数，用于奖项洗牌 |
-| Relayer | 校验签名与风控规则，代表用户广播交易 |
-| Gas Sponsor | 提供 Gas 预算，按池利润结算成本 |
-| Infra Budget | 承担 Zama 协议费用与 Chainlink VRF 费用 |
-| 业务合约 | 校验签名、nonce、deadline，并执行白名单操作 |
-
-## 11.4 随机性职责边界
-
-- Chainlink VRF 只用于建池阶段，不参与购票、刮奖、领奖流程。
-- Relayer 只负责代付与转发交易，不负责生成随机性。
-- FHE 只负责加密与权限化揭晓，不负责提供随机源。
-- 协议侧统一承担 Gas、Zama 协议费和 VRF 费用，用户无需单独支付。
-
-因此三者分工明确：
-
-- VRF：决定奖项位置
-- FHE：隐藏奖项内容
-- Relayer：优化交互体验
-
-## 11.5 签名模型
-
-推荐使用 EIP-712 Typed Data，对每一笔 Gasless 请求签名。
-
-### 签名字段
-
-| 字段 | 说明 |
-| --- | --- |
-| `user` | 当前用户地址 |
-| `action` | 操作类型，如 `PURCHASE` / `SCRATCH` |
-| `targetContract` | 被调用合约地址 |
-| `paramsHash` | 调用参数哈希，防止参数被篡改 |
-| `nonce` | 用户级递增 nonce，防重放 |
-| `deadline` | 授权失效时间 |
-| `chainId` | 限定链 ID |
-
-### 示例结构
-
-```ts
-type GaslessRequest = {
-  user: Address;
-  action: "PURCHASE" | "SCRATCH";
-  targetContract: Address;
-  paramsHash: Hex;
-  nonce: bigint;
-  deadline: bigint;
-  chainId: bigint;
-};
-```
-
-说明：
-
-- `paramsHash` 应与具体函数参数一一对应，例如 `poolId + quantity` 或 `tokenId[]`。
-- 合约侧不信任 Relayer 传入的裸参数，必须验证它们与签名中的 `paramsHash` 一致。
-- 签名有效期建议较短，例如 5 到 15 分钟。
-- 费用展示上，前端应明确告知用户：购票/刮奖阶段的 Gas、Zama 协议费、VRF 费用均由协议承担。
-
-## 11.6 购票 Gasless 流程
-
-1. 用户在前端选择池和数量。
-2. 若用户钱包中的加密 `cUSDC` 余额不足，则无法继续购票。
-3. 前端构造 `purchase` 请求，包含 `poolId`、`quantity`、`nonce`、`deadline`。
-4. 用户钱包对 Typed Data 进行签名。
-5. 前端将签名包发送给 Relayer。
-6. Relayer 校验：
-   - 签名是否有效
-   - nonce 是否未使用
-   - deadline 是否过期
-   - 用户是否通过风控
-   - Sponsor 预算是否足够
-7. Relayer 调用合约中的受控入口执行购票。
-8. 合约再次校验签名与 nonce，执行购票并消耗 nonce。
-9. 前端根据链上回执展示成功/失败结果。
-
-## 11.7 刮奖 Gasless 流程
-
-1. 用户在彩票页面触发刮开动作。
-2. 当前端判定刮开面积达阈值后，生成 `scratch` 请求。
-3. 用户签名授权刮开指定 `tokenId` 或 `tokenIds[]`。
-4. Relayer 校验 NFT 当前持有人、请求时效与风控限制。
-5. Relayer 发起链上交易。
-6. 合约校验签名与 `ownerOf(tokenId)` 一致后执行刮开。
-7. 前端读取该票已预分配的加密结果并本地解密展示。
-
-## 11.8 合约侧约束
-
-合约必须提供受控的 Relayer 执行入口，并在链上完成以下校验：
-
-- 仅允许白名单 action
-- 校验 EIP-712 签名
-- 校验 `chainId`、`targetContract`
-- 校验 `nonce` 未使用
-- 校验 `deadline` 未过期
-- 校验调用参数与 `paramsHash` 一致
-- 对刮奖操作校验 `msg.sender` 代表的请求用户确为当前 NFT 持有人
-- 对建池流程校验 VRF 回调只可写入一次随机洗牌结果
-- 奖池进入“可售”状态前，必须先完成 VRF 随机数回填与结果加密写入
-
-建议：
-
-- 为每个用户维护独立 nonce：`mapping(address => uint256) nonces`
-- nonce 在成功执行后递增，避免重复广播
-- 将 `RelayerExecuted`、`RelayerRejected` 结果事件化，便于审计与前端追踪
-
-## 11.9 Relayer 风控规则
-
-| 风控项 | 规则 |
-| --- | --- |
-| 用户频率 | 仅做短时速率限制与异常防刷，不设置按日次数上限 |
-| 批量大小 | 单次购票张数、单次批量刮奖数量上限 |
-| Gas 上限 | 单笔最大 gas limit 和最大 sponsor 成本 |
-| 白名单函数 | 仅允许购票/刮奖相关方法 |
-| 预算保护 | Sponsor 日预算、池预算、全局预算三层限额 |
-| 异常回滚 | 连续失败达到阈值时暂停该用户或该池的 Gasless |
-
-## 11.10 Sponsor 结算方式
-
-- Gas Sponsor 成本先由平台垫付。
-- Zama 协议费用与 Chainlink VRF 费用由 Infra 预算垫付。
-- 结算时按池维度从对应利润池中扣减。
-- 若单池利润不足，可临时由平台总 Sponsor / Infra 池补足，再做内部记账。
-- Sponsor 与 Infra 支出应单独统计，不能混入派奖预算。
-
-## 11.11 降级与兜底
-
-- Relayer 服务不可用：前端切换为普通链上交易模式。
-- Sponsor 余额不足：隐藏或禁用 Gasless 按钮，但保留手动发送交易入口。
-- 签名过期：前端提示重新签名，不自动重放旧请求。
-- 风控拒绝：提示原因，允许用户改为自行支付 Gas。
-- 链上执行失败：Relayer 不重用同一签名自动无限重试，避免重复消费风险。
-- VRF 回调未完成：池状态保持“初始化中”，前端不可售卖。
-- VRF 请求失败：允许管理员或创建者重新触发建池初始化，但不得绕过随机流程直接上架。
-
-## 11.12 前端交互要求
-
-- Gasless 按钮需明确标识为“免 Gas”或“平台代付”。
-- 用户签名前展示本次操作摘要：池名、数量、目标票、过期时间。
-- 若当前操作不支持 Gasless，按钮文案直接展示“自行支付 Gas”。
-- 前端应区分三类状态：签名中、Relayer 提交中、链上确认中。
-- 当请求进入队列但未上链时，允许用户看到明确的 pending 状态，避免重复点击。
+- 用户自行支付购票、刮奖、领奖等链上交易的 Gas。
 
 ---
 
@@ -2558,7 +2363,7 @@ stateDiagram-v2
 | `withdrawCreatorProfit(poolId, amount)` | 创建者提取利润 |
 | `refundBond(poolId)` | 退还保证金（池子结束后） |
 | `claimableCreatorProfit(poolId) → uint256` | 查询创建者当前可提利润 |
-| `poolConfigs / poolStates / poolAccounting / roundStates / tickets / nonces` | 读取链上字段状态 |
+| `poolConfigs / poolStates / poolAccounting / roundStates / tickets` | 读取链上字段状态 |
 | `getTicketRevealState(ticketId)` | 查询刮奖状态与 reveal 授权 |
 | `ownerOf(ticketId)` | 查询当前 NFT 持有人 |
 
@@ -2578,7 +2383,6 @@ stateDiagram-v2
 | `Transfer` | NFT 彩票转让 | from, to, tokenId |
 | `BondRefunded` | 保证金退还 | poolId, creator, amount |
 | `PoolRolledToNextRound` | 循环池刷新 | poolId, newRoundId |
-| `GaslessExecuted` | Gasless 执行成功 | user, action, digest |
 
 > 📌 注意：`TicketScratched` 与 `RewardClaimed` 事件都不直接暴露中奖金额。若产品需要中奖广播，应由后端在隐私评审后基于链上事件和用户授权结果构建脱敏内容。
 > 📌 创建者池列表、用户持票列表与其他分页聚合查询，默认由后端 Indexer 基于 `PoolCreated`、ERC-721 `Transfer` 等事件构建，而不是在核心合约中增加高成本列表接口。
