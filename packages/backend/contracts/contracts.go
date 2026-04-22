@@ -109,6 +109,10 @@ func LoadRegistry(ctx context.Context, queries db.Querier, cfg config.Config) (R
 		return Registry{}, fmt.Errorf("list active deployments: %w", err)
 	}
 
+	return buildRegistryFromRows(rows, cfg)
+}
+
+func buildRegistryFromRows(rows []db.DeploymentRegistry, cfg config.Config) (Registry, error) {
 	registry := Registry{
 		ChainID:     cfg.Chain.ID,
 		ChainName:   cfg.Chain.Name,
@@ -116,6 +120,12 @@ func LoadRegistry(ctx context.Context, queries db.Querier, cfg config.Config) (R
 	}
 
 	for _, row := range rows {
+		if _, exists := registry.Deployments[row.ContractName]; exists {
+			// ListActiveDeployments returns rows ordered by deployment block descending per contract.
+			// Keep the first row so a redeploy does not get overwritten by an older still-active entry.
+			continue
+		}
+
 		artifactPath := row.AbiSourcePath
 		if artifactPath == "" {
 			artifactPath = filepath.Join(cfg.Deployments.Dir, cfg.Chain.Name, row.ContractName+".json")

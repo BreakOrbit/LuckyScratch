@@ -97,10 +97,10 @@ function toBigInt(value: BigNumberish): bigint {
 
 export function computeBondRequirement(totalPrizeBudget: BigNumberish): bigint {
   const budget = toBigInt(totalPrizeBudget);
-  if (budget <= 200n) {
+  if (budget <= 200n * UNIT) {
     return budget + (budget * 2n) / 10n;
   }
-  if (budget <= 500n) {
+  if (budget <= 500n * UNIT) {
     return budget + (budget * 15n) / 100n;
   }
   return budget + budget / 10n;

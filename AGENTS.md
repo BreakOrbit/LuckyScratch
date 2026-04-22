@@ -34,6 +34,8 @@ This repository is currently running in **Hardhat flavor**.
 - Deployment wiring lives in `packages/hardhat/deploy/02_deploy_lucky_scratch.ts`
 - Contract tests for LuckyScratch live in `packages/hardhat/test/luckyScratch/`
 - Production deployment now targets real `cUSDC` addresses and real Chainlink VRF v2.5 network settings on supported networks such as Sepolia; no local mock token is deployed by the LuckyScratch deploy script
+- `createPool` now applies the documented 6-decimal cUSDC bond schedule correctly (`50-200` => `+20%`, `201-500` => `+15%`, `501-2000` => `+10%`) and caps `totalTicketsPerRound` at `256` to bound VRF initialization cost
+- Ticket metadata in `LuckyScratchCore.tickets` is now slot-packed with `uint64` pool / round ids, and the claim path no longer maintains an unused encrypted lifetime-winnings accumulator
 - The homepage no longer exposes a scaffold demo contract panel; it is now a project status entry page
 - The store frontend now renders a client-side sortable, paginated pool grid under `packages/nextjs/app/store/page.tsx` with supporting UI components in `packages/nextjs/components/store/`
 - The homepage featured pool cards and store pool cards now route users into the purchase flow at `packages/nextjs/app/purchase/[poolId]/page.tsx`
@@ -48,6 +50,7 @@ This repository is currently running in **Hardhat flavor**.
 - Purchase/scratch UI design inputs currently live under `doc/scratch/`
 - Backend implementation planning and codegen guidance now live in `doc/backend-design.md` and `doc/backend-codegen-plan.md`
 - The backend migration now includes the LuckyScratch read model, `deployment_registry`, `indexed_logs`, recurring `jobs`, and audit/cost tables needed by the live API/worker
+- When multiple active deployment rows exist for the same contract after a redeploy, the backend registry loader now keeps the newest deployment block per contract instead of falling back to an older still-active address
 
 ### LuckyScratch Current Scope
 
@@ -73,7 +76,8 @@ Implemented LuckyScratch flows currently covered in code and tests:
 
 Current LuckyScratch rule highlights:
 
-- `createPool` enforces the documented budget band, supported ticket-price presets, fixed platform fee, hit-rate range, and max-prize cap
+- `createPool` enforces the documented budget band, supported ticket-price presets, fixed platform fee, hit-rate range, max-prize cap, the documented 6-decimal cUSDC bond schedule, and a `256` ticket per round ceiling
+- `tickets(ticketId)` now returns compact `uint64` pool / round ids, so non-Solidity consumers should keep backend / client bindings in sync with the current ABI
 - A round settles only after all tickets are scratched and all winning tickets are claimed
 - Closing an unsold or still-initializing pool now keeps it closed even if an old VRF request is fulfilled later
 - Ticket purchase, scratch, claim, and creator accounting now run only through direct wallet-submitted transactions; no backend transaction-relay path remains in the current architecture

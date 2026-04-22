@@ -13,20 +13,7 @@ import { ILuckyScratchVRFAdapter } from "./interfaces/ILuckyScratchVRFAdapter.so
 import { PoolMathLib } from "./libraries/PoolMathLib.sol";
 import { PrizeShuffleLib } from "./libraries/PrizeShuffleLib.sol";
 import { TicketStateLib } from "./libraries/TicketStateLib.sol";
-import {
-    EncryptedTicketState,
-    EncryptedUserState,
-    PoolAccounting,
-    PoolConfig,
-    PoolMode,
-    PoolState,
-    PoolStatus,
-    PrizeTierInput,
-    RoundState,
-    RoundStatus,
-    TicketData,
-    TicketStatus
-} from "./types/LuckyScratchTypes.sol";
+import { EncryptedTicketState, PoolAccounting, PoolConfig, PoolMode, PoolState, PoolStatus, PrizeTierInput, RoundState, RoundStatus, TicketData, TicketStatus } from "./types/LuckyScratchTypes.sol";
 
 contract LuckyScratchCore is AccessControl, ReentrancyGuard, Pausable, ZamaEthereumConfig, ILuckyScratchCore {
     using PoolMathLib for PoolAccounting;
@@ -34,6 +21,7 @@ contract LuckyScratchCore is AccessControl, ReentrancyGuard, Pausable, ZamaEther
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 
     uint32 internal constant MAX_BATCH_SIZE = 64;
+    uint32 internal constant MAX_TICKETS_PER_ROUND = 256;
     uint16 internal constant MAX_BPS = 10_000;
     uint16 internal constant PLATFORM_FEE_BPS = 800;
     uint16 internal constant MIN_HIT_RATE_BPS = 2_000;
@@ -80,7 +68,11 @@ contract LuckyScratchCore is AccessControl, ReentrancyGuard, Pausable, ZamaEther
     event RoundSettled(uint256 indexed poolId, uint256 indexed roundId);
     event TicketPurchased(address indexed user, uint256 indexed poolId, uint256 indexed ticketId, uint32 ticketIndex);
     event TicketScratched(
-        address indexed user, uint256 indexed poolId, uint256 indexed roundId, uint256 ticketId, bool revealAuthorized
+        address indexed user,
+        uint256 indexed poolId,
+        uint256 indexed roundId,
+        uint256 ticketId,
+        bool revealAuthorized
     );
     event RewardClaimed(address indexed user, uint256 indexed ticketId, uint256 indexed poolId, uint256 roundId);
     event CreatorProfitWithdrawn(uint256 indexed poolId, address indexed creator, uint256 amount);
@@ -105,10 +97,10 @@ contract LuckyScratchCore is AccessControl, ReentrancyGuard, Pausable, ZamaEther
     mapping(uint256 poolId => PoolAccounting) public poolAccounting;
     mapping(uint256 poolId => mapping(uint256 roundId => RoundState)) public roundStates;
     mapping(uint256 poolId => PrizeTierInput[]) private poolPrizeTiers;
-    mapping(uint256 poolId => mapping(uint256 roundId => mapping(uint32 ticketIndex => euint64))) private encryptedPrizeSlots;
+    mapping(uint256 poolId => mapping(uint256 roundId => mapping(uint32 ticketIndex => euint64)))
+        private encryptedPrizeSlots;
     mapping(uint256 ticketId => TicketData) public tickets;
     mapping(uint256 ticketId => EncryptedTicketState) private encryptedTickets;
-    mapping(address user => EncryptedUserState) private users;
     mapping(bytes32 requestId => VrfRequestContext) private vrfRequests;
     mapping(uint256 poolId => mapping(uint256 roundId => mapping(uint32 ticketIndex => bool))) public soldTicketSlots;
     mapping(uint256 poolId => mapping(uint256 roundId => uint32 cursor)) private nextAutoTicketIndex;
@@ -148,13 +140,10 @@ contract LuckyScratchCore is AccessControl, ReentrancyGuard, Pausable, ZamaEther
         state.paused = paused;
     }
 
-    function createPool(PoolConfig calldata config, PrizeTierInput[] calldata tiers)
-        external
-        override
-        nonReentrant
-        whenNotPaused
-        returns (uint256 poolId)
-    {
+    function createPool(
+        PoolConfig calldata config,
+        PrizeTierInput[] calldata tiers
+    ) external override nonReentrant whenNotPaused returns (uint256 poolId) {
         _requireDependenciesConfigured();
         _validatePoolCreation(config, tiers);
 
@@ -258,12 +247,10 @@ contract LuckyScratchCore is AccessControl, ReentrancyGuard, Pausable, ZamaEther
         _purchaseTickets(msg.sender, poolId, quantity);
     }
 
-    function purchaseTicketsWithSelection(uint256 poolId, uint32[] calldata ticketIndexes)
-        external
-        override
-        nonReentrant
-        whenNotPaused
-    {
+    function purchaseTicketsWithSelection(
+        uint256 poolId,
+        uint32[] calldata ticketIndexes
+    ) external override nonReentrant whenNotPaused {
         _purchaseTicketsWithSelection(msg.sender, poolId, ticketIndexes);
     }
 
@@ -279,12 +266,11 @@ contract LuckyScratchCore is AccessControl, ReentrancyGuard, Pausable, ZamaEther
         }
     }
 
-    function claimReward(uint256 ticketId, uint64 clearRewardAmount, bytes calldata decryptionProof)
-        external
-        override
-        nonReentrant
-        whenNotPaused
-    {
+    function claimReward(
+        uint256 ticketId,
+        uint64 clearRewardAmount,
+        bytes calldata decryptionProof
+    ) external override nonReentrant whenNotPaused {
         _claimReward(msg.sender, ticketId, clearRewardAmount, decryptionProof);
     }
 
@@ -323,8 +309,11 @@ contract LuckyScratchCore is AccessControl, ReentrancyGuard, Pausable, ZamaEther
             return;
         }
 
-        (uint64[] memory shuffledPrizes, bytes32 shuffleRoot) =
-            PrizeShuffleLib.buildShuffledPrizeTable(poolPrizeTiers[request.poolId], round.totalTickets, randomWord);
+        (uint64[] memory shuffledPrizes, bytes32 shuffleRoot) = PrizeShuffleLib.buildShuffledPrizeTable(
+            poolPrizeTiers[request.poolId],
+            round.totalTickets,
+            randomWord
+        );
 
         uint32 positivePrizeCount;
         for (uint32 i = 0; i < round.totalTickets; i++) {
@@ -351,7 +340,10 @@ contract LuckyScratchCore is AccessControl, ReentrancyGuard, Pausable, ZamaEther
         emit PoolRoundInitialized(request.poolId, request.roundId);
     }
 
-    function withdrawCreatorProfit(uint256 poolId, uint256 amount) external nonReentrant onlyPoolCreatorOrAdmin(poolId) {
+    function withdrawCreatorProfit(
+        uint256 poolId,
+        uint256 amount
+    ) external nonReentrant onlyPoolCreatorOrAdmin(poolId) {
         if (amount == 0) revert InvalidQuantity();
 
         PoolAccounting storage accounting = poolAccounting[poolId];
@@ -376,12 +368,9 @@ contract LuckyScratchCore is AccessControl, ReentrancyGuard, Pausable, ZamaEther
         emit BondRefunded(poolId, poolConfigs[poolId].creator, refundAmount);
     }
 
-    function getTicketRevealState(uint256 ticketId)
-        external
-        view
-        override
-        returns (TicketStatus status, bool revealAuthorized)
-    {
+    function getTicketRevealState(
+        uint256 ticketId
+    ) external view override returns (TicketStatus status, bool revealAuthorized) {
         TicketData memory ticketData = _getTicketData(ticketId);
         EncryptedTicketState storage encryptedTicket = encryptedTickets[ticketId];
         return (ticketData.status, encryptedTicket.revealAuthorized);
@@ -501,7 +490,12 @@ contract LuckyScratchCore is AccessControl, ReentrancyGuard, Pausable, ZamaEther
         emit TicketScratched(user, ticketData.poolId, ticketData.roundId, ticketId, true);
     }
 
-    function _claimReward(address user, uint256 ticketId, uint64 clearRewardAmount, bytes memory decryptionProof) internal {
+    function _claimReward(
+        address user,
+        uint256 ticketId,
+        uint64 clearRewardAmount,
+        bytes memory decryptionProof
+    ) internal {
         TicketData storage ticketData = _getTicketDataStorage(ticketId);
         if (ILuckyScratchTicket(ticket).ownerOf(ticketId) != user) revert NotTicketOwner(ticketId, user);
         if (!TicketStateLib.canClaim(ticketData.status)) revert TicketNotClaimable(ticketId);
@@ -520,17 +514,6 @@ contract LuckyScratchCore is AccessControl, ReentrancyGuard, Pausable, ZamaEther
             round.winClaimableCount -= 1;
         }
 
-        EncryptedUserState storage userState = users[user];
-        if (!FHE.isInitialized(userState.encryptedLifetimeWinnings)) {
-            userState.encryptedLifetimeWinnings = encryptedTickets[ticketId].encryptedPrizeAmount;
-        } else {
-            userState.encryptedLifetimeWinnings =
-                FHE.add(userState.encryptedLifetimeWinnings, encryptedTickets[ticketId].encryptedPrizeAmount);
-        }
-
-        FHE.allowThis(userState.encryptedLifetimeWinnings);
-        FHE.allow(userState.encryptedLifetimeWinnings, user);
-
         ILuckyScratchTreasury(treasury).payoutReward(user, ticketData.poolId, clearRewardAmount);
         _maybeSettleRound(ticketData.poolId, ticketData.roundId);
         emit RewardClaimed(user, ticketId, ticketData.poolId, ticketData.roundId);
@@ -547,6 +530,7 @@ contract LuckyScratchCore is AccessControl, ReentrancyGuard, Pausable, ZamaEther
         if (config.ticketPrice == 0 || config.totalTicketsPerRound == 0 || config.totalPrizeBudget == 0) {
             revert InvalidPoolConfig();
         }
+        if (config.totalTicketsPerRound > MAX_TICKETS_PER_ROUND) revert InvalidPoolConfig();
         if (config.poolInstanceGroupSize == 0) revert InvalidPoolConfig();
         if (config.totalPrizeBudget < MIN_TOTAL_PRIZE_BUDGET || config.totalPrizeBudget > MAX_TOTAL_PRIZE_BUDGET) {
             revert InvalidPoolConfig();
@@ -573,22 +557,26 @@ contract LuckyScratchCore is AccessControl, ReentrancyGuard, Pausable, ZamaEther
         }
     }
 
-    function _mintTicketForIndex(address buyer, uint256 poolId, uint256 roundId, uint32 ticketIndex)
-        internal
-        returns (uint256 ticketId)
-    {
+    function _mintTicketForIndex(
+        address buyer,
+        uint256 poolId,
+        uint256 roundId,
+        uint32 ticketIndex
+    ) internal returns (uint256 ticketId) {
         ticketId = nextTicketId;
         nextTicketId += 1;
 
         tickets[ticketId] = TicketData({
-            poolId: poolId,
-            roundId: roundId,
+            poolId: uint64(poolId),
+            roundId: uint64(roundId),
             ticketIndex: ticketIndex,
             status: TicketStatus.Unscratched,
             transferredBeforeScratch: false
         });
-        encryptedTickets[ticketId] =
-            EncryptedTicketState({ encryptedPrizeAmount: encryptedPrizeSlots[poolId][roundId][ticketIndex], revealAuthorized: false });
+        encryptedTickets[ticketId] = EncryptedTicketState({
+            encryptedPrizeAmount: encryptedPrizeSlots[poolId][roundId][ticketIndex],
+            revealAuthorized: false
+        });
 
         ILuckyScratchTicket(ticket).mintTicket(buyer, ticketId);
         emit TicketPurchased(buyer, poolId, ticketId, ticketIndex);
@@ -690,8 +678,13 @@ contract LuckyScratchCore is AccessControl, ReentrancyGuard, Pausable, ZamaEther
     }
 
     function _isSupportedTicketPrice(uint64 ticketPrice) internal pure returns (bool) {
-        return ticketPrice == PRICE_TIER_1 || ticketPrice == PRICE_TIER_2 || ticketPrice == PRICE_TIER_5
-            || ticketPrice == PRICE_TIER_10 || ticketPrice == PRICE_TIER_15 || ticketPrice == PRICE_TIER_20;
+        return
+            ticketPrice == PRICE_TIER_1 ||
+            ticketPrice == PRICE_TIER_2 ||
+            ticketPrice == PRICE_TIER_5 ||
+            ticketPrice == PRICE_TIER_10 ||
+            ticketPrice == PRICE_TIER_15 ||
+            ticketPrice == PRICE_TIER_20;
     }
 
     function _getTicketData(uint256 ticketId) internal view returns (TicketData memory ticketData) {

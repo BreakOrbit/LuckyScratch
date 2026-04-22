@@ -16,6 +16,8 @@ describe("LuckyScratchTicketTransfer", function () {
     await deployed.ticket.connect(deployed.alice).transferFrom(deployed.alice.address, deployed.bob.address, ticketId);
 
     const ticketRecord = await deployed.core.tickets(ticketId);
+    expect(ticketRecord.poolId).to.equal(1n);
+    expect(ticketRecord.roundId).to.equal(1n);
     expect(ticketRecord.transferredBeforeScratch).to.equal(true);
     expect(await deployed.ticket.ownerOf(ticketId)).to.equal(deployed.bob.address);
 

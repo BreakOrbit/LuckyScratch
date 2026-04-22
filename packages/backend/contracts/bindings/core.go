@@ -167,22 +167,22 @@ func (c *Core) Ticket(ctx context.Context, ticketID uint64) (TicketData, error) 
 	}
 
 	values := *gethabi.ConvertType(out[0], new(struct {
-		PoolID                   *big.Int
-		RoundID                  *big.Int
+		PoolID                   uint64
+		RoundID                  uint64
 		TicketIndex              uint32
 		Status                   uint8
 		TransferredBeforeScratch bool
 	})).(*struct {
-		PoolID                   *big.Int
-		RoundID                  *big.Int
+		PoolID                   uint64
+		RoundID                  uint64
 		TicketIndex              uint32
 		Status                   uint8
 		TransferredBeforeScratch bool
 	})
 
 	return TicketData{
-		PoolID:                   values.PoolID.Uint64(),
-		RoundID:                  values.RoundID.Uint64(),
+		PoolID:                   values.PoolID,
+		RoundID:                  values.RoundID,
 		TicketIndex:              values.TicketIndex,
 		Status:                   values.Status,
 		TransferredBeforeScratch: values.TransferredBeforeScratch,

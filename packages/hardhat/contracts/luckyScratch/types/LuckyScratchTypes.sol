@@ -84,15 +84,11 @@ struct RoundState {
 }
 
 struct TicketData {
-    uint256 poolId;
-    uint256 roundId;
+    uint64 poolId;
+    uint64 roundId;
     uint32 ticketIndex;
     TicketStatus status;
     bool transferredBeforeScratch;
-}
-
-struct EncryptedUserState {
-    euint64 encryptedLifetimeWinnings;
 }
 
 struct EncryptedTicketState {
