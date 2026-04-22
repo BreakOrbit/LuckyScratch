@@ -1,14 +1,21 @@
+import { useState } from "react";
 import Link from "next/link";
 import {
+  BanknotesIcon,
+  CalculatorIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  CurrencyDollarIcon,
+  InformationCircleIcon,
   KeyIcon,
   LockClosedIcon,
   MagnifyingGlassIcon,
   PlusCircleIcon,
+  XMarkIcon,
 } from "@heroicons/react/24/outline";
 
 type PoolAction = {
+  id: string;
   label: string;
   className: string;
 };
@@ -43,8 +50,18 @@ type PoolCard = {
   bondStatusValue: string;
   bondStatusClassName: string;
   bondIcon: "lock" | "key";
+  holdingsValue: string;
+  totalInflow: string;
+  totalOutflow: string;
+  totalFees: string;
+  formulaNote: string;
   actions: PoolAction[];
 };
+
+const parseUsdcAmount = (value: string) => Number.parseFloat(value.replace(/[^0-9.]/g, "")) || 0;
+
+const formatUsdcAmount = (value: number) =>
+  value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const summaryCards: SummaryCard[] = [
   {
@@ -100,10 +117,15 @@ const poolCards: PoolCard[] = [
     bondStatusValue: "LOCKED",
     bondStatusClassName: "text-[#FFB4AB]",
     bondIcon: "lock",
+    holdingsValue: "2.00 USDC",
+    totalInflow: "68.00 USDC",
+    totalOutflow: "52.00 USDC",
+    totalFees: "5.44 USDC",
+    formulaNote: "Current treasury balance + cumulative ticket inflow - cumulative pool outflow - total protocol fees",
     actions: [
-      { label: "Withdraw", className: "bg-[#FFD700] text-[#705E00]" },
-      { label: "Close", className: "bg-[#2E3546] text-[#DCE2F9] border border-[#4D4732]/20" },
-      { label: "Details", className: "bg-[#2E3546] text-[#DCE2F9] border border-[#4D4732]/20" },
+      { id: "withdraw", label: "Withdraw", className: "bg-[#FFD700] text-[#705E00]" },
+      { id: "close", label: "Close", className: "bg-[#2E3546] text-[#DCE2F9] border border-[#4D4732]/20" },
+      { id: "details", label: "Details", className: "bg-[#2E3546] text-[#DCE2F9] border border-[#4D4732]/20" },
     ],
   },
   {
@@ -128,9 +150,14 @@ const poolCards: PoolCard[] = [
     bondStatusValue: "REFUNDABLE",
     bondStatusClassName: "text-[#00DAF3]",
     bondIcon: "key",
+    holdingsValue: "0.00 USDC",
+    totalInflow: "450.00 USDC",
+    totalOutflow: "300.00 USDC",
+    totalFees: "36.00 USDC",
+    formulaNote: "Settled pool profit after all prize payouts and platform fees are deducted from total inflow",
     actions: [
-      { label: "Refund Bond", className: "bg-[#72EBFF] text-[#004F58]" },
-      { label: "Details", className: "bg-[#2E3546] text-[#DCE2F9] border border-[#4D4732]/20" },
+      { id: "withdraw", label: "Withdraw", className: "bg-[#FFD700] text-[#705E00]" },
+      { id: "details", label: "Details", className: "bg-[#2E3546] text-[#DCE2F9] border border-[#4D4732]/20" },
     ],
   },
   {
@@ -155,15 +182,23 @@ const poolCards: PoolCard[] = [
     bondStatusValue: "LOCKED",
     bondStatusClassName: "text-[#FFB4AB]",
     bondIcon: "lock",
+    holdingsValue: "0.00 USDC",
+    totalInflow: "5.00 USDC",
+    totalOutflow: "4.00 USDC",
+    totalFees: "0.40 USDC",
+    formulaNote:
+      "Current cycle inflow is still small, so claimable profit stays near break-even after fees and early outflow",
     actions: [
-      { label: "Withdraw", className: "bg-[#FFD700]/20 text-[#D0C6AB] cursor-not-allowed" },
-      { label: "Close", className: "bg-[#2E3546] text-[#DCE2F9] border border-[#4D4732]/20" },
-      { label: "Details", className: "bg-[#2E3546] text-[#DCE2F9] border border-[#4D4732]/20" },
+      { id: "withdraw", label: "Withdraw", className: "bg-[#FFD700] text-[#705E00]" },
+      { id: "close", label: "Close", className: "bg-[#2E3546] text-[#DCE2F9] border border-[#4D4732]/20" },
+      { id: "details", label: "Details", className: "bg-[#2E3546] text-[#DCE2F9] border border-[#4D4732]/20" },
     ],
   },
 ];
 
 export function MyPoolsPanel() {
+  const [selectedPool, setSelectedPool] = useState<PoolCard | null>(null);
+
   return (
     <div className="space-y-8 bg-[#0C1323] text-[#DCE2F9]">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -315,10 +350,10 @@ export function MyPoolsPanel() {
                 className={`mt-auto grid gap-2 px-4 pb-6 ${card.actions.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}
               >
                 {card.actions.map(action => {
-                  if (action.label === "Details") {
+                  if (action.id === "details") {
                     return (
                       <Link
-                        key={action.label}
+                        key={action.id}
                         href={`/pool-detail/${card.id}`}
                         className={`flex items-center justify-center rounded py-2 text-[10px] font-bold uppercase transition-transform active:scale-95 ${action.className}`}
                       >
@@ -326,11 +361,16 @@ export function MyPoolsPanel() {
                       </Link>
                     );
                   }
-                  
+
                   return (
                     <button
-                      key={action.label}
+                      key={action.id}
                       type="button"
+                      onClick={() => {
+                        if (action.id === "withdraw") {
+                          setSelectedPool(card);
+                        }
+                      }}
                       className={`rounded py-2 text-[10px] font-bold uppercase transition-transform active:scale-95 ${action.className}`}
                     >
                       {action.label}
@@ -386,6 +426,103 @@ export function MyPoolsPanel() {
           <ChevronRightIcon className="h-5 w-5" />
         </button>
       </div>
+
+      {selectedPool ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#020611]/80 p-4 backdrop-blur-md">
+          <div className="relative w-full max-w-2xl overflow-hidden rounded-2xl border border-[#FFD700]/20 bg-[#10192B] shadow-[0_0_40px_rgba(255,215,0,0.08)]">
+            <button
+              type="button"
+              onClick={() => setSelectedPool(null)}
+              className="absolute right-4 top-4 rounded-full border border-[#4D4732]/20 bg-[#181F30] p-2 text-[#D0C6AB] transition-colors hover:border-[#FFD700] hover:text-[#FFD700]"
+            >
+              <XMarkIcon className="h-5 w-5" />
+            </button>
+
+            <div className="border-b border-[#4D4732]/10 px-6 py-5 md:px-8">
+              <div className="mb-2 flex items-center gap-2 text-[#FFD700]">
+                <BanknotesIcon className="h-5 w-5" />
+                <span className="text-xs font-bold uppercase tracking-[0.2em]">Withdraw Profit</span>
+              </div>
+              <h2 className="font-headline text-2xl font-bold text-[#FFE16D]">{selectedPool.title}</h2>
+              <p className="mt-1 text-sm text-[#D0C6AB]">Profit withdrawal breakdown</p>
+            </div>
+
+            <div className="space-y-6 px-6 py-6 md:px-8">
+              <div className="rounded-xl border border-[#FFD700]/10 bg-[#181F30] p-4">
+                <div className="mb-3 flex items-center gap-2 text-[#9CF0FF]">
+                  <CalculatorIcon className="h-5 w-5" />
+                  <span className="text-xs font-bold uppercase tracking-[0.2em]">收益计算公式</span>
+                </div>
+                <p className="font-headline text-lg font-bold text-[#DCE2F9]">
+                  盈亏合计 = 持仓币值 + 累计入账金额 - 累计出账金额 - 费用合计
+                </p>
+                <p className="mt-2 text-xs leading-relaxed text-[#D0C6AB]">{selectedPool.formulaNote}</p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                {[
+                  {
+                    label: "持仓币值",
+                    value: selectedPool.holdingsValue,
+                    sublabel: "当前奖池/库存内尚未转出的余额价值",
+                  },
+                  {
+                    label: "累计入账金额",
+                    value: selectedPool.totalInflow,
+                    sublabel: "售票与入池累计流入金额",
+                  },
+                  {
+                    label: "累计出账金额",
+                    value: selectedPool.totalOutflow,
+                    sublabel: "奖池派奖、结算转出等累计支出",
+                  },
+                  {
+                    label: "费用合计",
+                    value: selectedPool.totalFees,
+                    sublabel: "平台费、协议服务费等累计费用",
+                  },
+                ].map(item => (
+                  <div key={item.label} className="rounded-xl border border-[#4D4732]/10 bg-[#141B2C] p-4">
+                    <p className="text-xs font-bold uppercase tracking-widest text-[#D0C6AB]">{item.label}</p>
+                    <p className="mt-2 font-headline text-2xl font-bold text-[#DCE2F9]">{item.value}</p>
+                    <p className="mt-1 text-[11px] leading-relaxed text-[#D0C6AB]/70">{item.sublabel}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="rounded-xl border border-[#FFD700]/20 bg-[linear-gradient(135deg,rgba(255,215,0,0.12)_0%,rgba(255,215,0,0.04)_100%)] p-5">
+                <div className="mb-3 flex items-center gap-2 text-[#FFD700]">
+                  <CurrencyDollarIcon className="h-5 w-5" />
+                  <span className="text-xs font-bold uppercase tracking-[0.2em]">盈亏合计</span>
+                </div>
+                <p className="font-headline text-3xl font-black text-[#FFE16D]">
+                  {formatUsdcAmount(
+                    parseUsdcAmount(selectedPool.holdingsValue) +
+                      parseUsdcAmount(selectedPool.totalInflow) -
+                      parseUsdcAmount(selectedPool.totalOutflow) -
+                      parseUsdcAmount(selectedPool.totalFees),
+                  )}{" "}
+                  USDC
+                </p>
+                <p className="mt-2 text-xs text-[#D0C6AB]">
+                  = {selectedPool.holdingsValue} + {selectedPool.totalInflow} - {selectedPool.totalOutflow} -{" "}
+                  {selectedPool.totalFees}
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-[#4D4732]/10 bg-[#0C1323] p-4">
+                <div className="flex items-start gap-3">
+                  <InformationCircleIcon className="mt-0.5 h-5 w-5 shrink-0 text-[#9CF0FF]" />
+                  <p className="text-sm leading-relaxed text-[#D0C6AB]">
+                    本弹窗展示的是当前可提取收益的计算明细。各项值是按当前奖池持仓、累计入账、累计出账与累计费用汇总后计算得到；
+                    最终收益按上述公式直接相加减得出。
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
