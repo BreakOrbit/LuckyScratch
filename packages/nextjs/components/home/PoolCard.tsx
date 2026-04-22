@@ -20,6 +20,8 @@ export type PoolCardData = {
   image: string;
   rarity: PoolRarity;
   price: string;
+  winRate: string;
+  maxPrize: string;
   animationType: PoolAnimationType;
   hiddenOnMobile?: boolean;
 };
@@ -147,7 +149,17 @@ const overlayMap: Record<PoolAnimationType, React.FC> = {
   cosmic: CosmicOverlay,
 };
 
-export const PoolCard = ({ id, name, image, rarity, price, animationType, hiddenOnMobile }: PoolCardData) => {
+export const PoolCard = ({
+  id,
+  name,
+  image,
+  rarity,
+  price,
+  winRate,
+  maxPrize,
+  animationType,
+  hiddenOnMobile,
+}: PoolCardData) => {
   const AnimOverlay = overlayMap[animationType];
   const badgeClasses = rarityBadgeStyles[rarity];
   const cardClasses = rarityCardStyles[rarity];
@@ -174,14 +186,14 @@ export const PoolCard = ({ id, name, image, rarity, price, animationType, hidden
       <div className="p-6">
         <h3 className="font-headline font-bold text-xl text-ns-on-surface mb-1 uppercase">{name}</h3>
         <div className="flex justify-between items-center mb-6">
-          <span className="text-ns-on-surface-variant text-sm font-body">Available Now</span>
-          <span className="text-ns-primary font-headline font-bold">{price}</span>
+          <span className="text-ns-on-surface-variant text-sm font-body">{winRate} Win Rate</span>
+          <span className="text-ns-primary font-headline font-bold">Max {maxPrize}</span>
         </div>
         <Link
           href={`/purchase/${id}`}
           className={`block w-full py-3 text-center font-headline font-bold uppercase tracking-widest transition-all rounded-sm ${buttonClasses}`}
         >
-          Purchase
+          Purchase ({price})
         </Link>
       </div>
     </div>
