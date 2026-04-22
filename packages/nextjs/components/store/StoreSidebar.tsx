@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { BuildingLibraryIcon, UserGroupIcon } from "@heroicons/react/24/outline";
 
 type StoreSidebarProps = {
   activeTab: "official" | "community";
@@ -12,12 +13,8 @@ export const StoreSidebar = ({ activeTab, onTabChange }: StoreSidebarProps) => {
     <aside className="h-full w-64 fixed left-0 top-0 hidden lg:flex flex-col py-24 px-4 bg-ns-surface-container-low z-40">
       {/* Vault Header */}
       <div className="px-4 mb-8">
-        <h2 className="text-[#FFD700] font-headline uppercase text-xs tracking-[0.2em] mb-1">
-          The Vault
-        </h2>
-        <p className="text-[10px] text-ns-on-surface-variant uppercase tracking-widest opacity-60">
-          Celestial Tier
-        </p>
+        <h2 className="text-[#FFD700] font-headline uppercase text-xs tracking-[0.2em] mb-1">The Vault</h2>
+        <p className="text-[10px] text-ns-on-surface-variant uppercase tracking-widest opacity-60">Celestial Tier</p>
       </div>
 
       {/* Navigation */}
@@ -30,7 +27,7 @@ export const StoreSidebar = ({ activeTab, onTabChange }: StoreSidebarProps) => {
               : "text-ns-on-surface-variant hover:bg-ns-surface-container-high hover:text-white"
           }`}
         >
-          <span className="material-symbols-outlined">account_balance</span>
+          <BuildingLibraryIcon aria-hidden="true" className="h-5 w-5 shrink-0" />
           <span className="text-sm">Official Pools</span>
         </button>
         <button
@@ -41,7 +38,7 @@ export const StoreSidebar = ({ activeTab, onTabChange }: StoreSidebarProps) => {
               : "text-ns-on-surface-variant hover:bg-ns-surface-container-high hover:text-white"
           }`}
         >
-          <span className="material-symbols-outlined">person</span>
+          <UserGroupIcon aria-hidden="true" className="h-5 w-5 shrink-0" />
           <span className="text-sm">Community Pools</span>
         </button>
       </div>
@@ -49,18 +46,11 @@ export const StoreSidebar = ({ activeTab, onTabChange }: StoreSidebarProps) => {
       {/* Vault Balance */}
       <div className="mt-auto px-4">
         <div className="glass-panel rounded-xl p-4">
-          <p className="text-[10px] text-ns-on-surface-variant uppercase mb-2">
-            Vault Balance
-          </p>
+          <p className="text-[10px] text-ns-on-surface-variant uppercase mb-2">Vault Balance</p>
           <div className="flex items-end gap-1 mb-4">
-            <span className="text-xl font-headline font-bold text-[#00BCD4]">
-              1,420.50
-            </span>
+            <span className="text-xl font-headline font-bold text-[#00BCD4]">1,420.50</span>
             <span className="text-[10px] text-[#00BCD4] pb-1">GOLD</span>
           </div>
-          <button className="w-full bg-gradient-to-r from-[#00BCD4] to-[#4DD0E1] text-white py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider active:scale-[0.98] transition-transform">
-            Deposit Gold
-          </button>
         </div>
       </div>
     </aside>

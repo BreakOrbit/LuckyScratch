@@ -2,6 +2,14 @@
 
 import React from "react";
 import Link from "next/link";
+import {
+  BoltIcon,
+  CubeTransparentIcon,
+  SparklesIcon,
+  StarIcon,
+  SunIcon,
+  TrophyIcon,
+} from "@heroicons/react/24/outline";
 
 export type StorePoolTheme = "cosmic" | "sakura" | "diamond" | "dragon" | "lantern" | "star" | "crown" | "rainbow";
 
@@ -13,7 +21,6 @@ export type StorePoolCardData = {
   image: string;
   theme: StorePoolTheme;
   themeLabel: string;
-  themeIcon: string;
   price: string;
   badgeType: StorePoolBadgeType;
   ticketsSold: number;
@@ -32,13 +39,23 @@ const themeColors: Record<StorePoolTheme, { text: string; border: string }> = {
   rainbow: { text: "text-[#A18EFF]", border: "border-[#A18EFF]/20" },
 };
 
+const themeIcons: Record<StorePoolTheme, typeof SparklesIcon> = {
+  cosmic: SparklesIcon,
+  sakura: SparklesIcon,
+  diamond: CubeTransparentIcon,
+  dragon: BoltIcon,
+  lantern: SunIcon,
+  star: StarIcon,
+  crown: TrophyIcon,
+  rainbow: SparklesIcon,
+};
+
 export const StorePoolCard = ({
   id,
   name,
   image,
   theme,
   themeLabel,
-  themeIcon,
   price,
   badgeType,
   ticketsSold,
@@ -46,6 +63,7 @@ export const StorePoolCard = ({
 }: StorePoolCardData) => {
   const progress = Math.round((ticketsSold / totalTickets) * 100);
   const colors = themeColors[theme];
+  const ThemeIcon = themeIcons[theme];
 
   return (
     <div className="group relative glass-panel rounded-2xl overflow-hidden hover:border-ns-primary/30 transition-all duration-500 hover:scale-[1.02] hover:shadow-[0_0_40px_rgba(255,215,0,0.08)]">
@@ -64,7 +82,7 @@ export const StorePoolCard = ({
           <span
             className={`px-3 py-1 bg-ns-surface-container-highest/80 backdrop-blur-md rounded-full text-[10px] font-bold uppercase tracking-tighter ${colors.text} ${colors.border} border`}
           >
-            <span className="material-symbols-outlined text-[12px] align-middle mr-1">{themeIcon}</span>
+            <ThemeIcon aria-hidden="true" className="mr-1 inline h-3.5 w-3.5 align-[-2px]" />
             {themeLabel}
           </span>
         </div>

@@ -4,10 +4,7 @@ import Link from "next/link";
 
 export const HeroSection = () => {
   return (
-    <section
-      id="hero-section"
-      className="relative min-h-[716px] flex items-center justify-center px-8 py-20"
-    >
+    <section id="hero-section" className="relative min-h-[716px] flex items-center justify-center px-8 py-20">
       {/* Background Layer */}
       <div className="absolute inset-0 z-0 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-transparent to-ns-background z-10" />
@@ -43,23 +40,23 @@ export const HeroSection = () => {
 
         {/* Sub-copy */}
         <p className="font-body text-lg text-ns-on-surface-variant max-w-2xl mb-12">
-          Premium decentralized scratch-off ecosystem. Verifiable randomness meets cinematic gaming
-          experiences on-chain. Create pools, scratch tickets, win instant crypto rewards.
+          Premium decentralized scratch-off ecosystem. Verifiable randomness meets cinematic gaming experiences
+          on-chain. Create pools, scratch tickets, win instant crypto rewards.
         </p>
 
         {/* CTAs */}
         <div className="flex flex-col sm:flex-row gap-6">
           <Link
-            href="/store"
+            href="/player-rankings"
             className="angled-clip px-12 py-5 bg-gradient-to-br from-ns-primary to-[#B8860B] text-ns-background font-headline font-black uppercase tracking-[0.15em] text-lg hover:scale-105 transition-transform duration-300 gilded-glow"
           >
-            Start Scratching
+            Heroes Leaderboard
           </Link>
           <Link
-            href="/store"
+            href="/pool-rankings"
             className="px-12 py-5 border border-ns-primary/30 hover:bg-ns-primary/5 text-ns-primary font-headline font-bold uppercase tracking-[0.15em] text-lg transition-all duration-300 rounded-sm"
           >
-            View Pools
+            Prize Pool Rankings
           </Link>
         </div>
       </div>

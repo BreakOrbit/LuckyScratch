@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import type { NextPage } from "next";
+import { BuildingLibraryIcon, UserGroupIcon } from "@heroicons/react/24/outline";
 import { StoreBottomNav } from "~~/components/store/StoreBottomNav";
 import { StoreFilterBar } from "~~/components/store/StoreFilterBar";
 import { StorePagination } from "~~/components/store/StorePagination";
@@ -18,7 +19,6 @@ const DEMO_POOLS: StorePoolCardData[] = [
       "https://lh3.googleusercontent.com/aida-public/AB6AXuCUC7drvZI5-QEJzMgM_pFf_uBTrwaeqxH4mkzJ4ZykOmYUncJdMx5RAWG9twwwvWuH6hsKptVhCXwL5S3nHJm9iljxftx7NBHJ6Gxi9M0y5FgKRxGsZ_YNV-R86a5cSH19iYBz6fS7eUzoEz-iLY3pQ7AjMG1UHQpDWNMNafsSrx0DilcQihxdw9lfy7I7G2e1j3CfM5jermN85mG05HckYH4wYQXpz3JRdiH9qK7kl1T0TCzp1ErgBDaeqeg6ZdgDKE_9x8z54QQ",
     theme: "cosmic",
     themeLabel: "Cosmic",
-    themeIcon: "auto_awesome",
     price: "2U",
     badgeType: "big-prize",
     ticketsSold: 8400,
@@ -31,7 +31,6 @@ const DEMO_POOLS: StorePoolCardData[] = [
       "https://lh3.googleusercontent.com/aida-public/AB6AXuA0vwXivzl9kAPMqyD6rpK8UWjbzjwCBXuXMy_nsmpeUSvBjSjddNV4cd8lbfSHP9VJEz7t-Hn8jyv0_sMEgK-y1iAA5bCMGKIR7hcQst8iPsYDiievQtCJ7gzypwdI_rfi4CJNDQND1BwpfTSPtLrrfcvKIpb3Z8Ffz2XY-yhOTGB6CvqIvhZfntIc2pYPb7ChjKhIBJjMzVdlUEfW5VgOmnTbdGMN0Ng5L0vpjzVxHsnkXSC0Vuq6PWrqaj5S5expbAt6GCX-Gbs",
     theme: "sakura",
     themeLabel: "Sakura",
-    themeIcon: "filter_vintage",
     price: "5U",
     badgeType: "high-win-rate",
     ticketsSold: 2100,
@@ -44,7 +43,6 @@ const DEMO_POOLS: StorePoolCardData[] = [
       "https://lh3.googleusercontent.com/aida-public/AB6AXuD1sEvarwQ2ciFIotj5t5325PyYtCEOXgEG0wrTlENvY3klI_ov9V6D8Qk7rsb3Om140RzIU67NCWvmazWyVnEHtaZox0j4DkbBMNR8JRjtJ3UfLcC8jLKckiF_B_ANRBlygFO0QoD7hg7vHHmdfZwxi_M6ZAzix4-1BDs5ceHASegkxjuU001qI75Bk2ZqvkZDiGoSqUqEIgSSyqK8bI9JE4l-Vs31gWit9yaTzNa1PQhDqSCeWboa8KmaFMlkp-AHXMTbrJmaKfY",
     theme: "diamond",
     themeLabel: "Diamond",
-    themeIcon: "diamond",
     price: "10U",
     badgeType: "big-prize",
     ticketsSold: 450,
@@ -57,7 +55,6 @@ const DEMO_POOLS: StorePoolCardData[] = [
       "https://lh3.googleusercontent.com/aida-public/AB6AXuDm81VlH9DG-VXbupInP72dCUx3Tj_mWF2eDHEg3QtaK_VI7wrnwHRYuv3wtQ1ME25sWIDWLib-c2R2KFKu_WoGuxp0hDDeC9jIB3tVbu9Z_ZrpX5KhTaFIrgVscn20SZGheJkY1oZ2A_g19b-Le3spvKOnbomTHB_w9lDCiMlSWwBA5u_y6t27SU_PyWtWXsRQ83q7vjwAglZT6lY6XlPSuQw9F1VEoWG6t075unx-eKkIStet2T3452eC-V17JfYQAoP6gujbF-c",
     theme: "dragon",
     themeLabel: "Dragon",
-    themeIcon: "hanami_dango",
     price: "2U",
     badgeType: "high-win-rate",
     ticketsSold: 9800,
@@ -70,7 +67,6 @@ const DEMO_POOLS: StorePoolCardData[] = [
       "https://lh3.googleusercontent.com/aida-public/AB6AXuCjkjtSLpwvGAdIJQh4wfnjWErkLMphDU07A0S2hV6v0ndy4c1HpAJzgm6pG5Vc-XNCXKp_pvGeoRUMMKoTfKYiX9vnTQLLoZlG1ODWhHlk7ExpHYWd1KqqPYQQC_cv8OK5O_5QUrJKNkanzaq_KL8DCDYO9Xrufm3hrn9NgiGXYAicc83MclfAotxu3i2pBx7WsxdwzJ4XXj4ZaZt8YityOiBGvaCJ7KkRckp9RPTQm7nnRjdczQ_nF0lvqfyVKP9sbS9VZzYxziI",
     theme: "lantern",
     themeLabel: "Lantern",
-    themeIcon: "light",
     price: "2U",
     badgeType: "high-win-rate",
     ticketsSold: 4200,
@@ -83,7 +79,6 @@ const DEMO_POOLS: StorePoolCardData[] = [
       "https://lh3.googleusercontent.com/aida-public/AB6AXuDVz9XgOT9svMd_pKUadePlbx4Sxj8f59dv6F9iu8f4dIjw1tRBodL9ON2xXcwBvPav9V9zaKiOUZ6dmooHskM2jOgWIuKViCc7-ZDQ6qKfChFcmmlf3RJxARDVRJ-aG_inERHEFnGXhMShserP5B-hKGZw_hi547YCblwdNhCCQdvX-HKcu31B5aToMu_Vo-gLLAf4UaXYoUnS47bB1WYyLqiy_znGc34s5zwzRKqZaY9zAi8UAFrekS4V5jo7_Te0-e-Xh8C52Hc",
     theme: "star",
     themeLabel: "Star",
-    themeIcon: "star",
     price: "5U",
     badgeType: "big-prize",
     ticketsSold: 1200,
@@ -96,7 +91,6 @@ const DEMO_POOLS: StorePoolCardData[] = [
       "https://lh3.googleusercontent.com/aida-public/AB6AXuAGZ5z2cin_07HZTEwsjImO0Vs-Ehz2CpqqL7IpE0ONeyE_MEObBoGMVrMLUf2HDbtBtVHhxlntbRtkLSXthUgdPhf5GXkhebTvD7OZmnKtArU1QfURQkH61KRqN4j195CkI-TYeOho0cUxOJks_1fYizgF2qpv9o1ERdcoJqukMvyqH02vM4QvBBehXemMTbcjGAn90Jek0QcMkQV2Fo5E9VX6izSpBnkOiRdT87edqPLtr5KgL0celD4vhjQ-glVLUYjV9n_r8wo",
     theme: "crown",
     themeLabel: "Crown",
-    themeIcon: "crown",
     price: "20U",
     badgeType: "big-prize",
     ticketsSold: 210,
@@ -109,7 +103,6 @@ const DEMO_POOLS: StorePoolCardData[] = [
       "https://lh3.googleusercontent.com/aida-public/AB6AXuCymZqasDuSTYmb64z2s1KjGyscNsgXc92dZakY8nXzPr2RJi77Sdu3tszvEPYxVwhs4pZpTgNxJN9UL-X2VRnDzMUqGtIA6nLA63_NUxQj5uzkrS6W_1HVylo6xTOzp2xg0K1Xc4v3nokz07FzvTgOXvbn-NagzWwIK--G--zOZl28Ne3UMhnfpNDe9Kizc1OAzMbU-wqyHHCc41XB9fQGRHodYwdz95vp5Wi7WxHH46zSnlapQq5VkawyCMcjwCWc6X8ipz517-Q",
     theme: "rainbow",
     themeLabel: "Rainbow",
-    themeIcon: "looks",
     price: "5U",
     badgeType: "high-win-rate",
     ticketsSold: 3500,
@@ -187,7 +180,8 @@ const StorePage: NextPage = () => {
                     : "text-ns-on-surface-variant hover:text-white"
                 }`}
               >
-                <span>🏛️</span> Official Pools
+                <BuildingLibraryIcon aria-hidden="true" className="h-4 w-4" />
+                Official Pools
               </button>
               <button
                 onClick={() => setActiveTab("community")}
@@ -197,7 +191,8 @@ const StorePage: NextPage = () => {
                     : "text-ns-on-surface-variant hover:text-white"
                 }`}
               >
-                <span>👤</span> Community Pools
+                <UserGroupIcon aria-hidden="true" className="h-4 w-4" />
+                Community Pools
               </button>
             </div>
           </div>

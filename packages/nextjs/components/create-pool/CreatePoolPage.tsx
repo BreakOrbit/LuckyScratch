@@ -61,6 +61,7 @@ export function CreatePoolPage() {
   const [totalTickets, setTotalTickets] = useState(1000);
   const [winRate, setWinRate] = useState(35);
   const [loopMode, setLoopMode] = useState(false);
+  const [loopSubpoolCount, setLoopSubpoolCount] = useState(3);
 
   const LOTTERY_WIN_TYPES: {
     key: LotteryWinType;
@@ -443,6 +444,26 @@ export function CreatePoolPage() {
                     </span>
                   </button>
                 </div>
+
+                {loopMode ? (
+                  <div className="space-y-2 rounded-lg border border-[#FFD700]/15 bg-[#141B2C] p-4 md:col-span-2">
+                    <label htmlFor="loop-subpool-count" className="text-sm font-medium text-[#D0C6AB]">
+                      Loop Sub-Pool Count
+                    </label>
+                    <input
+                      id="loop-subpool-count"
+                      className={inputClassName}
+                      min={1}
+                      step={1}
+                      type="number"
+                      value={loopSubpoolCount}
+                      onChange={event => setLoopSubpoolCount(Math.max(1, Number(event.target.value) || 1))}
+                    />
+                    <p className="text-[10px] text-[#D0C6AB]">
+                      Sets how many child pools are prepared in the loop sequence when loop mode is active.
+                    </p>
+                  </div>
+                ) : null}
               </div>
             </section>
 
@@ -605,6 +626,12 @@ export function CreatePoolPage() {
                   <span className="text-xs font-medium text-[#D0C6AB]">RTP</span>
                   <span className="font-headline font-bold text-[#FFD700]">{rtp.toFixed(1)}%</span>
                 </div>
+                {loopMode ? (
+                  <div className="flex items-center justify-between border-t border-[#4D4732]/10 pt-2">
+                    <span className="text-xs font-medium text-[#D0C6AB]">Loop Sub-Pools</span>
+                    <span className="font-headline font-bold text-[#9CF0FF]">{loopSubpoolCount}</span>
+                  </div>
+                ) : null}
               </div>
             </section>
 
