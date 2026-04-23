@@ -6,9 +6,20 @@ import { BuildingLibraryIcon, UserGroupIcon } from "@heroicons/react/24/outline"
 type StoreSidebarProps = {
   activeTab: "official" | "community";
   onTabChange: (tab: "official" | "community") => void;
+  summaryLabel: string;
+  summaryValue: string;
+  summarySuffix: string;
+  summaryHint: string;
 };
 
-export const StoreSidebar = ({ activeTab, onTabChange }: StoreSidebarProps) => {
+export const StoreSidebar = ({
+  activeTab,
+  onTabChange,
+  summaryLabel,
+  summaryValue,
+  summarySuffix,
+  summaryHint,
+}: StoreSidebarProps) => {
   return (
     <aside className="h-full w-64 fixed left-0 top-0 hidden lg:flex flex-col py-24 px-4 bg-ns-surface-container-low z-40">
       {/* Vault Header */}
@@ -46,11 +57,12 @@ export const StoreSidebar = ({ activeTab, onTabChange }: StoreSidebarProps) => {
       {/* Vault Balance */}
       <div className="mt-auto px-4">
         <div className="glass-panel rounded-xl p-4">
-          <p className="text-[10px] text-ns-on-surface-variant uppercase mb-2">Vault Balance</p>
+          <p className="text-[10px] text-ns-on-surface-variant uppercase mb-2">{summaryLabel}</p>
           <div className="flex items-end gap-1 mb-4">
-            <span className="text-xl font-headline font-bold text-[#00BCD4]">1,420.50</span>
-            <span className="text-[10px] text-[#00BCD4] pb-1">GOLD</span>
+            <span className="text-xl font-headline font-bold text-[#00BCD4]">{summaryValue}</span>
+            <span className="text-[10px] text-[#00BCD4] pb-1">{summarySuffix}</span>
           </div>
+          <p className="text-[10px] uppercase tracking-widest text-ns-on-surface-variant/70">{summaryHint}</p>
         </div>
       </div>
     </aside>

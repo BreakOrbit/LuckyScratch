@@ -61,7 +61,7 @@ export const StorePoolCard = ({
   ticketsSold,
   totalTickets,
 }: StorePoolCardData) => {
-  const progress = Math.round((ticketsSold / totalTickets) * 100);
+  const progress = totalTickets > 0 ? Math.min(100, Math.max(0, Math.round((ticketsSold / totalTickets) * 100))) : 0;
   const colors = themeColors[theme];
   const ThemeIcon = themeIcons[theme];
 

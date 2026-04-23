@@ -16,7 +16,7 @@ type PoolInfoPanelProps = {
   description: string;
   totalTickets?: number;
   soldTickets?: number;
-  prizes: { amount: number; count: number; icon: string }[];
+  prizes?: { amount: number; count: number; icon: string }[];
   coverImage?: string;
   onGoBack: () => void;
 };
@@ -188,7 +188,7 @@ export const PoolInfoPanel: React.FC<PoolInfoPanelProps> = ({
           {expanded ? <ChevronUpIcon className="h-3 w-3" /> : <ChevronDownIcon className="h-3 w-3" />}
         </button>
 
-        {expanded && (
+        {expanded && prizes?.length ? (
           <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-5 gap-2">
             {prizes.map((prize, i) => (
               <div
@@ -203,7 +203,14 @@ export const PoolInfoPanel: React.FC<PoolInfoPanelProps> = ({
               </div>
             ))}
           </div>
-        )}
+        ) : null}
+
+        {expanded && !prizes?.length ? (
+          <div className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3 text-xs leading-6 text-white/45">
+            Prize tier breakdown is not currently indexed into the frontend read model. The real purchase flow below
+            only relies on ticket price, hit rate, RTP, max prize, and current round availability.
+          </div>
+        ) : null}
       </div>
     </div>
   );

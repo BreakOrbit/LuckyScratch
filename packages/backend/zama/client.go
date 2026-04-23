@@ -72,6 +72,11 @@ type UserDecryptPayload struct {
 	ExtraData           string                     `json:"extraData"`
 }
 
+type PublicDecryptPayload struct {
+	CiphertextHandles []string `json:"ciphertextHandles"`
+	ExtraData         string   `json:"extraData"`
+}
+
 type revealAuthPayload struct {
 	Mode                 string                 `json:"mode"`
 	ChainID              int64                  `json:"chainId"`
@@ -266,7 +271,7 @@ func (c Client) BuildRevealPayload(input RevealInput) (map[string]any, error) {
 				BatchOrderMatters:   true,
 			},
 			Notes: []string{
-				"userDecrypt is proxied through the LuckyScratch backend so frontend code does not call the Zama relayer directly",
+				"userDecrypt and publicDecrypt are proxied through the LuckyScratch backend so frontend code does not call the Zama relayer directly",
 				"claimReward still needs clearRewardAmount plus a KMS decryption proof for the same handle order",
 				"the reveal request ref is the idempotency key used for backend-side audit and infra cost accounting",
 			},
@@ -282,6 +287,10 @@ func (c Client) KeyURL(ctx context.Context) (ProxyResponse, error) {
 
 func (c Client) SubmitUserDecrypt(ctx context.Context, payload UserDecryptPayload) (ProxyResponse, error) {
 	return c.doJSON(ctx, http.MethodPost, "/user-decrypt", payload)
+}
+
+func (c Client) SubmitPublicDecrypt(ctx context.Context, payload PublicDecryptPayload) (ProxyResponse, error) {
+	return c.doJSON(ctx, http.MethodPost, "/public-decrypt", payload)
 }
 
 func (c Client) UserDecryptStatus(ctx context.Context, jobID string) (ProxyResponse, error) {

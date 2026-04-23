@@ -95,6 +95,21 @@ WHERE chain_id = $1
 ORDER BY pool_id DESC
 LIMIT $2 OFFSET $3;
 
+-- name: ListPoolsByCreator :many
+SELECT *
+FROM pools
+WHERE chain_id = $1
+  AND lower(creator) = lower($2)
+ORDER BY pool_id DESC
+LIMIT $3 OFFSET $4;
+
+-- name: ListAllPoolsByCreator :many
+SELECT *
+FROM pools
+WHERE chain_id = $1
+  AND lower(creator) = lower($2)
+ORDER BY pool_id DESC;
+
 -- name: GetPool :one
 SELECT *
 FROM pools

@@ -2,99 +2,15 @@
 
 import { useMemo, useState } from "react";
 import { BellIcon, BoltIcon, ShieldCheckIcon, TrophyIcon } from "@heroicons/react/24/outline";
+import { useLuckyScratchPlayerLeaderboard } from "~~/hooks/luckyScratch/useLuckyScratchQueries";
+import {
+  formatCompactMicroUsdc,
+  getAddressAvatarGradient,
+  getAddressBadgeText,
+  getPoolShortCreator,
+} from "~~/services/luckyScratch/display";
 
-type Timeframe = "weekly" | "allTime";
-
-type PlayerEntry = {
-  rank: number;
-  alias: string;
-  winsWeekly: number;
-  winsAllTime: number;
-  yieldWeekly: string;
-  yieldAllTime: string;
-  avatar: string;
-  accent: string;
-};
-
-const podiumPlayers: PlayerEntry[] = [
-  {
-    rank: 1,
-    alias: "NEON_VOID_99",
-    winsWeekly: 182,
-    winsAllTime: 1284,
-    yieldWeekly: "88.5K",
-    yieldAllTime: "542.3K",
-    avatar:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuAc9A8IowQygw2T24FYgYGUUJyUIrCOeGwRYQNSGwVu08qy3LPahT4quvYzCF6rMSJJ55-s1BNrxWv5cDRBpGyxNlbkTK7ZqBU4I8oMyZGfjUYewsaIFMnuKrHrMYUFsYCpRuWlpFOEwTxQj5IH3H8bhSD5YSLOVObK8l8UdupPNHoTw1H76wWSxvEqc90aee11W3ZcxEyW738uaGk9mBDalWNfGtyeFkTwshCeHd42yisdKfo5E1DX3VmzUTPvf5_vOCj4gUiDy38r",
-    accent: "#FFD700",
-  },
-  {
-    rank: 2,
-    alias: "KRYPTO_QUEEN",
-    winsWeekly: 141,
-    winsAllTime: 934,
-    yieldWeekly: "42.8K",
-    yieldAllTime: "311.9K",
-    avatar:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuDP88gDfoAtp7i_3KdBZhCoGFLtIedI9K_5Y461QqrN1h9Tmb-_sgXI-MYQ4switZboyeZdqEA7BhDYSeDAgvatTCd0i2i6UAas6uCm4SsrpGrKvksUibhJnBmIeo6vdD-oENTmhLl9te3pNcWXUcyiVhJm98XQ9hKXbP0s5Xxtx9sCleUZvxACqmBhlk95be-cWWst6DRcZmew4evoa967hTckTvo7sQM7M3cLXJmT9Otsk-6jQYsB6L8u0oQoqixsW3S2LekfDcCs",
-    accent: "#CBD5E1",
-  },
-  {
-    rank: 3,
-    alias: "ZERO_PROTOCOL",
-    winsWeekly: 129,
-    winsAllTime: 870,
-    yieldWeekly: "31.2K",
-    yieldAllTime: "286.4K",
-    avatar:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuBiKFtarStU04uk8bVaxHp2FVU-XzSY8Kq_Z1iQ-0D-hJJzZA8hT_8QsEc19pphPipdmEx7JGy_Oq-DW-e5U_q2eFDEAKpcXyX0YREydbAfe0TtSsFZmMajljWMaCXhtwKvaGIh521q1clCvFDp_z6yDaW9-BdwZZVEY3P9JkN3UJGGzRcu7r8_nCv2RdZpQ49eb_SF60ZcYhLkxoQiluMgx_I5B5fZAb03jNO729KtxdnsM7hU-6_-5xuDK15DZDqtOWZ8eyE7Chij",
-    accent: "#D97706",
-  },
-];
-
-const leaderboardPlayers: PlayerEntry[] = [
-  ...podiumPlayers,
-  {
-    rank: 4,
-    alias: "SOLAR_FABLE",
-    winsWeekly: 116,
-    winsAllTime: 792,
-    yieldWeekly: "27.4K",
-    yieldAllTime: "221.3K",
-    avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=800&q=80",
-    accent: "#FFD700",
-  },
-  {
-    rank: 5,
-    alias: "AETHER_RUNNER",
-    winsWeekly: 104,
-    winsAllTime: 761,
-    yieldWeekly: "23.1K",
-    yieldAllTime: "210.8K",
-    avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=800&q=80",
-    accent: "#7D5FFF",
-  },
-  {
-    rank: 6,
-    alias: "VOID_ORACLE",
-    winsWeekly: 96,
-    winsAllTime: 688,
-    yieldWeekly: "18.9K",
-    yieldAllTime: "188.2K",
-    avatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=800&q=80",
-    accent: "#FFD700",
-  },
-  {
-    rank: 7,
-    alias: "STATIC_RIDER",
-    winsWeekly: 88,
-    winsAllTime: 632,
-    yieldWeekly: "16.5K",
-    yieldAllTime: "170.6K",
-    avatar: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=800&q=80",
-    accent: "#7D5FFF",
-  },
-];
+type Timeframe = "weekly" | "all-time";
 
 const CHAMPIONS_HALL_BACKGROUND =
   "https://lh3.googleusercontent.com/aida/ADBb0uiidBHqA5ZSCmlWayFUDoIrKHnjsdTA0A1yPTbnYMCpms2R8Il3P-9ZvFh-3rHe_-OM9sA7Umb3fdP83scGr6L4g2YIN-mRMwnGXzFvtZKy6IO4e7TTQJD8rqmVjjJsQbuag3Ei5o0VMiRGiUr17CDXn63-Avtm3P92Z2VS0NGxz5Sxv87su5gruFNJkDtlNvCCpQB8kw6vO7MNONVmQIuMetcC2d61XHpqYNchPDxp1eAiXPhuLEl88Cjb";
@@ -131,15 +47,49 @@ const podiumLayouts: Record<
   },
 };
 
+const formatLastWin = (value?: string) => {
+  if (!value) {
+    return "No recent claim";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "No recent claim";
+  }
+
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(date);
+};
+
+type AddressAvatarProps = {
+  address: string;
+  className: string;
+  badgeClassName?: string;
+};
+
+const AddressAvatar = ({ address, className, badgeClassName }: AddressAvatarProps) => (
+  <div
+    className={`flex items-center justify-center rounded-full border border-white/15 text-white shadow-[0_0_30px_rgba(255,215,0,0.12)] ${className} ${badgeClassName || ""}`}
+    style={{ background: getAddressAvatarGradient(address) }}
+  >
+    <span className="font-headline text-xl font-black uppercase tracking-[0.2em]">{getAddressBadgeText(address)}</span>
+  </div>
+);
+
 export function PlayerRankingsPage() {
   const [timeframe, setTimeframe] = useState<Timeframe>("weekly");
+  const { data, isLoading } = useLuckyScratchPlayerLeaderboard(timeframe, 20);
 
-  const leaderboard = useMemo(() => {
-    const players = [...leaderboardPlayers];
-    return players.sort((a, b) =>
-      timeframe === "weekly" ? b.winsWeekly - a.winsWeekly : b.winsAllTime - a.winsAllTime,
-    );
-  }, [timeframe]);
+  const leaderboard = useMemo(() => data?.items ?? [], [data?.items]);
+  const podiumEntries = useMemo(
+    () =>
+      [
+        { displayRank: 2, player: leaderboard[1] },
+        { displayRank: 1, player: leaderboard[0] },
+        { displayRank: 3, player: leaderboard[2] },
+      ].filter(entry => Boolean(entry.player)),
+    [leaderboard],
+  );
+  const crownHolder = leaderboard[0];
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-[#0F1626] text-[#F2F4F7] selection:bg-[#FFD700]/30">
@@ -180,7 +130,7 @@ export function PlayerRankingsPage() {
             <div className="mt-3 flex items-center justify-center gap-4">
               <div className="h-px w-12 bg-[#FFD700]/50" />
               <p className="font-headline text-sm font-bold uppercase tracking-[0.3em] text-[#FFD700]">
-                Season 04: Aetheric Gilded
+                Claimed reward leaderboard
               </p>
               <div className="h-px w-12 bg-[#FFD700]/50" />
             </div>
@@ -188,63 +138,68 @@ export function PlayerRankingsPage() {
 
           <div className="relative z-20 flex w-full max-w-7xl flex-grow items-end justify-center px-4 pb-6 sm:px-6 sm:pb-8">
             <div className="relative h-[380px] w-full sm:h-[470px] md:h-[560px] lg:h-[620px] 2xl:h-[720px]">
-              {[2, 1, 3].map(rank => {
-                const player = podiumPlayers.find(entry => entry.rank === rank);
-                if (!player) return null;
+              {podiumEntries.length === 0 ? (
+                <div className="absolute inset-x-0 bottom-24 mx-auto w-fit rounded-3xl border border-[#FFD700]/15 bg-[#0F1626]/75 px-8 py-5 text-sm text-[#D0C6AB] backdrop-blur-xl">
+                  {isLoading ? "Loading claimed reward leaderboard." : "No claimed winners have been indexed yet."}
+                </div>
+              ) : (
+                podiumEntries.map(({ displayRank, player }) => {
+                  if (!player) {
+                    return null;
+                  }
 
-                const layout = podiumLayouts[rank];
-                const ringClass =
-                  rank === 1
-                    ? "from-yellow-300 via-[#FFD700] to-amber-700 shadow-[0_0_50px_rgba(255,215,0,0.5)]"
-                    : rank === 2
-                      ? "from-slate-300 to-slate-500 shadow-[0_0_30px_rgba(148,163,184,0.4)]"
-                      : "from-amber-400 to-amber-800 shadow-[0_0_30px_rgba(194,65,12,0.4)]";
-                const value = timeframe === "weekly" ? player.yieldWeekly : player.yieldAllTime;
+                  const layout = podiumLayouts[displayRank];
+                  const ringClass =
+                    displayRank === 1
+                      ? "from-yellow-300 via-[#FFD700] to-amber-700 shadow-[0_0_50px_rgba(255,215,0,0.5)]"
+                      : displayRank === 2
+                        ? "from-slate-300 to-slate-500 shadow-[0_0_30px_rgba(148,163,184,0.4)]"
+                        : "from-amber-400 to-amber-800 shadow-[0_0_30px_rgba(194,65,12,0.4)]";
 
-                return (
-                  <div
-                    key={rank}
-                    className={`absolute -translate-x-1/2 ${layout.positionClass} flex flex-col items-center`}
-                  >
+                  const address = player.playerAddress || player.displayAddress;
+                  const displayName = getPoolShortCreator(player.displayAddress || player.playerAddress, 6, 4);
+
+                  return (
                     <div
-                      className="relative mb-4 animate-[hero-float_5s_ease-in-out_infinite]"
-                      style={{ animationDelay: `${rank * 0.4}s` }}
+                      key={`${address}-${displayRank}`}
+                      className={`absolute -translate-x-1/2 ${layout.positionClass} flex flex-col items-center`}
                     >
                       <div
-                        className="absolute inset-0 scale-150 rounded-full blur-[48px]"
-                        style={{
-                          backgroundColor: `${player.accent}33`,
-                          filter: "drop-shadow(0 0 15px currentColor)",
-                          color: player.accent,
-                        }}
-                      />
-                      <div className={`relative overflow-hidden rounded-full bg-gradient-to-b p-1.5 ${ringClass}`}>
-                        <img
-                          alt={player.alias}
-                          className={`${layout.avatarSize} rounded-full border-4 border-white/20 object-cover`}
-                          src={player.avatar}
+                        className="relative mb-4 animate-[hero-float_5s_ease-in-out_infinite]"
+                        style={{ animationDelay: `${displayRank * 0.4}s` }}
+                      >
+                        <div
+                          className="absolute inset-0 scale-150 rounded-full blur-[48px]"
+                          style={{
+                            backgroundColor:
+                              displayRank === 1 ? "#FFD70033" : displayRank === 2 ? "#CBD5E133" : "#D9770633",
+                          }}
                         />
+                        <div className={`relative rounded-full bg-gradient-to-b p-1.5 ${ringClass}`}>
+                          <AddressAvatar address={address} className={`${layout.avatarSize}`} />
+                        </div>
+                        <div
+                          className={`absolute ${layout.badgeSize} flex items-center justify-center rounded-full border-4 border-white/20 bg-[#FFD700] font-headline font-black text-[#0F1626] shadow-xl`}
+                        >
+                          {displayRank}
+                        </div>
                       </div>
-                      <div
-                        className={`absolute ${layout.badgeSize} flex items-center justify-center rounded-full border-4 border-white/20 bg-[#FFD700] font-headline font-black text-[#0F1626] shadow-xl`}
-                      >
-                        {rank}
-                      </div>
-                    </div>
 
-                    <div className="text-center">
-                      <h3
-                        className={`rounded border px-3 py-1 font-headline font-black uppercase tracking-tight backdrop-blur-sm sm:px-4 ${layout.titleClass}`}
-                      >
-                        {player.alias}
-                      </h3>
-                      <div className={`mt-1 font-headline font-black text-[#FFD700] ${layout.valueClass}`}>
-                        {value} <span className="text-xs text-white/50">LS</span>
+                      <div className="text-center">
+                        <h3
+                          className={`rounded border px-3 py-1 font-headline font-black uppercase tracking-tight backdrop-blur-sm sm:px-4 ${layout.titleClass}`}
+                        >
+                          {displayName}
+                        </h3>
+                        <div className={`mt-1 font-headline font-black text-[#FFD700] ${layout.valueClass}`}>
+                          {formatCompactMicroUsdc(player.totalRewardAmount)}{" "}
+                          <span className="text-xs text-white/50">USDC</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
         </section>
@@ -264,7 +219,7 @@ export function PlayerRankingsPage() {
                 Ranking <span className="text-[#FFD700]">Data</span>
               </h2>
               <p className="mt-1 text-xs uppercase tracking-widest text-[#D0C6AB]">
-                Verified sanctum records • Updated 2m ago
+                Sourced from claimed reward events and backend indexing
               </p>
             </div>
             <div className="flex gap-2">
@@ -281,9 +236,9 @@ export function PlayerRankingsPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setTimeframe("allTime")}
+                onClick={() => setTimeframe("all-time")}
                 className={`px-4 py-2 font-headline text-[10px] font-bold uppercase tracking-widest [clip-path:polygon(10%_0,100%_0,100%_90%,90%_100%,0_100%,0_10%)] ${
-                  timeframe === "allTime"
+                  timeframe === "all-time"
                     ? "border border-[#FFD700]/40 bg-[#FFD700]/10 text-[#FFD700]"
                     : "border border-white/5 bg-[#232F4E] text-[#D0C6AB]"
                 }`}
@@ -293,61 +248,69 @@ export function PlayerRankingsPage() {
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-xl border border-[#FFD700]/20 bg-[#121A2B]/40 shadow-2xl shadow-yellow-900/10 backdrop-blur-md">
-            <div className="hidden grid-cols-12 border-b border-[#FFD700]/10 bg-[#FFD700]/5 px-8 py-5 lg:grid">
-              <div className="col-span-1 font-headline text-[10px] font-black uppercase tracking-widest text-[#FFD700]">
-                Rank
-              </div>
-              <div className="col-span-5 font-headline text-[10px] font-black uppercase tracking-widest text-[#FFD700]">
-                Duelist Entity
-              </div>
-              <div className="col-span-3 text-right font-headline text-[10px] font-black uppercase tracking-widest text-[#FFD700]">
-                Victories
-              </div>
-              <div className="col-span-3 text-right font-headline text-[10px] font-black uppercase tracking-widest text-[#FFD700]">
-                Total Sanctum Yield
-              </div>
+          {leaderboard.length === 0 ? (
+            <div className="rounded-3xl border border-[#FFD700]/15 bg-[#121A2B]/60 p-8 text-sm text-[#D0C6AB] backdrop-blur-xl">
+              {isLoading ? "Loading leaderboard entries." : "No winning claim records are available yet."}
             </div>
+          ) : (
+            <div className="overflow-hidden rounded-xl border border-[#FFD700]/20 bg-[#121A2B]/40 shadow-2xl shadow-yellow-900/10 backdrop-blur-md">
+              <div className="hidden grid-cols-12 border-b border-[#FFD700]/10 bg-[#FFD700]/5 px-8 py-5 lg:grid">
+                <div className="col-span-1 font-headline text-[10px] font-black uppercase tracking-widest text-[#FFD700]">
+                  Rank
+                </div>
+                <div className="col-span-5 font-headline text-[10px] font-black uppercase tracking-widest text-[#FFD700]">
+                  Winner
+                </div>
+                <div className="col-span-3 text-right font-headline text-[10px] font-black uppercase tracking-widest text-[#FFD700]">
+                  Victories
+                </div>
+                <div className="col-span-3 text-right font-headline text-[10px] font-black uppercase tracking-widest text-[#FFD700]">
+                  Total Claimed
+                </div>
+              </div>
 
-            <div className="divide-y divide-white/5">
-              {leaderboard.map((player, index) => {
-                const wins = timeframe === "weekly" ? player.winsWeekly : player.winsAllTime;
-                const yieldValue = timeframe === "weekly" ? player.yieldWeekly : player.yieldAllTime;
+              <div className="divide-y divide-white/5">
+                {leaderboard.map(player => {
+                  const address = player.playerAddress || player.displayAddress;
+                  const label = getPoolShortCreator(player.displayAddress || player.playerAddress, 6, 4);
 
-                return (
-                  <article
-                    key={player.alias}
-                    className="grid gap-4 px-5 py-5 transition-colors hover:bg-white/[0.03] lg:grid-cols-12 lg:items-center lg:px-8"
-                  >
-                    <div className="col-span-1 font-headline text-3xl font-black italic text-white/35">
-                      {String(index + 1).padStart(2, "0")}
-                    </div>
-                    <div className="col-span-5 flex items-center gap-4">
-                      <img
-                        alt={player.alias}
-                        className="h-14 w-14 rounded-full border border-white/10 object-cover"
-                        src={player.avatar}
-                      />
-                      <div>
-                        <p className="font-headline text-lg font-black uppercase tracking-tight text-white">
-                          {player.alias}
-                        </p>
-                        <p className="text-[10px] uppercase tracking-widest text-[#D0C6AB]">Hero class verified</p>
+                  return (
+                    <article
+                      key={address}
+                      className="grid gap-4 px-5 py-5 transition-colors hover:bg-white/[0.03] lg:grid-cols-12 lg:items-center lg:px-8"
+                    >
+                      <div className="col-span-1 font-headline text-3xl font-black italic text-white/35">
+                        {String(player.rank).padStart(2, "0")}
                       </div>
-                    </div>
-                    <div className="col-span-3 flex items-center justify-between lg:block lg:text-right">
-                      <span className="text-[10px] uppercase tracking-[0.2em] text-white/40 lg:hidden">Victories</span>
-                      <span className="font-headline text-2xl font-black text-white">{wins}</span>
-                    </div>
-                    <div className="col-span-3 flex items-center justify-between lg:block lg:text-right">
-                      <span className="text-[10px] uppercase tracking-[0.2em] text-white/40 lg:hidden">Yield</span>
-                      <span className="font-headline text-2xl font-black text-[#FFD700]">{yieldValue} LS</span>
-                    </div>
-                  </article>
-                );
-              })}
+                      <div className="col-span-5 flex items-center gap-4">
+                        <AddressAvatar address={address} className="h-14 w-14" />
+                        <div>
+                          <p className="font-headline text-lg font-black uppercase tracking-tight text-white">
+                            {label}
+                          </p>
+                          <p className="text-[10px] uppercase tracking-widest text-[#D0C6AB]">
+                            Last claim {formatLastWin(player.lastWinAt)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="col-span-3 flex items-center justify-between lg:block lg:text-right">
+                        <span className="text-[10px] uppercase tracking-[0.2em] text-white/40 lg:hidden">
+                          Victories
+                        </span>
+                        <span className="font-headline text-2xl font-black text-white">{player.winCount}</span>
+                      </div>
+                      <div className="col-span-3 flex items-center justify-between lg:block lg:text-right">
+                        <span className="text-[10px] uppercase tracking-[0.2em] text-white/40 lg:hidden">Yield</span>
+                        <span className="font-headline text-2xl font-black text-[#FFD700]">
+                          {formatCompactMicroUsdc(player.totalRewardAmount)} USDC
+                        </span>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="mt-16 grid gap-4 md:grid-cols-3">
             <div className="rounded-2xl border border-[#FFD700]/15 bg-[#121A2B]/60 p-5 backdrop-blur-xl">
@@ -356,7 +319,9 @@ export function PlayerRankingsPage() {
                 <span className="font-headline text-xs uppercase tracking-[0.2em]">Crown Holder</span>
               </div>
               <p className="text-sm text-[#D0C6AB]">
-                The top hero holds the highest verified sanctum yield across the current season ladder.
+                {crownHolder
+                  ? `${getPoolShortCreator(crownHolder.displayAddress || crownHolder.playerAddress, 6, 4)} currently leads with ${formatCompactMicroUsdc(crownHolder.totalRewardAmount)} USDC claimed.`
+                  : "Waiting for the first claimed winner to reach the board."}
               </p>
             </div>
             <div className="rounded-2xl border border-[#FFD700]/15 bg-[#121A2B]/60 p-5 backdrop-blur-xl">
@@ -365,7 +330,7 @@ export function PlayerRankingsPage() {
                 <span className="font-headline text-xs uppercase tracking-[0.2em]">Verified Records</span>
               </div>
               <p className="text-sm text-[#D0C6AB]">
-                Every win and yield value is sourced from the current LuckyScratch ranking feed and season ledger.
+                Every entry is aggregated from claimed winning tickets already indexed by the backend read model.
               </p>
             </div>
             <div className="rounded-2xl border border-[#FFD700]/15 bg-[#121A2B]/60 p-5 backdrop-blur-xl">
@@ -374,14 +339,15 @@ export function PlayerRankingsPage() {
                 <span className="font-headline text-xs uppercase tracking-[0.2em]">Momentum</span>
               </div>
               <p className="text-sm text-[#D0C6AB]">
-                Weekly mode surfaces fast climbers, while all-time mode exposes the long-run dominance hierarchy.
+                Weekly mode isolates the last 7 days of claimed rewards. All-time mode ranks the full indexed payout
+                history.
               </p>
             </div>
           </div>
 
           <div className="mt-10 flex items-center justify-end gap-3 text-[#D0C6AB]">
             <BellIcon className="h-4 w-4" />
-            <span className="text-xs uppercase tracking-[0.2em]">Broadcast synced to arena feed</span>
+            <span className="text-xs uppercase tracking-[0.2em]">Synced from the claim ledger</span>
           </div>
         </section>
       </main>

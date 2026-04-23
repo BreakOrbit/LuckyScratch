@@ -13,6 +13,7 @@ func RunAPI(ctx context.Context, cfg config.Config, runtime *Runtime) error {
 	handler := api.NewServer(api.Dependencies{
 		Config:        cfg,
 		ReadService:   runtime.ReadModel,
+		PoolMeta:      runtime.PoolMeta,
 		RevealService: runtime.RevealService,
 		AdminService:  runtime.AdminService,
 	}).Routes()

@@ -22,6 +22,42 @@ export type UserTicketsResponse = {
   items: LuckyScratchTicket[];
 };
 
+export type UserWinsResponse = {
+  items: LuckyScratchTicket[];
+};
+
+export type RecentWinsResponse = {
+  items: LuckyScratchTicket[];
+};
+
+export type LuckyScratchHealth = {
+  status: string;
+  chain: string;
+};
+
+export type LuckyScratchPlatformOverview = {
+  totalPools: number;
+  activePools: number;
+  totalRealizedRevenue: number;
+  totalRevealedTickets: number;
+  totalWinningClaims: number;
+  totalClaimedRewards: number;
+};
+
+export type LuckyScratchPlayerLeaderboardEntry = {
+  rank: number;
+  playerAddress: string;
+  displayAddress: string;
+  winCount: number;
+  totalRewardAmount: number;
+  lastWinAt: string;
+};
+
+export type LuckyScratchPlayerLeaderboardResponse = {
+  timeframe: "weekly" | "all-time";
+  items: LuckyScratchPlayerLeaderboardEntry[];
+};
+
 export type RevealClaimInfo = {
   requiresClearRewardAmount: boolean;
   requiresDecryptionProof: boolean;
@@ -107,4 +143,174 @@ export type ClaimPrecheckResponse = {
   revealAuthorized: boolean;
   claimMethod: string;
   sourceOfTruthHint: string;
+};
+
+export type LuckyScratchPoolRound = {
+  poolId: number;
+  roundId: number;
+  status: string;
+  soldCount: number;
+  scratchedCount: number;
+  claimedCount: number;
+  winClaimableCount: number;
+  totalTickets: number;
+  ticketPrice: number;
+  roundPrizeBudget: number;
+  vrfRequestRef: string;
+  shuffleRoot: string;
+  lastVrfRequestedAt: string;
+  lastVrfInitializedAt: string;
+  lastEventBlock: number;
+  lastEventTxHash: string;
+  lastEventLogIndex: number;
+  lastEventBlockHash: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type LuckyScratchPoolMetadata = {
+  poolId: number;
+  ownerAddress: string;
+  name: string;
+  description: string;
+  themeKey: string;
+  themeId: string;
+  metadataCid: string;
+  metadataUri: string;
+  metadataGatewayUrl: string;
+  coverAssetId?: number;
+  ticketArtAssetId?: number;
+  coverImageUrl?: string;
+  ticketArtUrl?: string;
+};
+
+export type LuckyScratchPool = {
+  poolId: number;
+  creator: string;
+  protocolOwned: boolean;
+  mode: string;
+  status: string;
+  paused: boolean;
+  closeRequested: boolean;
+  vrfPending: boolean;
+  initialized: boolean;
+  themeId: string;
+  ticketPrice: number;
+  totalTicketsPerRound: number;
+  totalPrizeBudget: number;
+  poolInstanceGroupSize: number;
+  feeBps: number;
+  targetRtpBps: number;
+  hitRateBps: number;
+  maxPrize: number;
+  selectable: boolean;
+  currentRound: number;
+  lockedBond: number;
+  reservedPrizeBudget: number;
+  lockedNextRoundBudget: number;
+  realizedRevenue: number;
+  settledPrizeCost: number;
+  settledProtocolCost: number;
+  accruedPlatformFee: number;
+  creatorProfitClaimed: number;
+  claimableCreatorProfit: number;
+  createdBlock: number;
+  createdTxHash: string;
+  lastEventBlock: number;
+  lastEventTxHash: string;
+  lastEventLogIndex: number;
+  lastEventBlockHash: string;
+  createdAt: string;
+  updatedAt: string;
+  currentRoundState?: LuckyScratchPoolRound;
+  metadata?: LuckyScratchPoolMetadata | null;
+};
+
+export type LuckyScratchPoolsResponse = {
+  items: LuckyScratchPool[];
+};
+
+export type LuckyScratchCreatorSummary = {
+  creator: string;
+  totalPools: number;
+  activePools: number;
+  totalRealizedRevenue: number;
+  totalAccruedPlatformFee: number;
+  totalClaimableProfit: number;
+  totalLockedBond: number;
+  currentRoundSoldCount: number;
+  currentRoundTotalTickets: number;
+};
+
+export type UploadedImageAsset = {
+  assetId: number;
+  ownerAddress: string;
+  kind: string;
+  cid: string;
+  ipfsUri: string;
+  gatewayUrl: string;
+  mimeType: string;
+  sizeBytes: number;
+  sha256: string;
+};
+
+export type PrizeTierPreview = {
+  prizeAmount: number;
+  count: number;
+  prizeAmountUsdc?: number;
+};
+
+export type PoolConfigPreview = {
+  mode: string;
+  modeValue: number;
+  ticketPriceUsdc: number;
+  ticketPrice: number;
+  totalTicketsPerRound: number;
+  totalPrizeBudgetUsdc: number;
+  totalPrizeBudget: number;
+  poolInstanceGroupSize: number;
+  feeBps: number;
+  targetRtpBps: number;
+  hitRateBps: number;
+  maxPrizeUsdc: number;
+  maxPrize: number;
+  selectable: boolean;
+  estimatedBondUsdc: number;
+  estimatedBond: number;
+};
+
+export type CreatePoolDraftInput = {
+  ownerAddress: string;
+  name: string;
+  description: string;
+  themeKey?: string;
+  coverAssetId: number;
+  ticketArtAssetId: number;
+  poolConfigPreview: PoolConfigPreview;
+  prizeTiers: PrizeTierPreview[];
+};
+
+export type PoolDraft = {
+  draftId: number;
+  name: string;
+  description: string;
+  themeKey: string;
+  metadataCid: string;
+  metadataUri: string;
+  metadataGatewayUrl: string;
+  themeId: string;
+  status: string;
+};
+
+export type FinalizePoolInput = {
+  draftId: number;
+  ownerAddress: string;
+  createTxHash: string;
+};
+
+export type LuckyScratchPurchaseContext = {
+  pool: LuckyScratchPool;
+  currentRound?: LuckyScratchPoolRound;
+  soldTicketIndexes: number[];
+  availableTicketIndexes: number[];
 };

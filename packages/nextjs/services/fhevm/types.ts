@@ -31,6 +31,12 @@ export type RelayerUserDecryptProgressArgs =
       };
     };
 
+export type PublicDecryptResults = {
+  clearValues: Record<string, bigint | number | boolean | string>;
+  abiEncodedClearValues: `0x${string}`;
+  decryptionProof: `0x${string}`;
+};
+
 export type FhevmInstanceConfig = {
   verifyingContractAddressDecryption: string;
   verifyingContractAddressInputVerification: string;
@@ -69,6 +75,7 @@ export type FhevmInstance = {
       onProgress?: (args: RelayerUserDecryptProgressArgs) => void;
     },
   ) => Promise<Record<string, bigint | number | boolean | string>>;
+  publicDecrypt: (handles: (string | Uint8Array)[]) => Promise<PublicDecryptResults>;
 };
 
 export type RelayerSDKModule = {

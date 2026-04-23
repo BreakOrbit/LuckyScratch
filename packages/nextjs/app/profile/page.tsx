@@ -1,6 +1,7 @@
 "use client";
 
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useCallback, useState } from "react";
+import { useAccount } from "wagmi";
 import {
   Cog8ToothIcon,
   DocumentDuplicateIcon,
@@ -13,9 +14,63 @@ import MyTicketsPage from "~~/app/my-tickets/page";
 import { MyPoolsPanel } from "~~/components/profile/MyPoolsPanel";
 import { OverviewPanel } from "~~/components/profile/OverviewPanel";
 import { SettingsPanel } from "~~/components/profile/SettingsPanel";
+import {
+  useLuckyScratchCreatorSummary,
+  useLuckyScratchUserTickets,
+  useLuckyScratchUserWins,
+} from "~~/hooks/luckyScratch/useLuckyScratchQueries";
+import { notification } from "~~/utils/scaffold-eth";
+
+const formatShortAddress = (address?: string) => {
+  if (!address) {
+    return "WALLET_NOT_CONNECTED";
+  }
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+};
+
+const playerLabel = (address?: string) => {
+  if (!address) {
+    return "WALLET_NOT_CONNECTED";
+  }
+  return `PLAYER_${address.slice(2, 8).toUpperCase()}`;
+};
+
+const profileRoleLabel = (poolCount: number, winCount: number) => {
+  if (poolCount > 0 && winCount > 0) {
+    return "CREATOR + PLAYER";
+  }
+  if (poolCount > 0) {
+    return "CREATOR";
+  }
+  if (winCount > 0) {
+    return "WINNING PLAYER";
+  }
+  return "ACTIVE PLAYER";
+};
 
 export default function ProfilePage() {
+  const { address } = useAccount();
   const [activeSection, setActiveSection] = useState("overview");
+  const ticketsQuery = useLuckyScratchUserTickets(address);
+  const winsQuery = useLuckyScratchUserWins(address);
+  const creatorSummaryQuery = useLuckyScratchCreatorSummary(address);
+
+  const totalTickets = ticketsQuery.data?.items.length ?? 0;
+  const claimedWins = winsQuery.data?.items.length ?? 0;
+  const createdPools = creatorSummaryQuery.data?.totalPools ?? 0;
+  const revealedTickets = ticketsQuery.data?.items.filter(ticket => ticket.status !== "Unscratched").length ?? 0;
+
+  const copyAddress = useCallback(async () => {
+    if (!address) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(address);
+      notification.success("Wallet address copied.");
+    } catch {
+      notification.error("Failed to copy wallet address.");
+    }
+  }, [address]);
 
   const renderSectionShell = (content: ReactNode, options?: { padded?: boolean; framed?: boolean }) => {
     const padded = options?.padded ?? true;
@@ -33,112 +88,122 @@ export default function ProfilePage() {
   };
 
   return (
-    <main className="w-full pt-32 pb-12 px-4 md:px-8 max-w-[1600px] mx-auto relative min-h-screen font-body text-ns-on-surface">
-      {/* Background Glow */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-ns-secondary-container opacity-5 rounded-full blur-[120px] pointer-events-none -z-10"></div>
+    <main className="relative mx-auto min-h-screen w-full max-w-[1600px] px-4 pb-12 pt-32 font-body text-ns-on-surface md:px-8">
+      <div className="absolute left-1/2 top-1/4 -z-10 h-[800px] w-[800px] -translate-x-1/2 rounded-full bg-ns-secondary-container opacity-5 blur-[120px]" />
 
-      <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
-        {/* Left Column: Profile Hub */}
-        <aside className="lg:col-span-3 space-y-6">
-          <div className="glass-panel rounded-xl p-8 relative overflow-hidden group">
-            <div className="absolute inset-0 opacity-10 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),_linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] !bg-[length:100%_2px,_3px_100%] pointer-events-none"></div>
-            <div className="absolute inset-0 opacity-20 bg-[linear-gradient(135deg,rgba(255,215,0,0.1)_0%,rgba(255,215,0,0)_50%,rgba(255,215,0,0.1)_100%)]"></div>
+      <div className="grid w-full grid-cols-1 items-start gap-8 lg:grid-cols-12 lg:gap-12">
+        <aside className="space-y-6 lg:col-span-3">
+          <div className="glass-panel group relative overflow-hidden rounded-xl p-8">
+            <div className="pointer-events-none absolute inset-0 opacity-10 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),_linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] !bg-[length:100%_2px,_3px_100%]" />
+            <div className="absolute inset-0 opacity-20 bg-[linear-gradient(135deg,rgba(255,215,0,0.1)_0%,rgba(255,215,0,0)_50%,rgba(255,215,0,0.1)_100%)]" />
             <div className="relative flex flex-col items-center text-center">
               <div className="relative mb-6">
-                <div className="w-32 h-32 rounded-full p-1 bg-gradient-to-tr from-ns-primary-container via-ns-surface-bright to-ns-primary shadow-[0_0_30px_rgba(255,215,0,0.2)]">
-                  <img
-                    alt="User Avatar"
-                    className="w-full h-full rounded-full object-cover"
-                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuBebVBrLuuUEdsfTGfKCFR6spVCUHkgFtjIQXhUJV_N0YGnZrZoBn-UMMsUZ-Vbx9Vc9CP_iImHg7jdbDFWTzv_9q24iJq8t8efgq6ZWNnWIx2PTRfKqVZ6ElZfj7_QJnAnEleSZ0QAhgPvJUAM2eQBsXBT8Etntxc2yGhLYpZ_D0UkzaQ24K_X7Pb7QSE9qg9otD3LtqdNUmrXriMdSwkZViy2oJjZVGgZBXBMr906amO4PoaYxyXyTOB8IH9bfxTWINBXzHNO6X_D"
-                  />
+                <div className="flex h-32 w-32 items-center justify-center rounded-full bg-gradient-to-tr from-ns-primary-container via-ns-surface-bright to-ns-primary p-1 shadow-[0_0_30px_rgba(255,215,0,0.2)]">
+                  <div className="flex h-full w-full items-center justify-center rounded-full bg-[#0C1323] font-headline text-4xl font-black text-ns-primary-container">
+                    {address ? address.slice(2, 4).toUpperCase() : "LS"}
+                  </div>
                 </div>
-                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-ns-primary-container text-ns-on-primary px-4 py-0.5 rounded-full text-[10px] font-black tracking-widest uppercase">
-                  LEVEL 84
+                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-ns-primary-container px-4 py-0.5 text-[10px] font-black uppercase tracking-widest text-ns-on-primary">
+                  {address ? "CONNECTED" : "OFFLINE"}
                 </div>
               </div>
-              <h2 className="font-headline text-2xl font-bold text-ns-on-surface mb-1">CYBER_DUELIST_01</h2>
-              <div className="flex items-center gap-2 mb-6">
-                <span className="text-xs font-mono text-ns-on-surface-variant bg-ns-surface-container-lowest px-2 py-1 rounded">
-                  0x71C...4f92
+
+              <h2 className="mb-1 font-headline text-2xl font-bold text-ns-on-surface">{playerLabel(address)}</h2>
+              <div className="mb-6 flex items-center gap-2">
+                <span className="rounded bg-ns-surface-container-lowest px-2 py-1 font-mono text-xs text-ns-on-surface-variant">
+                  {formatShortAddress(address)}
                 </span>
-                <DocumentDuplicateIcon className="w-4 h-4 text-ns-tertiary cursor-pointer hover:text-white transition-colors" />
+                <button
+                  type="button"
+                  onClick={copyAddress}
+                  disabled={!address}
+                  className="text-ns-tertiary transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <DocumentDuplicateIcon className="h-4 w-4" />
+                </button>
               </div>
-              <div className="w-full bg-ns-surface-container-low rounded-lg p-4 border-l-4 border-ns-primary-container mb-8">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-ns-on-surface-variant uppercase tracking-tighter font-semibold">
-                    Rank Status
+
+              <div className="mb-8 w-full rounded-lg border-l-4 border-ns-primary-container bg-ns-surface-container-low p-4">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs font-semibold uppercase tracking-tighter text-ns-on-surface-variant">
+                    Account Role
                   </span>
-                  <StarIcon className="w-5 h-5 text-ns-primary-container" />
+                  <StarIcon className="h-5 w-5 text-ns-primary-container" />
                 </div>
-                <div className="text-xl font-headline font-bold text-ns-primary italic tracking-tight">
-                  LEGENDARY DUELIST
+                <div className="text-xl font-bold italic tracking-tight text-ns-primary">
+                  {profileRoleLabel(createdPools, claimedWins)}
                 </div>
+                <p className="mt-2 text-xs text-ns-on-surface-variant">
+                  {creatorSummaryQuery.isLoading || ticketsQuery.isLoading || winsQuery.isLoading
+                    ? "Loading wallet profile..."
+                    : `${createdPools} created pools • ${revealedTickets} revealed tickets • ${claimedWins} claimed wins`}
+                </p>
               </div>
-              <div className="grid grid-cols-2 gap-4 w-full">
-                <div className="bg-ns-surface-container-lowest p-3 rounded-lg border border-ns-outline-variant/10">
-                  <div className="text-[10px] text-ns-on-surface-variant uppercase mb-1">Total Tickets</div>
-                  <div className="text-xl font-headline font-bold text-ns-on-surface">84</div>
+
+              <div className="grid w-full grid-cols-2 gap-4">
+                <div className="rounded-lg border border-ns-outline-variant/10 bg-ns-surface-container-lowest p-3">
+                  <div className="mb-1 text-[10px] uppercase text-ns-on-surface-variant">Total Tickets</div>
+                  <div className="text-xl font-headline font-bold text-ns-on-surface">
+                    {ticketsQuery.isLoading ? "--" : totalTickets}
+                  </div>
                 </div>
-                <div className="bg-ns-surface-container-lowest p-3 rounded-lg border border-ns-outline-variant/10">
-                  <div className="text-[10px] text-ns-on-surface-variant uppercase mb-1">Win Rate</div>
-                  <div className="text-xl font-headline font-bold text-ns-tertiary">68.4%</div>
+                <div className="rounded-lg border border-ns-outline-variant/10 bg-ns-surface-container-lowest p-3">
+                  <div className="mb-1 text-[10px] uppercase text-ns-on-surface-variant">Claimed Wins</div>
+                  <div className="text-xl font-headline font-bold text-ns-tertiary">
+                    {winsQuery.isLoading ? "--" : claimedWins}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-          {/* Secondary Side Nav Links */}
-          <div className="glass-panel rounded-xl overflow-hidden py-4">
+
+          <div className="glass-panel overflow-hidden rounded-xl py-4">
             <nav className="flex flex-col">
               <button
                 onClick={() => setActiveSection("overview")}
-                className={`${activeSection === "overview" ? "bg-ns-primary text-[#0C1323] rounded-r-full mr-4 shadow-[0_0_15px_rgba(255,215,0,0.3)]" : "text-ns-on-surface-variant hover:bg-ns-surface-bright hover:translate-x-1 duration-200"} px-6 py-3 flex items-center gap-4 transition-all w-full text-left`}
+                className={`${activeSection === "overview" ? "mr-4 rounded-r-full bg-ns-primary text-[#0C1323] shadow-[0_0_15px_rgba(255,215,0,0.3)]" : "text-ns-on-surface-variant duration-200 hover:translate-x-1 hover:bg-ns-surface-bright"} flex w-full items-center gap-4 px-6 py-3 text-left transition-all`}
               >
-                <RectangleGroupIcon className="w-5 h-5" />
-                <span className="font-body font-medium text-sm">Overview</span>
+                <RectangleGroupIcon className="h-5 w-5" />
+                <span className="font-body text-sm font-medium">Overview</span>
               </button>
               <button
                 onClick={() => setActiveSection("my-tickets")}
-                className={`${activeSection === "my-tickets" ? "bg-ns-primary text-[#0C1323] rounded-r-full mr-4 shadow-[0_0_15px_rgba(255,215,0,0.3)]" : "text-ns-on-surface-variant hover:bg-ns-surface-bright hover:translate-x-1 duration-200"} px-6 py-3 flex items-center gap-4 transition-all w-full text-left`}
+                className={`${activeSection === "my-tickets" ? "mr-4 rounded-r-full bg-ns-primary text-[#0C1323] shadow-[0_0_15px_rgba(255,215,0,0.3)]" : "text-ns-on-surface-variant duration-200 hover:translate-x-1 hover:bg-ns-surface-bright"} flex w-full items-center gap-4 px-6 py-3 text-left transition-all`}
               >
-                <TicketIcon className="w-5 h-5" />
-                <span className="font-body font-medium text-sm">My Tickets</span>
+                <TicketIcon className="h-5 w-5" />
+                <span className="font-body text-sm font-medium">My Tickets</span>
               </button>
               <button
                 onClick={() => setActiveSection("my-pools")}
-                className={`${activeSection === "my-pools" ? "bg-ns-primary text-[#0C1323] rounded-r-full mr-4 shadow-[0_0_15px_rgba(255,215,0,0.3)]" : "text-ns-on-surface-variant hover:bg-ns-surface-bright hover:translate-x-1 duration-200"} px-6 py-3 flex items-center gap-4 transition-all w-full text-left`}
+                className={`${activeSection === "my-pools" ? "mr-4 rounded-r-full bg-ns-primary text-[#0C1323] shadow-[0_0_15px_rgba(255,215,0,0.3)]" : "text-ns-on-surface-variant duration-200 hover:translate-x-1 hover:bg-ns-surface-bright"} flex w-full items-center gap-4 px-6 py-3 text-left transition-all`}
               >
-                <SparklesIcon className="w-5 h-5" />
-                <span className="font-body font-medium text-sm">My Pools</span>
+                <SparklesIcon className="h-5 w-5" />
+                <span className="font-body text-sm font-medium">My Pools</span>
               </button>
               <button
                 onClick={() => setActiveSection("setting")}
-                className={`${activeSection === "setting" ? "bg-ns-primary text-[#0C1323] rounded-r-full mr-4 shadow-[0_0_15px_rgba(255,215,0,0.3)]" : "text-ns-on-surface-variant hover:bg-ns-surface-bright hover:translate-x-1 duration-200"} px-6 py-3 flex items-center gap-4 transition-all w-full text-left`}
+                className={`${activeSection === "setting" ? "mr-4 rounded-r-full bg-ns-primary text-[#0C1323] shadow-[0_0_15px_rgba(255,215,0,0.3)]" : "text-ns-on-surface-variant duration-200 hover:translate-x-1 hover:bg-ns-surface-bright"} flex w-full items-center gap-4 px-6 py-3 text-left transition-all`}
               >
-                <Cog8ToothIcon className="w-5 h-5" />
-                <span className="font-body font-medium text-sm">Setting</span>
+                <Cog8ToothIcon className="h-5 w-5" />
+                <span className="font-body text-sm font-medium">Setting</span>
               </button>
             </nav>
           </div>
         </aside>
 
-        {/* Right Column: Dashboard */}
-        <div className="lg:col-span-9 space-y-8">
+        <div className="space-y-8 lg:col-span-9">
           {activeSection === "overview" && renderSectionShell(<OverviewPanel />)}
-
           {activeSection === "my-tickets" && renderSectionShell(<MyTicketsPage />, { padded: false })}
-
           {activeSection === "my-pools" && renderSectionShell(<MyPoolsPanel />, { framed: false })}
-
           {activeSection === "setting" && renderSectionShell(<SettingsPanel />)}
         </div>
       </div>
 
-      {/* Decorative Corner Accents */}
-      <div className="fixed bottom-0 right-0 p-8 opacity-20 pointer-events-none">
-        <div className="w-64 h-64 border-r-2 border-b-2 border-ns-primary-container rounded-br-3xl"></div>
+      <div className="pointer-events-none fixed bottom-0 right-0 p-8 opacity-20">
+        <div className="h-64 w-64 rounded-br-3xl border-b-2 border-r-2 border-ns-primary-container" />
       </div>
-      <div className="fixed bottom-0 left-0 p-8 opacity-20 pointer-events-none">
-        <div className="w-32 h-32 border-l-2 border-b-2 border-ns-tertiary rounded-bl-3xl"></div>
+      <div className="pointer-events-none fixed bottom-0 left-0 p-8 opacity-20">
+        <div className="h-32 w-32 rounded-bl-3xl border-b-2 border-l-2 border-ns-tertiary" />
       </div>
     </main>
   );

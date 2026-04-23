@@ -8,11 +8,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
 	"lucky-scratch/apperrors"
 	"lucky-scratch/config"
+	"lucky-scratch/poolmeta"
 	"lucky-scratch/reveal"
 	"lucky-scratch/store/db"
 	"lucky-scratch/zama"
@@ -70,6 +72,12 @@ func TestWriteServiceErrorMapsNoRowsToNotFound(t *testing.T) {
 type stubReadService struct{}
 
 func (stubReadService) ListPools(context.Context, int, int) ([]db.Pool, error) { return nil, nil }
+func (stubReadService) ListPoolsByCreator(context.Context, string, int, int) ([]db.Pool, error) {
+	return nil, nil
+}
+func (stubReadService) ListAllPoolsByCreator(context.Context, string) ([]db.Pool, error) {
+	return nil, nil
+}
 func (stubReadService) GetPool(context.Context, uint64) (db.Pool, error) {
 	return db.Pool{}, pgx.ErrNoRows
 }
@@ -79,11 +87,29 @@ func (stubReadService) GetRound(context.Context, uint64, uint64) (db.Round, erro
 func (stubReadService) ListTicketsByOwner(context.Context, string, int, int) ([]db.Ticket, error) {
 	return nil, nil
 }
+func (stubReadService) ListTicketsByPool(context.Context, uint64, int, int) ([]db.Ticket, error) {
+	return nil, nil
+}
+func (stubReadService) ListTicketsByPoolAndRound(context.Context, uint64, uint64, int, int) ([]db.Ticket, error) {
+	return nil, nil
+}
 func (stubReadService) ListWinsByUser(context.Context, string, int, int) ([]db.Ticket, error) {
 	return nil, nil
 }
 func (stubReadService) GetTicket(context.Context, uint64) (db.Ticket, error) {
 	return db.Ticket{}, pgx.ErrNoRows
+}
+func (stubReadService) GetPlatformOverview(context.Context) (db.GetPlatformOverviewRow, error) {
+	return db.GetPlatformOverviewRow{}, nil
+}
+func (stubReadService) ListRecentWins(context.Context, int, int) ([]db.Ticket, error) {
+	return nil, nil
+}
+func (stubReadService) ListTopPlayersAllTime(context.Context, int) ([]db.ListTopPlayersAllTimeRow, error) {
+	return nil, nil
+}
+func (stubReadService) ListTopPlayersSince(context.Context, time.Time, int) ([]db.ListTopPlayersSinceRow, error) {
+	return nil, nil
 }
 
 type stubRevealService struct{}
@@ -100,8 +126,29 @@ func (stubRevealService) ProxyKeyURL(context.Context, uint64) (zama.ProxyRespons
 func (stubRevealService) ProxyUserDecryptSubmit(context.Context, uint64, zama.UserDecryptPayload) (zama.ProxyResponse, error) {
 	return zama.ProxyResponse{}, nil
 }
+func (stubRevealService) ProxyPublicDecrypt(context.Context, uint64, zama.PublicDecryptPayload) (zama.ProxyResponse, error) {
+	return zama.ProxyResponse{}, nil
+}
 func (stubRevealService) ProxyUserDecryptStatus(context.Context, uint64, string) (zama.ProxyResponse, error) {
 	return zama.ProxyResponse{}, nil
+}
+
+type stubPoolMetaService struct{}
+
+func (stubPoolMetaService) UploadImage(context.Context, poolmeta.UploadImageInput) (poolmeta.UploadedAsset, error) {
+	return poolmeta.UploadedAsset{}, nil
+}
+
+func (stubPoolMetaService) CreateDraft(context.Context, poolmeta.CreatePoolDraftInput) (poolmeta.PoolDraft, error) {
+	return poolmeta.PoolDraft{}, nil
+}
+
+func (stubPoolMetaService) FinalizePool(context.Context, uint64, poolmeta.FinalizePoolInput) (poolmeta.PoolMetadata, error) {
+	return poolmeta.PoolMetadata{}, nil
+}
+
+func (stubPoolMetaService) GetPoolMetadata(context.Context, uint64) (*poolmeta.PoolMetadata, error) {
+	return nil, nil
 }
 
 type recordingAdminService struct {
@@ -168,6 +215,7 @@ func newTestServer(adminSvc AdminService, token string) *Server {
 	return NewServer(Dependencies{
 		Config:        cfg,
 		ReadService:   stubReadService{},
+		PoolMeta:      stubPoolMetaService{},
 		RevealService: stubRevealService{},
 		AdminService:  adminSvc,
 	})

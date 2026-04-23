@@ -1,358 +1,276 @@
 "use client";
 
+import Link from "next/link";
 import {
-  ShareIcon,
-  ChartBarIcon,
-  MagnifyingGlassIcon,
-  ArrowDownTrayIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  CommandLineIcon,
-  WalletIcon,
+  ArrowTopRightOnSquareIcon,
   BanknotesIcon,
-  PowerIcon,
+  ChartBarIcon,
+  CircleStackIcon,
+  TicketIcon,
 } from "@heroicons/react/24/outline";
-import { StarIcon } from "@heroicons/react/24/solid";
-import dynamic from 'next/dynamic';
+import { useLuckyScratchPool } from "~~/hooks/luckyScratch/useLuckyScratchQueries";
+import { formatPercentFromBps, formatUsdcFromMicro } from "~~/services/luckyScratch/poolMath";
 
-const ReactECharts = dynamic(() => import('echarts-for-react'), { ssr: false });
+const statCardClassName = "rounded-3xl border border-white/10 bg-[#121B2D] p-5 shadow-[0_24px_60px_rgba(0,0,0,0.22)]";
 
-const salesData = [30, 45, 40, 60, 55, 75, 85, 70, 40, 35, 65, 90, 80, 95, 60, 50, 70, 85, 75, 90, 100, 85, 70, 60];
-
-const chartOptions = {
-  tooltip: {
-    trigger: "axis",
-    axisPointer: { type: "shadow" },
-    backgroundColor: "rgba(20, 27, 44, 0.9)",
-    borderColor: "rgba(0, 218, 243, 0.3)",
-    textStyle: { color: "#DCE2F9", fontSize: 12 },
-    formatter: (params: any) => {
-      const val = params[0].value;
-      const hour = params[0].dataIndex;
-      return `<div style="font-family: monospace;">${String(hour).padStart(2, '0')}:00 - ${String(hour+1).padStart(2, '0')}:00<br/><span style="color:#00DAF3;font-weight:bold;">${val} Sales</span></div>`;
-    }
-  },
-  grid: {
-    top: 5,
-    bottom: 0,
-    left: 0,
-    right: 0,
-  },
-  xAxis: {
-    type: "category",
-    data: salesData.map((_, i) => i),
-    axisLine: { show: false },
-    axisTick: { show: false },
-    axisLabel: { show: false },
-    splitLine: { show: false },
-  },
-  yAxis: {
-    type: "value",
-    axisLine: { show: false },
-    axisTick: { show: false },
-    axisLabel: { show: false },
-    splitLine: { show: false },
-  },
-  series: [
-    {
-      data: salesData,
-      type: "bar",
-      barWidth: "80%",
-      itemStyle: {
-        color: (params: any) => {
-          const val = params.value;
-          const mapOp = val / 100;
-          return `rgba(0, 218, 243, ${Math.max(0.2, mapOp)})`;
-        },
-        borderRadius: [2, 2, 0, 0],
-      },
-      emphasis: {
-        itemStyle: {
-          color: "rgba(0, 218, 243, 1)",
-          shadowBlur: 10,
-          shadowColor: "rgba(0, 218, 243, 0.5)",
-        },
-      },
-    },
-  ],
+const statusClassName = (status: string) => {
+  switch (status) {
+    case "Active":
+      return "bg-[#0A3322] text-[#8AF4C5] border border-[#0F5B3A]";
+    case "Initializing":
+      return "bg-[#2D2546] text-[#CABEFF] border border-[#5E4E92]";
+    case "SoldOut":
+      return "bg-[#493916] text-[#FFD66D] border border-[#8D6C1D]";
+    case "Closing":
+      return "bg-[#3A2234] text-[#FFB4AB] border border-[#8E4A74]";
+    case "Closed":
+      return "bg-[#232A3B] text-[#D0C6AB] border border-[#3B455B]";
+    default:
+      return "bg-[#232A3B] text-[#DCE2F9] border border-[#3B455B]";
+  }
 };
 
+type DetailStatProps = {
+  label: string;
+  value: string;
+  caption?: string;
+};
+
+const DetailStat = ({ label, value, caption }: DetailStatProps) => (
+  <div className={statCardClassName}>
+    <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#8290AE]">{label}</p>
+    <p className="mt-3 font-headline text-3xl font-bold text-[#DCE2F9]">{value}</p>
+    {caption ? <p className="mt-2 text-sm text-[#9FB0D0]">{caption}</p> : null}
+  </div>
+);
+
 export function PoolDetailPage({ poolId }: { poolId: string }) {
+  const { data: pool, isLoading, isError, error } = useLuckyScratchPool(poolId);
+
+  if (isLoading) {
+    return <div className="mx-auto min-h-screen max-w-7xl animate-pulse px-4 pb-16 pt-24 md:px-8" />;
+  }
+
+  if (isError || !pool) {
+    return (
+      <div className="mx-auto min-h-screen max-w-5xl px-4 pb-16 pt-24 md:px-8">
+        <div className="rounded-3xl border border-[#8E4A74] bg-[#2A1521] p-8 text-[#FFB4AB]">
+          {error?.message || "Pool not found"}
+        </div>
+      </div>
+    );
+  }
+
+  const round = pool.currentRoundState;
+  const soldCount = round?.soldCount ?? 0;
+  const totalTickets = round?.totalTickets ?? pool.totalTicketsPerRound;
+  const roundProgress = totalTickets > 0 ? Math.min(100, (soldCount / totalTickets) * 100) : 0;
+  const title = pool.metadata?.name || `Pool #${pool.poolId}`;
+  const description =
+    pool.metadata?.description ||
+    "This page only shows indexed round progress and creator accounting. It no longer estimates unavailable winner totals.";
+
   return (
-    <div className="relative min-h-screen bg-[#0C1323] text-[#DCE2F9] font-body selection:bg-[#FFE16D] selection:text-[#705E00]">
-      {/* Background Effects */}
+    <div className="relative min-h-screen bg-[#0C1323] text-[#DCE2F9]">
       <div className="pointer-events-none fixed inset-0 -z-10 opacity-20">
-        <div className="absolute left-1/4 top-1/4 h-[500px] w-[500px] rounded-full bg-[#4719C9] blur-[120px]" />
-        <div className="absolute bottom-1/4 right-1/4 h-[600px] w-[600px] rounded-full bg-[#2E3546] blur-[100px]" />
+        <div className="absolute left-[12%] top-[12%] h-[460px] w-[460px] rounded-full bg-[#4719C9] blur-[120px]" />
+        <div className="absolute bottom-[12%] right-[10%] h-[520px] w-[520px] rounded-full bg-[#173454] blur-[120px]" />
       </div>
 
-      <main className="pt-10 md:pt-12 pb-48 px-4 md:px-8 max-w-[1440px] mx-auto space-y-12">
-        {/* Hero Stage */}
-        <section className="relative h-[600px] rounded-3xl overflow-hidden border border-[#FFD700]/30 shadow-[0_0_80px_rgba(0,0,0,0.6)] group">
-          {/* Immersive 3D Vault Background */}
-          <div className="absolute inset-0">
-            <img
-              alt="Vault Achievement Background"
-              className="w-full h-full object-cover scale-105 group-hover:scale-100 transition-transform duration-[10s]"
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuAPoQc0CzqT6UpaKqhUjAqQ2HwCisgwzzEYUq5zlsY46V-29z3KN-eZ99YLLMdwLX0SYQ0mJ7t3IsVeLfytNR3WZ-NV3Y18JmkViCYebpKF_rHmTqJSADnSW3pGeUHOwwYv5mlo_TgFb2luE10XELib0SFAXpBELUuMGNij8C8VZBb_ZhVuRZgo5QLISJFwa4XcnAaJs_DTXLeY4ExyS6SbdZP_Kn31Vp-7z8xBkYqmlcdl3opgl7yb2HJICRCssiI2CAgycfrrzZUz"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#0C1323] via-[#0C1323]/40 to-transparent"></div>
-            <div className="absolute inset-0" style={{ background: "radial-gradient(circle at center, transparent 30%, rgba(0,0,0,0.4) 100%)" }}></div>
-            {/* Scanline */}
-            <div
-              className="absolute inset-0 opacity-30 pointer-events-none"
-              style={{
-                background: "linear-gradient(to bottom, transparent 50%, rgba(255, 255, 255, 0.02) 50%)",
-                backgroundSize: "100% 4px",
-              }}
-            ></div>
+      <main className="mx-auto max-w-7xl px-4 pb-16 pt-20 md:px-8">
+        <section className="overflow-hidden rounded-[2rem] border border-white/10 bg-[#11192B] shadow-[0_36px_90px_rgba(0,0,0,0.3)]">
+          <div className="relative min-h-[360px] overflow-hidden">
+            {pool.metadata?.coverImageUrl ? (
+              <img
+                src={pool.metadata.coverImageUrl}
+                alt={title}
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+            ) : (
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,#ffd700_0%,#20304b_45%,#0c1323_100%)]" />
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-[#0C1323] via-[#0C1323]/45 to-transparent" />
+            <div className="relative flex min-h-[360px] flex-col justify-end p-8 md:p-10">
+              <div className="flex flex-wrap gap-2">
+                <span
+                  className={`rounded-full px-3 py-1 text-[10px] font-bold tracking-[0.22em] ${statusClassName(pool.status)}`}
+                >
+                  {pool.status.toUpperCase()}
+                </span>
+                <span className="rounded-full border border-[#4A587B] bg-[#10192D]/80 px-3 py-1 text-[10px] font-bold tracking-[0.22em] text-[#9FB0D0]">
+                  ROUND {pool.currentRound}
+                </span>
+              </div>
+              <h1 className="mt-5 max-w-4xl font-headline text-4xl font-bold tracking-tight text-white md:text-6xl">
+                {title}
+              </h1>
+              <p className="mt-4 max-w-2xl text-base leading-relaxed text-[#D0C6AB]">{description}</p>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Link
+                  href={`/purchase/${pool.poolId}`}
+                  className="inline-flex items-center gap-2 rounded-xl bg-[linear-gradient(135deg,#ffd700_0%,#e9c400_65%,#ffe16d_100%)] px-5 py-3 font-headline font-bold text-[#705E00]"
+                >
+                  <TicketIcon className="h-5 w-5" />
+                  Buy Tickets
+                </Link>
+                {pool.metadata?.metadataGatewayUrl ? (
+                  <a
+                    href={pool.metadata.metadataGatewayUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-2 rounded-xl border border-white/12 bg-[#10192D]/85 px-5 py-3 font-bold text-[#DCE2F9]"
+                  >
+                    <ArrowTopRightOnSquareIcon className="h-5 w-5" />
+                    Metadata
+                  </a>
+                ) : null}
+              </div>
+            </div>
           </div>
+        </section>
 
-          <div className="relative z-10 h-full flex flex-col justify-end p-8 md:p-12 space-y-8">
-            <div className="flex flex-col md:flex-row justify-between items-end gap-8">
-              <div className="space-y-4 max-w-2xl">
-                <div className="inline-flex items-center gap-3 px-4 py-1.5 rounded-full border border-[#FFD700]/30 bg-[#0C1323]/40 backdrop-blur-[24px]">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#FFD700] animate-pulse shadow-[0_0_8px_#ffd700]"></span>
-                  <span className="text-xs font-bold font-headline text-[#FFD700] tracking-[0.3em] uppercase">
-                    Master Duel Terminal #{poolId || "402"}
-                  </span>
-                </div>
-                <h1 className="text-5xl md:text-7xl font-extrabold font-headline text-white tracking-tighter leading-none">
-                  Cosmic Odyssey <br />
-                  <span className="text-[#FFD700] drop-shadow-[0_0_15px_rgba(255,215,0,0.6)]">Legendary Achievement</span>
-                </h1>
-                <p className="text-[#D0C6AB] text-xl font-light leading-relaxed max-w-lg">
-                  Operational excellence reached. Vault overflow detected in sector 402. Deep-space liquidity successfully stabilized.
+        <section className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
+          <DetailStat
+            label="Sold / Total"
+            value={`${soldCount} / ${totalTickets}`}
+            caption={`Round fill ${roundProgress.toFixed(1)}%`}
+          />
+          <DetailStat
+            label="Ticket Price"
+            value={`${formatUsdcFromMicro(pool.ticketPrice)} USDC`}
+            caption="Current on-chain ticket price"
+          />
+          <DetailStat
+            label="Target RTP / Hit Rate"
+            value={`${formatPercentFromBps(pool.targetRtpBps)}% / ${formatPercentFromBps(pool.hitRateBps)}%`}
+            caption="Configured at pool creation"
+          />
+          <DetailStat
+            label="Prize Budget / Max Prize"
+            value={`${formatUsdcFromMicro(pool.totalPrizeBudget)} / ${formatUsdcFromMicro(pool.maxPrize)} USDC`}
+            caption="Budget per round and largest tier"
+          />
+        </section>
+
+        <section className="mt-8 grid grid-cols-1 gap-6 xl:grid-cols-[1.4fr_1fr]">
+          <div className="rounded-3xl border border-white/10 bg-[#11192B] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.24)]">
+            <div className="flex items-center gap-3">
+              <ChartBarIcon className="h-6 w-6 text-[#9CF0FF]" />
+              <div>
+                <h2 className="font-headline text-2xl font-bold text-white">Current Round Telemetry</h2>
+                <p className="text-sm text-[#9FB0D0]">
+                  Replaces unavailable sold-ticket winner totals with indexed round progress and claim status.
                 </p>
               </div>
+            </div>
 
-              <div className="flex flex-col items-end gap-6">
-                <button className="group flex items-center gap-4 px-10 py-5 bg-[#FFD700]/10 backdrop-blur-xl border border-[#FFD700]/40 rounded-2xl hover:bg-[#FFD700] hover:text-[#705E00] transition-all" style={{ animation: "pulse-hologram 3s infinite ease-in-out" }}>
-                  <ShareIcon className="h-6 w-6" />
-                  <span className="font-bold uppercase tracking-[0.2em] text-sm">Share My Achievement</span>
-                </button>
+            <div className="mt-6">
+              <div className="mb-2 flex items-center justify-between text-xs uppercase tracking-[0.18em] text-[#8290AE]">
+                <span>Round Progress</span>
+                <span>{roundProgress.toFixed(1)}%</span>
+              </div>
+              <div className="h-3 overflow-hidden rounded-full bg-[#1B2741]">
+                <div
+                  className="h-full rounded-full bg-[linear-gradient(90deg,#00daf3_0%,#72ebff_100%)]"
+                  style={{ width: `${roundProgress}%` }}
+                />
               </div>
             </div>
 
-            {/* Top Metrics Row */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 pt-8 border-t border-white/10">
-              {/* Total Revenue */}
-              <div className="p-6 rounded-2xl border-l-4 border-[#FFD700] bg-[#0C1323]/40 backdrop-blur-[24px]">
-                <div className="text-[10px] font-bold text-[#D0C6AB] uppercase tracking-[0.3em] mb-2">Total Revenue</div>
-                <div className="text-4xl font-headline font-bold text-white drop-shadow-[0_0_15px_rgba(255,215,0,0.6)]">12.84 ETH</div>
+            <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="rounded-2xl bg-[#0B1120] p-5">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-[#8290AE]">Round Status</p>
+                <p className="mt-3 font-headline text-3xl font-bold text-[#DCE2F9]">{round?.status || "Unavailable"}</p>
+                <p className="mt-2 text-sm text-[#9FB0D0]">VRF and reveal progress from the read model.</p>
               </div>
-
-              {/* Net Profit */}
-              <div className="p-6 rounded-2xl border-l-4 border-[#00DAF3] bg-[#0C1323]/40 backdrop-blur-[24px]">
-                <div className="text-[10px] font-bold text-[#D0C6AB] uppercase tracking-[0.3em] mb-2">Net Profit</div>
-                <div className="text-4xl font-headline font-bold text-[#00DAF3] drop-shadow-[0_0_15px_rgba(0,218,243,0.6)]">+4.12 ETH</div>
+              <div className="rounded-2xl bg-[#0B1120] p-5">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-[#8290AE]">Round Prize Budget</p>
+                <p className="mt-3 font-headline text-3xl font-bold text-[#FFD66D]">
+                  {formatUsdcFromMicro(round?.roundPrizeBudget ?? pool.totalPrizeBudget)} USDC
+                </p>
+                <p className="mt-2 text-sm text-[#9FB0D0]">Budget reserved for the current round.</p>
               </div>
-
-              {/* Bond Status */}
-              <div className="p-6 rounded-2xl border-l-4 border-[#CABEFF] bg-[#0C1323]/40 backdrop-blur-[24px]">
-                <div className="text-[10px] font-bold text-[#D0C6AB] uppercase tracking-[0.3em] mb-2">Bond Status</div>
-                <div className="text-2xl font-headline font-bold text-white uppercase tracking-tight">RECLAIM_READY</div>
-                <div className="text-[9px] text-[#00DAF3] uppercase mt-1">Audit complete</div>
+              <div className="rounded-2xl border border-white/8 bg-[#121B2D] p-5">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-[#8290AE]">Scratched Count</p>
+                <p className="mt-3 font-headline text-2xl font-bold text-[#DCE2F9]">{round?.scratchedCount ?? 0}</p>
               </div>
-
-              {/* Round Progress */}
-              <div className="p-6 rounded-2xl border-l-4 border-white/30 bg-[#0C1323]/40 backdrop-blur-[24px]">
-                <div className="flex justify-between items-center mb-2">
-                  <div className="text-[10px] font-bold text-[#D0C6AB] uppercase tracking-[0.3em]">Round Progress</div>
-                  <div className="text-[10px] font-bold text-white">84%</div>
-                </div>
-                <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden border border-white/10 mb-2">
-                  <div className="h-full bg-[#FFD700] w-[84%] relative"></div>
-                </div>
-                <div className="text-[8px] text-[#D0C6AB] font-mono uppercase">T-Minus 04:22:01</div>
+              <div className="rounded-2xl border border-white/8 bg-[#121B2D] p-5">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-[#8290AE]">Claimed Count</p>
+                <p className="mt-3 font-headline text-2xl font-bold text-[#DCE2F9]">{round?.claimedCount ?? 0}</p>
               </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Enlarged 24H Sales Trend Row */}
-        <section>
-          <div className="p-8 rounded-3xl border border-white/10 shadow-lg relative overflow-hidden bg-[#0C1323]/40 backdrop-blur-[24px]">
-            <div className="flex justify-between items-center mb-8">
-              <div>
-                <h3 className="text-xl font-headline font-bold text-white">24H Sales Analytics</h3>
-                <p className="text-[11px] font-bold text-[#D0C6AB] uppercase tracking-widest mt-1">Hourly Performance Distribution</p>
+              <div className="rounded-2xl border border-white/8 bg-[#121B2D] p-5">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-[#8290AE]">Claimable Winning Tickets</p>
+                <p className="mt-3 font-headline text-2xl font-bold text-[#9CF0FF]">{round?.winClaimableCount ?? 0}</p>
               </div>
-              <div className="flex items-center gap-4">
-                <div className="text-right">
-                  <span className="text-[#00DAF3] text-lg font-bold">+12.5%</span>
-                  <div className="text-[10px] text-[#D0C6AB] uppercase">Vs Yesterday</div>
-                </div>
-                <ChartBarIcon className="h-5 w-5 text-[#FFE16D]/50" />
+              <div className="rounded-2xl border border-white/8 bg-[#121B2D] p-5">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-[#8290AE]">Round Ticket Capacity</p>
+                <p className="mt-3 font-headline text-2xl font-bold text-[#DCE2F9]">
+                  {round?.totalTickets ?? pool.totalTicketsPerRound}
+                </p>
               </div>
-            </div>
-
-            {/* Hourly Statistics Chart */}
-            <div className="h-48 w-full group/chart">
-              <ReactECharts option={chartOptions} style={{ height: '100%', width: '100%' }} />
-            </div>
-
-            <div className="flex justify-between mt-4 text-[9px] text-[#D0C6AB] font-mono uppercase tracking-widest border-t border-white/5 pt-4">
-              <span>00:00</span>
-              <span>06:00</span>
-              <span>12:00</span>
-              <span>18:00</span>
-              <span>23:59</span>
-            </div>
-
-            <div
-              className="absolute inset-0 opacity-[0.02] pointer-events-none"
-              style={{
-                background: "linear-gradient(to bottom, transparent 50%, rgba(255, 255, 255, 0.02) 50%)",
-                backgroundSize: "100% 4px",
-              }}
-            ></div>
-          </div>
-        </section>
-
-        {/* Live Operations Feed */}
-        <section className="space-y-6 pb-24 relative">
-          <div className="flex justify-between items-end relative z-10">
-            <div className="space-y-1">
-              <h2 className="text-3xl font-headline font-bold tracking-tight text-white flex items-center gap-3">
-                Live Operations Feed
-                <span className="inline-block w-2 h-2 rounded-full bg-[#FFD700] animate-pulse shadow-[0_0_8px_#ffd700]"></span>
-              </h2>
-              <p className="text-[#D0C6AB] text-sm font-label tracking-wide uppercase">Real-time cryptographic audit of pool activity</p>
-            </div>
-            <div className="flex gap-4">
-              <button className="p-3 rounded-xl border border-[#FFD700]/10 bg-[#0C1323]/40 backdrop-blur-[24px] text-[#D0C6AB] hover:text-[#FFE16D] hover:border-[#FFE16D]/30 transition-all">
-                <MagnifyingGlassIcon className="h-5 w-5" />
-              </button>
-              <button className="p-3 rounded-xl border border-[#FFD700]/10 bg-[#0C1323]/40 backdrop-blur-[24px] text-[#D0C6AB] hover:text-[#FFE16D] hover:border-[#FFE16D]/30 transition-all">
-                <ArrowDownTrayIcon className="h-5 w-5" />
-              </button>
             </div>
           </div>
 
-          <div
-            className="rounded-2xl overflow-hidden border border-white/10 shadow-2xl relative"
-            style={{ background: "linear-gradient(145deg, #141b2c 0%, #070e1d 100%)" }}
-          >
-            <div
-              className="absolute inset-0 opacity-[0.03] pointer-events-none"
-              style={{
-                background: "linear-gradient(to bottom, transparent 50%, rgba(255, 255, 255, 0.02) 50%)",
-                backgroundSize: "100% 4px",
-              }}
-            ></div>
-
-            <table className="w-full text-left border-collapse relative z-10">
-              <thead>
-                <tr className="bg-white/5 text-[11px] uppercase tracking-[0.3em] font-bold text-[#D0C6AB] border-b border-white/10">
-                  <th className="px-5 md:px-8 py-5">Ticket ID</th>
-                  <th className="px-5 md:px-8 py-5">Timestamp</th>
-                  <th className="px-5 md:px-8 py-5">Outcome</th>
-                  <th className="px-5 md:px-8 py-5 text-right">Prize Amount</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                <tr className="hover:bg-white/5 transition-colors group">
-                  <td className="px-5 md:px-8 py-6 font-headline text-base font-bold text-white group-hover:text-[#FFD700]">#{poolId || "402"}-089</td>
-                  <td className="px-5 md:px-8 py-6 text-sm text-[#D0C6AB] font-mono">2024.10.12 | 12:45:01.002</td>
-                  <td className="px-5 md:px-8 py-6">
-                    <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-[#FFD700]/20 border border-[#FFD700]/40 text-[#FFD700] text-[10px] font-black tracking-widest shadow-[0_0_15px_rgba(255,215,0,0.1)]">
-                      <StarIcon className="h-3.5 w-3.5" />
-                      WINNER
-                    </span>
-                  </td>
-                  <td className="px-5 md:px-8 py-6 text-right font-headline font-bold text-[#FFD700] drop-shadow-[0_0_15px_rgba(255,215,0,0.6)]">+5.00 USDC</td>
-                </tr>
-                <tr className="hover:bg-white/5 transition-colors group">
-                  <td className="px-5 md:px-8 py-6 font-headline text-base font-bold text-white group-hover:text-[#FFD700]">#{poolId || "402"}-088</td>
-                  <td className="px-5 md:px-8 py-6 text-sm text-[#D0C6AB] font-mono">2024.10.12 | 12:44:52.981</td>
-                  <td className="px-5 md:px-8 py-6">
-                    <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[#D0C6AB]/70 text-[10px] font-black tracking-widest">
-                      NO REWARD
-                    </span>
-                  </td>
-                  <td className="px-5 md:px-8 py-6 text-right font-headline font-bold text-[#D0C6AB]/30">---</td>
-                </tr>
-                <tr className="hover:bg-white/5 transition-colors group">
-                  <td className="px-5 md:px-8 py-6 font-headline text-base font-bold text-white group-hover:text-[#FFD700]">#{poolId || "402"}-086</td>
-                  <td className="px-5 md:px-8 py-6 text-sm text-[#D0C6AB] font-mono">2024.10.12 | 12:40:55.420</td>
-                  <td className="px-5 md:px-8 py-6">
-                    <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-[#FFD700]/20 border border-[#FFD700]/40 text-[#FFD700] text-[10px] font-black tracking-widest">
-                      <StarIcon className="h-3.5 w-3.5" />
-                      WINNER
-                    </span>
-                  </td>
-                  <td className="px-5 md:px-8 py-6 text-right font-headline font-bold text-[#FFD700] drop-shadow-[0_0_15px_rgba(255,215,0,0.6)]">+12.00 USDC</td>
-                </tr>
-                <tr className="hover:bg-white/5 transition-colors group">
-                  <td className="px-5 md:px-8 py-6 font-headline text-base font-bold text-white group-hover:text-[#FFD700]">#{poolId || "402"}-085</td>
-                  <td className="px-5 md:px-8 py-6 text-sm text-[#D0C6AB] font-mono">2024.10.12 | 12:38:22.115</td>
-                  <td className="px-5 md:px-8 py-6">
-                    <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[#D0C6AB]/70 text-[10px] font-black tracking-widest">
-                      NO REWARD
-                    </span>
-                  </td>
-                  <td className="px-5 md:px-8 py-6 text-right font-headline font-bold text-[#D0C6AB]/30">---</td>
-                </tr>
-              </tbody>
-            </table>
-
-            <div className="px-5 md:px-8 py-5 bg-black/20 flex flex-col md:flex-row justify-between items-center text-[11px] font-bold text-[#D0C6AB] tracking-[0.2em] uppercase border-t border-white/10 gap-4">
-              <span>Ops Logs: 1-4 of 1,204</span>
-              <div className="flex gap-6 items-center">
-                <button className="opacity-30 flex items-center gap-1">
-                  <ChevronLeftIcon className="h-4 w-4" /> Previous
-                </button>
-                <div className="hidden md:flex gap-4">
-                  <span className="text-[#FFE16D] border-b border-[#FFE16D]">01</span>
-                  <span className="hover:text-white cursor-pointer transition-colors">02</span>
-                  <span className="hover:text-white cursor-pointer transition-colors">03</span>
-                  <span>...</span>
-                  <span className="hover:text-white cursor-pointer transition-colors">48</span>
+          <div className="space-y-6">
+            <div className="rounded-3xl border border-white/10 bg-[#11192B] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.24)]">
+              <div className="flex items-center gap-3">
+                <BanknotesIcon className="h-6 w-6 text-[#FFD66D]" />
+                <div>
+                  <h2 className="font-headline text-2xl font-bold text-white">Creator Accounting</h2>
+                  <p className="text-sm text-[#9FB0D0]">
+                    All values come from pool accounting and current round state.
+                  </p>
                 </div>
-                <button className="hover:text-[#FFE16D] flex items-center gap-1 transition-colors">
-                  Next <ChevronRightIcon className="h-4 w-4" />
-                </button>
               </div>
-            </div>
-          </div>
-          
-          {/* Reflective floor effect for Live Operations */}
-          <div
-            className="absolute bottom-0 left-0 right-0 h-[150px] pointer-events-none"
-            style={{ background: "linear-gradient(to top, rgba(12, 19, 35, 0.8), transparent)" }}
-          ></div>
-        </section>
 
-        {/* Command Console (Bottom Content Section) */}
-        <section className="max-w-4xl mx-auto relative z-10 pb-8">
-          <div className="p-6 rounded-3xl border border-[#FFD700]/20 shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex flex-col md:flex-row items-center gap-8 bg-[#0C1323]/40 backdrop-blur-[24px]">
-            <div className="flex items-center gap-4 pl-4 md:border-r border-white/10 pr-10">
-              <div
-                className="w-14 h-14 rounded-2xl flex items-center justify-center text-[#FFD700] border border-[#FFD700]/20 shadow-inner"
-                style={{ background: "linear-gradient(145deg, #141b2c 0%, #070e1d 100%)" }}
-              >
-                <CommandLineIcon className="h-8 w-8" />
-              </div>
-              <div>
-                <div className="text-[10px] font-bold text-[#FFD700] tracking-[0.3em] uppercase">Status: Nominal</div>
-                <div className="text-lg font-headline font-bold text-white tracking-tight">Root_Terminal_v4.2</div>
+              <div className="mt-6 space-y-3">
+                {[
+                  ["Realized revenue", pool.realizedRevenue],
+                  ["Settled prize cost", pool.settledPrizeCost],
+                  ["Settled protocol cost", pool.settledProtocolCost],
+                  ["Accrued platform fee", pool.accruedPlatformFee],
+                  ["Claimable creator profit", pool.claimableCreatorProfit],
+                  ["Creator profit claimed", pool.creatorProfitClaimed],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex items-center justify-between rounded-2xl bg-[#0B1120] px-4 py-3">
+                    <span className="text-sm text-[#9FB0D0]">{label}</span>
+                    <span className="font-headline text-lg font-bold text-[#DCE2F9]">
+                      {formatUsdcFromMicro(value as number)} USDC
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
 
-            <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
-              <button className="flex items-center justify-center gap-2 py-4 bg-[#FFD700] text-[#705E00] rounded-2xl font-headline font-bold text-sm hover:brightness-110 active:scale-95 transition-all shadow-[0_0_20px_rgba(255,215,0,0.2)]">
-                <WalletIcon className="h-5 w-5" />
-                Withdraw Profit
-              </button>
-              <button className="flex items-center justify-center gap-2 py-4 bg-[#0C1323]/40 backdrop-blur-[24px] text-white border border-white/20 rounded-2xl font-headline font-bold text-sm hover:bg-white/10 active:scale-95 transition-all">
-                <BanknotesIcon className="h-5 w-5" />
-                Refund Bond
-              </button>
-              <button className="flex items-center justify-center gap-2 py-4 bg-red-900/20 text-red-400 border border-red-900/40 rounded-2xl font-headline font-bold text-sm hover:bg-red-900/40 hover:text-red-300 active:scale-95 transition-all">
-                <PowerIcon className="h-5 w-5" />
-                Close Pool
-              </button>
+            <div className="rounded-3xl border border-white/10 bg-[#11192B] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.24)]">
+              <div className="flex items-center gap-3">
+                <CircleStackIcon className="h-6 w-6 text-[#CABEFF]" />
+                <div>
+                  <h2 className="font-headline text-2xl font-bold text-white">Liability Snapshot</h2>
+                  <p className="text-sm text-[#9FB0D0]">
+                    Useful for creators tracking rollover readiness and reserved funds.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 space-y-3">
+                {[
+                  ["Locked bond", pool.lockedBond],
+                  ["Reserved prize budget", pool.reservedPrizeBudget],
+                  ["Locked next round budget", pool.lockedNextRoundBudget],
+                  ["Round ticket price", round?.ticketPrice ?? pool.ticketPrice],
+                ].map(([label, value]) => (
+                  <div
+                    key={label}
+                    className="flex items-center justify-between rounded-2xl border border-white/8 bg-[#121B2D] px-4 py-3"
+                  >
+                    <span className="text-sm text-[#9FB0D0]">{label}</span>
+                    <span className="font-headline text-lg font-bold text-[#DCE2F9]">
+                      {formatUsdcFromMicro(value as number)} USDC
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </section>

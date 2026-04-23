@@ -1,91 +1,221 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import { useMemo } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { BatchScratchView } from "./BatchScratchView";
-import { SingleScratchView } from "./SingleScratchView";
-
-/* ─── Demo pool data (to be replaced by contract reads) ─── */
-const DEMO_POOLS: Record<
-  string,
-  { name: string; emoji: string; themeColor: string; ticketPrice: number; maxPrize: number }
-> = {
-  "1": { name: "鸿运当头", emoji: "🏮", themeColor: "#C62828", ticketPrice: 2, maxPrize: 20 },
-  "2": { name: "钻石猎人", emoji: "💎", themeColor: "#1565C0", ticketPrice: 5, maxPrize: 50 },
-  "3": { name: "星云探秘", emoji: "🌌", themeColor: "#6A1B9A", ticketPrice: 2, maxPrize: 15 },
-};
-
-const DEFAULT_POOL = { name: "Lucky Fortune", emoji: "🏮", themeColor: "#C62828", ticketPrice: 2, maxPrize: 20 };
-
-/** Demo: simulate random prize results for tickets */
-function generateDemoResults(ticketIds: string[]): { ticketId: string; isWin: boolean; prize: number }[] {
-  return ticketIds.map(id => {
-    const rand = Math.random();
-    if (rand < 0.3) return { ticketId: id, isWin: true, prize: 20 };
-    if (rand < 0.5) return { ticketId: id, isWin: true, prize: 5 };
-    if (rand < 0.65) return { ticketId: id, isWin: true, prize: 2 };
-    return { ticketId: id, isWin: false, prize: 0 };
-  });
-}
+import { useQueries } from "@tanstack/react-query";
+import { ArrowLeftIcon, ArrowTopRightOnSquareIcon, SparklesIcon, TicketIcon } from "@heroicons/react/24/outline";
+import { TicketRevealWorkspace } from "~~/components/luckyScratch/TicketRevealWorkspace";
+import { useLuckyScratchPool } from "~~/hooks/luckyScratch/useLuckyScratchQueries";
+import { luckyScratchAPI } from "~~/services/luckyScratch/api";
+import { formatPercentFromBps, formatUsdcFromMicro } from "~~/services/luckyScratch/poolMath";
+import type { LuckyScratchTicket } from "~~/services/luckyScratch/types";
 
 type ScratchPageProps = {
   poolId: string;
 };
 
-/**
- * Main scratch page orchestrator.
- * Reads ticket IDs from query params, determines single vs batch mode.
- */
+const ticketStatusLabel = (status: string) => {
+  switch (status) {
+    case "Unscratched":
+      return "Ready To Reveal";
+    case "Scratched":
+      return "Revealed";
+    case "Claimed":
+      return "Claimed";
+    default:
+      return status;
+  }
+};
+
+const ticketStatusClassName = (status: string) => {
+  switch (status) {
+    case "Unscratched":
+      return "border-[#5E4E92] bg-[#2D2546] text-[#CABEFF]";
+    case "Scratched":
+      return "border-[#0F5B3A] bg-[#0A3322] text-[#8AF4C5]";
+    case "Claimed":
+      return "border-[#8D6C1D] bg-[#493916] text-[#FFD66D]";
+    default:
+      return "border-[#3B455B] bg-[#232A3B] text-[#DCE2F9]";
+  }
+};
+
 export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
   const searchParams = useSearchParams();
-  const ticketsParam = searchParams.get("tickets") || "";
-  const ticketIds = useMemo(() => ticketsParam.split(",").filter(Boolean), [ticketsParam]);
+  const ticketIds = useMemo(() => {
+    const raw = searchParams.get("tickets") || "";
+    return [
+      ...new Set(
+        raw
+          .split(",")
+          .map(value => value.trim())
+          .filter(Boolean),
+      ),
+    ];
+  }, [searchParams]);
+  const poolQuery = useLuckyScratchPool(poolId);
+  const ticketQueries = useQueries({
+    queries: ticketIds.map(ticketId => ({
+      queryKey: ["lucky-scratch", "tickets", ticketId],
+      queryFn: () => luckyScratchAPI.getTicket(ticketId),
+      staleTime: 10_000,
+      enabled: Boolean(ticketId),
+    })),
+  });
 
-  const pool = DEMO_POOLS[poolId] || DEFAULT_POOL;
+  if (ticketIds.length === 1) {
+    return <TicketRevealWorkspace ticketId={ticketIds[0]} />;
+  }
 
-  /* Pre-generate results for demo */
-  const [results] = useState(() => generateDemoResults(ticketIds));
-
-  const isSingleMode = ticketIds.length === 1;
+  const pool = poolQuery.data;
+  const isLoadingTickets = ticketQueries.some(query => query.isLoading);
+  const hasTicketError = ticketQueries.find(query => query.isError);
+  const ticketItems = ticketQueries
+    .map(query => query.data)
+    .filter((ticket): ticket is LuckyScratchTicket => Boolean(ticket));
 
   return (
-    <div className="relative min-h-screen bg-[#0c1323] text-[#dce2f9] font-body overflow-x-hidden">
-      {/* Cinematic Background */}
-      <div className="fixed inset-0 pointer-events-none -z-10">
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage: `
-              radial-gradient(ellipse at 30% 20%, ${pool.themeColor}15 0%, transparent 50%),
-              radial-gradient(ellipse at 70% 80%, rgba(125,95,255,0.06) 0%, transparent 50%)
-            `,
-          }}
-        />
-        {/* Scan lines */}
-        <div
-          className="absolute inset-0 opacity-[0.012]"
-          style={{
-            background: "linear-gradient(to bottom, transparent 50%, rgba(255,255,255,0.03) 50%)",
-            backgroundSize: "100% 4px",
-          }}
-        />
+    <div className="min-h-screen bg-[#0C1323] font-body text-[#DCE2F9]">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 pb-16 pt-24 md:px-8">
+        <section className="overflow-hidden rounded-3xl border border-white/10 bg-[#11192B] shadow-[0_32px_80px_rgba(0,0,0,0.28)]">
+          <div className="border-b border-white/8 bg-[radial-gradient(circle_at_top_left,#cabeff22_0%,#11192B_40%,#0C1323_100%)] p-8">
+            <Link
+              href={`/purchase/${poolId}`}
+              className="inline-flex items-center gap-2 text-sm text-[#D0C6AB] transition-colors hover:text-[#FFD66D]"
+            >
+              <ArrowLeftIcon className="h-4 w-4" />
+              Back to purchase
+            </Link>
+            <div className="mt-5 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-[#D0C6AB]">Scratch Queue</p>
+                <h1 className="mt-2 font-headline text-4xl font-black tracking-tight text-white">
+                  {pool?.metadata?.name || `Pool #${poolId}`}
+                </h1>
+                <p className="mt-3 max-w-2xl text-sm leading-7 text-[#9FB0D0]">
+                  The purchase flow is now live. Batch scratch no longer fabricates reveal results here. Open each
+                  ticket to run the real backend `reveal-auth` and decrypt flow.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-sm md:min-w-[320px]">
+                <div className="rounded-2xl border border-white/8 bg-[#0B1120] p-4">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-[#8290AE]">Ticket Price</p>
+                  <p className="mt-2 font-headline text-2xl font-bold text-[#FFD66D]">
+                    {formatUsdcFromMicro(pool?.ticketPrice)} USDC
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/8 bg-[#0B1120] p-4">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-[#8290AE]">Hit Rate</p>
+                  <p className="mt-2 font-headline text-2xl font-bold text-[#9CF0FF]">
+                    {formatPercentFromBps(pool?.hitRateBps)}%
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link
+                href="/my-tickets"
+                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white transition hover:border-[#FFD66D]/40 hover:text-[#FFD66D]"
+              >
+                <TicketIcon className="h-5 w-5" />
+                Open inventory
+              </Link>
+              <Link
+                href={`/purchase/${poolId}`}
+                className="inline-flex items-center gap-2 rounded-xl bg-[linear-gradient(135deg,#ffd700_0%,#e9c400_60%,#ffe16d_100%)] px-4 py-3 text-sm font-bold text-[#705E00]"
+              >
+                <SparklesIcon className="h-5 w-5" />
+                Buy more tickets
+              </Link>
+            </div>
+          </div>
+
+          <div className="p-8">
+            {ticketIds.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-white/15 bg-[#0B1120] p-10 text-center">
+                <p className="font-headline text-2xl font-bold text-white">No ticket ids were provided</p>
+                <p className="mt-2 text-sm text-[#9FB0D0]">
+                  Return to the purchase flow or open your wallet inventory to select a ticket.
+                </p>
+              </div>
+            ) : null}
+
+            {ticketIds.length > 0 && isLoadingTickets ? (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                {ticketIds.map(ticketId => (
+                  <div key={ticketId} className="h-40 animate-pulse rounded-2xl border border-white/10 bg-[#0B1120]" />
+                ))}
+              </div>
+            ) : null}
+
+            {ticketIds.length > 0 && hasTicketError ? (
+              <div className="rounded-2xl border border-[#8E4A74] bg-[#2A1521] p-5 text-sm text-[#FFB4AB]">
+                {hasTicketError.error instanceof Error
+                  ? hasTicketError.error.message
+                  : "Failed to load ticket details."}
+              </div>
+            ) : null}
+
+            {ticketItems.length > 0 ? (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                {ticketItems.map(ticket => (
+                  <article
+                    key={ticket.ticketId}
+                    className="rounded-2xl border border-white/10 bg-[#0B1120] p-5 shadow-[0_24px_60px_rgba(0,0,0,0.22)]"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-[#D0C6AB]">Ticket</p>
+                        <h2 className="mt-2 font-headline text-3xl font-bold text-white">#{ticket.ticketId}</h2>
+                        <p className="mt-2 text-sm text-[#9FB0D0]">
+                          Pool #{ticket.poolId} • Round {ticket.roundId} • Index {ticket.ticketIndex + 1}
+                        </p>
+                      </div>
+                      <span
+                        className={`rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] ${ticketStatusClassName(ticket.status)}`}
+                      >
+                        {ticketStatusLabel(ticket.status)}
+                      </span>
+                    </div>
+
+                    <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
+                      <div className="rounded-xl border border-white/8 bg-[#11192B] p-4">
+                        <p className="text-[11px] uppercase tracking-[0.2em] text-[#8290AE]">Owner</p>
+                        <p className="mt-2 truncate font-semibold text-[#DCE2F9]">{ticket.owner}</p>
+                      </div>
+                      <div className="rounded-xl border border-white/8 bg-[#11192B] p-4">
+                        <p className="text-[11px] uppercase tracking-[0.2em] text-[#8290AE]">Claimed Reward</p>
+                        <p className="mt-2 font-semibold text-[#FFD66D]">
+                          {formatUsdcFromMicro(ticket.claimClearRewardAmount)} USDC
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 flex flex-wrap gap-3">
+                      <Link
+                        href={`/tickets/${ticket.ticketId}`}
+                        className="inline-flex items-center gap-2 rounded-xl bg-[linear-gradient(135deg,#ffd700_0%,#e9c400_60%,#ffe16d_100%)] px-4 py-3 text-sm font-bold text-[#705E00]"
+                      >
+                        Open reveal flow
+                        <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                      </Link>
+                      <Link
+                        href={`/tickets/${ticket.ticketId}`}
+                        className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white transition hover:border-[#FFD66D]/40 hover:text-[#FFD66D]"
+                      >
+                        View ticket workspace
+                        <TicketIcon className="h-4 w-4" />
+                      </Link>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </section>
       </div>
-
-      {/* Ambient Overlay */}
-      <div className="fixed inset-0 bg-black/30 pointer-events-none" />
-
-      {isSingleMode ? (
-        <SingleScratchView
-          poolId={poolId}
-          poolName={pool.name}
-          ticketPrice={pool.ticketPrice}
-          maxPrize={pool.maxPrize}
-          ticketId={ticketIds[0]}
-          result={results[0]}
-        />
-      ) : (
-        <BatchScratchView poolName={pool.name} ticketPrice={pool.ticketPrice} ticketIds={ticketIds} results={results} />
-      )}
     </div>
   );
 };

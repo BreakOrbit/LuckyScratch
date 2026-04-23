@@ -203,6 +203,79 @@ func (q *Queries) GetTicket(ctx context.Context, arg GetTicketParams) (Ticket, e
 	return i, err
 }
 
+const listAllPoolsByCreator = `-- name: ListAllPoolsByCreator :many
+SELECT id, chain_id, pool_id, creator, protocol_owned, mode, status, paused, close_requested, vrf_pending, initialized, theme_id, ticket_price, total_tickets_per_round, total_prize_budget, pool_instance_group_size, fee_bps, target_rtp_bps, hit_rate_bps, max_prize, selectable, current_round, locked_bond, reserved_prize_budget, locked_next_round_budget, realized_revenue, settled_prize_cost, settled_protocol_cost, accrued_platform_fee, creator_profit_claimed, claimable_creator_profit, created_block, created_tx_hash, last_event_block, last_event_tx_hash, last_event_log_index, last_event_block_hash, created_at, updated_at
+FROM pools
+WHERE chain_id = $1
+  AND lower(creator) = lower($2)
+ORDER BY pool_id DESC
+`
+
+type ListAllPoolsByCreatorParams struct {
+	ChainID int64  `json:"chain_id"`
+	Lower   string `json:"lower"`
+}
+
+func (q *Queries) ListAllPoolsByCreator(ctx context.Context, arg ListAllPoolsByCreatorParams) ([]Pool, error) {
+	rows, err := q.db.Query(ctx, listAllPoolsByCreator, arg.ChainID, arg.Lower)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Pool{}
+	for rows.Next() {
+		var i Pool
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChainID,
+			&i.PoolID,
+			&i.Creator,
+			&i.ProtocolOwned,
+			&i.Mode,
+			&i.Status,
+			&i.Paused,
+			&i.CloseRequested,
+			&i.VrfPending,
+			&i.Initialized,
+			&i.ThemeID,
+			&i.TicketPrice,
+			&i.TotalTicketsPerRound,
+			&i.TotalPrizeBudget,
+			&i.PoolInstanceGroupSize,
+			&i.FeeBps,
+			&i.TargetRtpBps,
+			&i.HitRateBps,
+			&i.MaxPrize,
+			&i.Selectable,
+			&i.CurrentRound,
+			&i.LockedBond,
+			&i.ReservedPrizeBudget,
+			&i.LockedNextRoundBudget,
+			&i.RealizedRevenue,
+			&i.SettledPrizeCost,
+			&i.SettledProtocolCost,
+			&i.AccruedPlatformFee,
+			&i.CreatorProfitClaimed,
+			&i.ClaimableCreatorProfit,
+			&i.CreatedBlock,
+			&i.CreatedTxHash,
+			&i.LastEventBlock,
+			&i.LastEventTxHash,
+			&i.LastEventLogIndex,
+			&i.LastEventBlockHash,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPools = `-- name: ListPools :many
 SELECT id, chain_id, pool_id, creator, protocol_owned, mode, status, paused, close_requested, vrf_pending, initialized, theme_id, ticket_price, total_tickets_per_round, total_prize_budget, pool_instance_group_size, fee_bps, target_rtp_bps, hit_rate_bps, max_prize, selectable, current_round, locked_bond, reserved_prize_budget, locked_next_round_budget, realized_revenue, settled_prize_cost, settled_protocol_cost, accrued_platform_fee, creator_profit_claimed, claimable_creator_profit, created_block, created_tx_hash, last_event_block, last_event_tx_hash, last_event_log_index, last_event_block_hash, created_at, updated_at
 FROM pools
@@ -219,6 +292,87 @@ type ListPoolsParams struct {
 
 func (q *Queries) ListPools(ctx context.Context, arg ListPoolsParams) ([]Pool, error) {
 	rows, err := q.db.Query(ctx, listPools, arg.ChainID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Pool{}
+	for rows.Next() {
+		var i Pool
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChainID,
+			&i.PoolID,
+			&i.Creator,
+			&i.ProtocolOwned,
+			&i.Mode,
+			&i.Status,
+			&i.Paused,
+			&i.CloseRequested,
+			&i.VrfPending,
+			&i.Initialized,
+			&i.ThemeID,
+			&i.TicketPrice,
+			&i.TotalTicketsPerRound,
+			&i.TotalPrizeBudget,
+			&i.PoolInstanceGroupSize,
+			&i.FeeBps,
+			&i.TargetRtpBps,
+			&i.HitRateBps,
+			&i.MaxPrize,
+			&i.Selectable,
+			&i.CurrentRound,
+			&i.LockedBond,
+			&i.ReservedPrizeBudget,
+			&i.LockedNextRoundBudget,
+			&i.RealizedRevenue,
+			&i.SettledPrizeCost,
+			&i.SettledProtocolCost,
+			&i.AccruedPlatformFee,
+			&i.CreatorProfitClaimed,
+			&i.ClaimableCreatorProfit,
+			&i.CreatedBlock,
+			&i.CreatedTxHash,
+			&i.LastEventBlock,
+			&i.LastEventTxHash,
+			&i.LastEventLogIndex,
+			&i.LastEventBlockHash,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPoolsByCreator = `-- name: ListPoolsByCreator :many
+SELECT id, chain_id, pool_id, creator, protocol_owned, mode, status, paused, close_requested, vrf_pending, initialized, theme_id, ticket_price, total_tickets_per_round, total_prize_budget, pool_instance_group_size, fee_bps, target_rtp_bps, hit_rate_bps, max_prize, selectable, current_round, locked_bond, reserved_prize_budget, locked_next_round_budget, realized_revenue, settled_prize_cost, settled_protocol_cost, accrued_platform_fee, creator_profit_claimed, claimable_creator_profit, created_block, created_tx_hash, last_event_block, last_event_tx_hash, last_event_log_index, last_event_block_hash, created_at, updated_at
+FROM pools
+WHERE chain_id = $1
+  AND lower(creator) = lower($2)
+ORDER BY pool_id DESC
+LIMIT $3 OFFSET $4
+`
+
+type ListPoolsByCreatorParams struct {
+	ChainID int64  `json:"chain_id"`
+	Lower   string `json:"lower"`
+	Limit   int32  `json:"limit"`
+	Offset  int32  `json:"offset"`
+}
+
+func (q *Queries) ListPoolsByCreator(ctx context.Context, arg ListPoolsByCreatorParams) ([]Pool, error) {
+	rows, err := q.db.Query(ctx, listPoolsByCreator,
+		arg.ChainID,
+		arg.Lower,
+		arg.Limit,
+		arg.Offset,
+	)
 	if err != nil {
 		return nil, err
 	}

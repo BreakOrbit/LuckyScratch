@@ -136,6 +136,45 @@ type PoolCostLedger struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+type PoolMetadataDraft struct {
+	ID                 int64              `json:"id"`
+	ChainID            int64              `json:"chain_id"`
+	OwnerAddress       string             `json:"owner_address"`
+	Name               string             `json:"name"`
+	Description        string             `json:"description"`
+	ThemeKey           string             `json:"theme_key"`
+	CoverAssetID       pgtype.Int8        `json:"cover_asset_id"`
+	TicketArtAssetID   pgtype.Int8        `json:"ticket_art_asset_id"`
+	MetadataCid        string             `json:"metadata_cid"`
+	MetadataUri        string             `json:"metadata_uri"`
+	MetadataGatewayUrl string             `json:"metadata_gateway_url"`
+	ThemeID            string             `json:"theme_id"`
+	PoolConfigPreview  []byte             `json:"pool_config_preview"`
+	PrizeTiers         []byte             `json:"prize_tiers"`
+	Status             string             `json:"status"`
+	ExpiresAt          pgtype.Timestamptz `json:"expires_at"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+}
+
+type PoolMetadatum struct {
+	ID                 int64              `json:"id"`
+	ChainID            int64              `json:"chain_id"`
+	PoolID             int64              `json:"pool_id"`
+	OwnerAddress       string             `json:"owner_address"`
+	Name               string             `json:"name"`
+	Description        string             `json:"description"`
+	ThemeKey           string             `json:"theme_key"`
+	ThemeID            string             `json:"theme_id"`
+	MetadataCid        string             `json:"metadata_cid"`
+	MetadataUri        string             `json:"metadata_uri"`
+	MetadataGatewayUrl string             `json:"metadata_gateway_url"`
+	CoverAssetID       pgtype.Int8        `json:"cover_asset_id"`
+	TicketArtAssetID   pgtype.Int8        `json:"ticket_art_asset_id"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+}
+
 type RevealRequest struct {
 	ID                       int64              `json:"id"`
 	ChainID                  int64              `json:"chain_id"`
@@ -199,6 +238,19 @@ type Ticket struct {
 	LastEventBlockHash       string             `json:"last_event_block_hash"`
 	CreatedAt                pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
+}
+
+type UploadedAsset struct {
+	ID           int64              `json:"id"`
+	OwnerAddress string             `json:"owner_address"`
+	Kind         string             `json:"kind"`
+	Cid          string             `json:"cid"`
+	IpfsUri      string             `json:"ipfs_uri"`
+	GatewayUrl   string             `json:"gateway_url"`
+	MimeType     string             `json:"mime_type"`
+	SizeBytes    int64              `json:"size_bytes"`
+	Sha256       string             `json:"sha256"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 }
 
 type User struct {

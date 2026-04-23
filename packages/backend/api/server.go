@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -20,11 +21,19 @@ import (
 
 type ReadService interface {
 	ListPools(ctx context.Context, limit int, offset int) ([]db.Pool, error)
+	ListPoolsByCreator(ctx context.Context, creator string, limit int, offset int) ([]db.Pool, error)
+	ListAllPoolsByCreator(ctx context.Context, creator string) ([]db.Pool, error)
 	GetPool(ctx context.Context, poolID uint64) (db.Pool, error)
 	GetRound(ctx context.Context, poolID uint64, roundID uint64) (db.Round, error)
 	ListTicketsByOwner(ctx context.Context, owner string, limit int, offset int) ([]db.Ticket, error)
+	ListTicketsByPool(ctx context.Context, poolID uint64, limit int, offset int) ([]db.Ticket, error)
+	ListTicketsByPoolAndRound(ctx context.Context, poolID uint64, roundID uint64, limit int, offset int) ([]db.Ticket, error)
 	ListWinsByUser(ctx context.Context, owner string, limit int, offset int) ([]db.Ticket, error)
 	GetTicket(ctx context.Context, ticketID uint64) (db.Ticket, error)
+	GetPlatformOverview(ctx context.Context) (db.GetPlatformOverviewRow, error)
+	ListRecentWins(ctx context.Context, limit int, offset int) ([]db.Ticket, error)
+	ListTopPlayersAllTime(ctx context.Context, limit int) ([]db.ListTopPlayersAllTimeRow, error)
+	ListTopPlayersSince(ctx context.Context, since time.Time, limit int) ([]db.ListTopPlayersSinceRow, error)
 }
 
 type RevealService interface {
@@ -32,6 +41,7 @@ type RevealService interface {
 	BuildClaimPrecheck(ctx context.Context, ticketID uint64) (reveal.ClaimPrecheckResponse, error)
 	ProxyKeyURL(ctx context.Context, ticketID uint64) (zama.ProxyResponse, error)
 	ProxyUserDecryptSubmit(ctx context.Context, ticketID uint64, payload zama.UserDecryptPayload) (zama.ProxyResponse, error)
+	ProxyPublicDecrypt(ctx context.Context, ticketID uint64, payload zama.PublicDecryptPayload) (zama.ProxyResponse, error)
 	ProxyUserDecryptStatus(ctx context.Context, ticketID uint64, jobID string) (zama.ProxyResponse, error)
 }
 
@@ -47,6 +57,7 @@ type AdminService interface {
 type Dependencies struct {
 	Config        config.Config
 	ReadService   ReadService
+	PoolMeta      PoolMetaService
 	RevealService RevealService
 	AdminService  AdminService
 }
@@ -54,6 +65,7 @@ type Dependencies struct {
 type Server struct {
 	cfg           config.Config
 	readService   ReadService
+	poolMeta      PoolMetaService
 	revealService RevealService
 	adminService  AdminService
 }
@@ -62,6 +74,7 @@ func NewServer(deps Dependencies) *Server {
 	return &Server{
 		cfg:           deps.Config,
 		readService:   deps.ReadService,
+		poolMeta:      deps.PoolMeta,
 		revealService: deps.RevealService,
 		adminService:  deps.AdminService,
 	}
@@ -73,6 +86,11 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/healthz", s.handleHealthz)
 	mux.HandleFunc("/api/v1/pools", s.handlePools)
 	mux.HandleFunc("/api/v1/pools/", s.handlePoolRoutes)
+	mux.HandleFunc("/api/v1/uploads/images", s.handleUploadImages)
+	mux.HandleFunc("/api/v1/pool-drafts", s.handlePoolDrafts)
+	mux.HandleFunc("/api/v1/stats/overview", s.handlePlatformOverview)
+	mux.HandleFunc("/api/v1/wins/recent", s.handleRecentWins)
+	mux.HandleFunc("/api/v1/leaderboards/players", s.handlePlayerLeaderboard)
 	mux.HandleFunc("/api/v1/users/", s.handleUserRoutes)
 	mux.HandleFunc("/api/v1/tickets/", s.handleTickets)
 	mux.HandleFunc("/api/v1/admin/jobs", s.requireAdmin(s.handleAdminJobs))
@@ -97,7 +115,16 @@ func (s *Server) handlePools(w http.ResponseWriter, r *http.Request) {
 	}
 
 	limit, offset := listParams(r)
-	rows, err := s.readService.ListPools(r.Context(), limit, offset)
+	creator := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("creator")))
+	var (
+		rows []db.Pool
+		err  error
+	)
+	if creator != "" {
+		rows, err = s.readService.ListPoolsByCreator(r.Context(), creator, limit, offset)
+	} else {
+		rows, err = s.readService.ListPools(r.Context(), limit, offset)
+	}
 	if err != nil {
 		writeServiceError(w, err)
 		return
@@ -105,7 +132,12 @@ func (s *Server) handlePools(w http.ResponseWriter, r *http.Request) {
 
 	items := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, poolResponse(row))
+		payload, buildErr := s.buildPoolPayload(r.Context(), row)
+		if buildErr != nil {
+			writeServiceError(w, buildErr)
+			return
+		}
+		items = append(items, payload)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": items})
 }
@@ -126,6 +158,21 @@ func (s *Server) handlePoolRoutes(w http.ResponseWriter, r *http.Request) {
 
 	if len(parts) == 1 {
 		s.handlePool(w, r, poolID)
+		return
+	}
+
+	if len(parts) == 2 && parts[1] == "finalize" {
+		s.handleFinalizePool(w, r, poolID)
+		return
+	}
+
+	if len(parts) == 3 && parts[1] == "rounds" && parts[2] == "current" {
+		s.handleCurrentRound(w, r, poolID)
+		return
+	}
+
+	if len(parts) == 2 && parts[1] == "purchase-context" {
+		s.handlePurchaseContext(w, r, poolID)
 		return
 	}
 
@@ -153,7 +200,12 @@ func (s *Server) handlePool(w http.ResponseWriter, r *http.Request, poolID uint6
 		writeLookupError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, poolResponse(row))
+	payload, err := s.buildPoolPayload(r.Context(), row)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, payload)
 }
 
 func (s *Server) handleRound(w http.ResponseWriter, r *http.Request, poolID uint64, roundID uint64) {
@@ -184,6 +236,12 @@ func (s *Server) handleUserRoutes(w http.ResponseWriter, r *http.Request) {
 		s.handleUserTickets(w, r, address)
 	case "wins":
 		s.handleUserWins(w, r, address)
+	case "created-pools":
+		if len(parts) == 3 && parts[2] == "summary" {
+			s.handleUserCreatedPoolsSummary(w, r, address)
+			return
+		}
+		writeError(w, http.StatusNotFound, errors.New("route not found"))
 	default:
 		writeError(w, http.StatusNotFound, errors.New("route not found"))
 	}
@@ -227,6 +285,98 @@ func (s *Server) handleUserWins(w http.ResponseWriter, r *http.Request, address 
 		items = append(items, ticketResponse(row))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+func (s *Server) handlePlatformOverview(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeMethodNotAllowed(w)
+		return
+	}
+
+	row, err := s.readService.GetPlatformOverview(r.Context())
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"totalPools":           int64FromAny(row.TotalPools),
+		"activePools":          int64FromAny(row.ActivePools),
+		"totalRealizedRevenue": int64FromAny(row.TotalRealizedRevenue),
+		"totalRevealedTickets": int64FromAny(row.TotalRevealedTickets),
+		"totalWinningClaims":   int64FromAny(row.TotalWinningClaims),
+		"totalClaimedRewards":  int64FromAny(row.TotalClaimedRewards),
+	})
+}
+
+func (s *Server) handleRecentWins(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeMethodNotAllowed(w)
+		return
+	}
+
+	limit, offset := listParams(r)
+	rows, err := s.readService.ListRecentWins(r.Context(), limit, offset)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+
+	items := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, ticketResponse(row))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+func (s *Server) handlePlayerLeaderboard(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeMethodNotAllowed(w)
+		return
+	}
+
+	limit := 20
+	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 && parsed <= 100 {
+			limit = parsed
+		}
+	}
+
+	timeframe := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("timeframe")))
+	if timeframe == "" {
+		timeframe = "all-time"
+	}
+
+	var (
+		items []map[string]any
+		err   error
+	)
+	switch timeframe {
+	case "weekly":
+		var rows []db.ListTopPlayersSinceRow
+		rows, err = s.readService.ListTopPlayersSince(r.Context(), time.Now().UTC().Add(-7*24*time.Hour), limit)
+		if err == nil {
+			items = playerLeaderboardSinceResponse(rows)
+		}
+	case "all-time":
+		var rows []db.ListTopPlayersAllTimeRow
+		rows, err = s.readService.ListTopPlayersAllTime(r.Context(), limit)
+		if err == nil {
+			items = playerLeaderboardAllTimeResponse(rows)
+		}
+	default:
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unsupported timeframe"})
+		return
+	}
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"timeframe": timeframe,
+		"items":     items,
+	})
 }
 
 func (s *Server) handleTickets(w http.ResponseWriter, r *http.Request) {
@@ -331,6 +481,12 @@ func (s *Server) handleTicketZamaRoutes(w http.ResponseWriter, r *http.Request, 
 			return
 		}
 		writeError(w, http.StatusNotFound, errors.New("route not found"))
+	case "public-decrypt":
+		if len(parts) != 3 {
+			writeError(w, http.StatusNotFound, errors.New("route not found"))
+			return
+		}
+		s.handleTicketZamaPublicDecrypt(w, r, ticketID)
 	default:
 		writeError(w, http.StatusNotFound, errors.New("route not found"))
 	}
@@ -377,6 +533,26 @@ func (s *Server) handleTicketZamaUserDecryptStatus(w http.ResponseWriter, r *htt
 	}
 
 	resp, err := s.revealService.ProxyUserDecryptStatus(r.Context(), ticketID, jobID)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeProxyResponse(w, resp)
+}
+
+func (s *Server) handleTicketZamaPublicDecrypt(w http.ResponseWriter, r *http.Request, ticketID uint64) {
+	if r.Method != http.MethodPost {
+		writeMethodNotAllowed(w)
+		return
+	}
+
+	var req zama.PublicDecryptPayload
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeProxyResponse(w, zama.NewFailedResponse(http.StatusBadRequest, "malformed_json", "invalid public decrypt payload", nil))
+		return
+	}
+
+	resp, err := s.revealService.ProxyPublicDecrypt(r.Context(), ticketID, req)
 	if err != nil {
 		writeServiceError(w, err)
 		return
@@ -635,6 +811,36 @@ func ticketResponse(row db.Ticket) map[string]any {
 	}
 }
 
+func playerLeaderboardAllTimeResponse(rows []db.ListTopPlayersAllTimeRow) []map[string]any {
+	items := make([]map[string]any, 0, len(rows))
+	for idx, row := range rows {
+		items = append(items, map[string]any{
+			"rank":              idx + 1,
+			"playerAddress":     row.PlayerAddress,
+			"displayAddress":    row.DisplayAddress,
+			"winCount":          row.WinCount,
+			"totalRewardAmount": row.TotalRewardAmount,
+			"lastWinAt":         row.LastWinAt.Time,
+		})
+	}
+	return items
+}
+
+func playerLeaderboardSinceResponse(rows []db.ListTopPlayersSinceRow) []map[string]any {
+	items := make([]map[string]any, 0, len(rows))
+	for idx, row := range rows {
+		items = append(items, map[string]any{
+			"rank":              idx + 1,
+			"playerAddress":     row.PlayerAddress,
+			"displayAddress":    row.DisplayAddress,
+			"winCount":          row.WinCount,
+			"totalRewardAmount": row.TotalRewardAmount,
+			"lastWinAt":         row.LastWinAt.Time,
+		})
+	}
+	return items
+}
+
 func writeLookupError(w http.ResponseWriter, err error) {
 	if errors.Is(err, pgx.ErrNoRows) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
@@ -645,6 +851,36 @@ func writeLookupError(w http.ResponseWriter, err error) {
 
 func writeMethodNotAllowed(w http.ResponseWriter) {
 	writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+}
+
+func int64FromAny(value any) int64 {
+	switch typed := value.(type) {
+	case nil:
+		return 0
+	case int64:
+		return typed
+	case int32:
+		return int64(typed)
+	case int:
+		return int64(typed)
+	case uint64:
+		return int64(typed)
+	case uint32:
+		return int64(typed)
+	case float64:
+		return int64(typed)
+	case []byte:
+		parsed, err := strconv.ParseInt(string(typed), 10, 64)
+		if err == nil {
+			return parsed
+		}
+	case string:
+		parsed, err := strconv.ParseInt(strings.TrimSpace(typed), 10, 64)
+		if err == nil {
+			return parsed
+		}
+	}
+	return 0
 }
 
 func writeError(w http.ResponseWriter, status int, err error) {

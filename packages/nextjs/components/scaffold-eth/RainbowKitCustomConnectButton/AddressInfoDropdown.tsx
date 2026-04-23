@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import Link from "next/link";
 import { NetworkOptions } from "./NetworkOptions";
 import { getAddress } from "viem";
 import { Address } from "viem";
@@ -14,7 +15,6 @@ import {
   QrCodeIcon,
   UserIcon,
 } from "@heroicons/react/24/outline";
-import Link from "next/link";
 import { BlockieAvatar } from "~~/components/scaffold-eth";
 import { useCopyToClipboard, useOutsideClick } from "~~/hooks/scaffold-eth";
 import { getTargetNetworks } from "~~/utils/scaffold-eth";
@@ -95,19 +95,20 @@ export const AddressInfoDropdown = ({
               <span className="whitespace-nowrap">My Profile</span>
             </Link>
           </li>
-          <li className={selectingNetwork ? "hidden" : ""}>
-            <button className="h-8 btn-sm rounded-xl! flex gap-3 py-3" type="button">
-              <ArrowTopRightOnSquareIcon className="h-6 w-4 ml-2 sm:ml-0" />
+          {blockExplorerAddressLink ? (
+            <li className={selectingNetwork ? "hidden" : ""}>
               <a
                 target="_blank"
                 href={blockExplorerAddressLink}
                 rel="noopener noreferrer"
-                className="whitespace-nowrap"
+                className="h-8 btn-sm rounded-xl! flex gap-3 py-3"
+                onClick={closeDropdown}
               >
-                View on Block Explorer
+                <ArrowTopRightOnSquareIcon className="h-6 w-4 ml-2 sm:ml-0" />
+                <span className="whitespace-nowrap">View on Block Explorer</span>
               </a>
-            </button>
-          </li>
+            </li>
+          ) : null}
           {allowedNetworks.length > 1 ? (
             <li className={selectingNetwork ? "hidden" : ""}>
               <button

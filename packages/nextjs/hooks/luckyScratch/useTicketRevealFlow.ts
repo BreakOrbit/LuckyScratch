@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccount, useWalletClient } from "wagmi";
 import { useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 import { useFhevmRuntime } from "~~/services/fhevm/FhevmRuntimeProvider";
@@ -13,7 +13,7 @@ import { notification } from "~~/utils/scaffold-eth";
 
 type RevealDecryptionResult = {
   clearRewardAmount: bigint;
-  decryptionProof?: `0x${string}`;
+  decryptionProof: `0x${string}`;
   rewardHandle: string;
   publicKey: string;
   signature: `0x${string}`;
@@ -26,9 +26,33 @@ const toErrorMessage = (error: unknown) => {
   return "unknown LuckyScratch error";
 };
 
+const resolveHandleValue = (values: Record<string, bigint | number | boolean | string>, handle: string) => {
+  if (handle in values) {
+    return values[handle];
+  }
+
+  const normalizedHandle = handle.toLowerCase();
+  const match = Object.entries(values).find(([candidate]) => candidate.toLowerCase() === normalizedHandle);
+  return match?.[1];
+};
+
+const toBigIntValue = (value: bigint | number | boolean | string, label: string) => {
+  if (typeof value === "bigint") {
+    return value;
+  }
+  if (typeof value === "number") {
+    return BigInt(value);
+  }
+  if (typeof value === "string" && value.trim() !== "") {
+    return BigInt(value);
+  }
+  throw new Error(`${label} did not decode into an unsigned integer.`);
+};
+
 export const useTicketRevealFlow = (ticketId: string) => {
   const { address, chainId } = useAccount();
   const { data: walletClient } = useWalletClient();
+  const queryClient = useQueryClient();
   const {
     status: runtimeStatus,
     error: runtimeError,
@@ -150,13 +174,31 @@ export const useTicketRevealFlow = (ticketId: string) => {
         throw new Error("Reveal authorization is missing the encrypted reward handle.");
       }
 
-      const clearRewardValue = result[rewardHandle];
+      const clearRewardValue = resolveHandleValue(result, rewardHandle);
       if (typeof clearRewardValue === "undefined") {
         throw new Error("The relayer response did not contain the decrypted reward value.");
       }
 
+      const clearRewardAmount = toBigIntValue(clearRewardValue, "User decrypt reward");
+
+      setDecryptProgress("Reward decrypted for the owner. Fetching the public claim proof for onchain verification.");
+      const publicDecrypt = await instance.publicDecrypt([rewardHandle]);
+      const publicRewardValue = resolveHandleValue(publicDecrypt.clearValues, rewardHandle);
+      if (typeof publicRewardValue === "undefined") {
+        throw new Error("The public decrypt response did not contain the ticket reward value.");
+      }
+
+      const publicRewardAmount = toBigIntValue(publicRewardValue, "Public decrypt reward");
+      if (publicRewardAmount !== clearRewardAmount) {
+        throw new Error("Public decrypt proof did not match the owner-visible reward value.");
+      }
+      if (!publicDecrypt.decryptionProof) {
+        throw new Error("The relayer did not return a decryption proof for claim submission.");
+      }
+
       return {
-        clearRewardAmount: BigInt(clearRewardValue),
+        clearRewardAmount,
+        decryptionProof: publicDecrypt.decryptionProof,
         rewardHandle,
         publicKey: keypair.publicKey,
         signature,
@@ -164,7 +206,7 @@ export const useTicketRevealFlow = (ticketId: string) => {
     },
     onSuccess: result => {
       setDecryptionResult(result);
-      notification.success("Ticket reward decrypted.");
+      notification.success("Ticket reward decrypted and claim proof prepared.");
     },
     onError: error => {
       notification.error(toErrorMessage(error));
@@ -176,18 +218,24 @@ export const useTicketRevealFlow = (ticketId: string) => {
       if (!decryptionResult) {
         throw new Error("Decrypt the reward before submitting the claim transaction.");
       }
-      if (!decryptionResult.decryptionProof) {
-        throw new Error(
-          "Current reveal flow only returns the clear reward value. Claim proof assembly still needs a dedicated proof path.",
-        );
-      }
 
       return writeContractAsync({
         functionName: "claimReward",
         args: [BigInt(ticketId), decryptionResult.clearRewardAmount, decryptionResult.decryptionProof],
       });
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["readContract"] }),
+        queryClient.invalidateQueries({ queryKey: ["lucky-scratch", "tickets", ticketId] }),
+        queryClient.invalidateQueries({ queryKey: ["lucky-scratch", "tickets", ticketId, "claim-precheck"] }),
+        ...(address
+          ? [
+              queryClient.invalidateQueries({ queryKey: ["lucky-scratch", "users", address.toLowerCase(), "tickets"] }),
+              queryClient.invalidateQueries({ queryKey: ["lucky-scratch", "users", address.toLowerCase(), "wins"] }),
+            ]
+          : []),
+      ]);
       notification.success("Claim transaction submitted.");
     },
     onError: error => {
@@ -198,9 +246,6 @@ export const useTicketRevealFlow = (ticketId: string) => {
   const claimDisabledReason = useMemo(() => {
     if (!decryptionResult) {
       return "Decrypt the reward first.";
-    }
-    if (!decryptionResult.decryptionProof) {
-      return "The current backend proxy exposes user-decrypt, but not a claim-proof assembly route yet.";
     }
     return null;
   }, [decryptionResult]);

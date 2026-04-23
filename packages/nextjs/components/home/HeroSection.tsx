@@ -1,8 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { useLuckyScratchHealth } from "~~/hooks/luckyScratch/useLuckyScratchQueries";
 
 export const HeroSection = () => {
+  const { data: health } = useLuckyScratchHealth();
+  const statusLabel =
+    health?.status === "ok" ? `System Status: ${health.chain} online` : "System Status: syncing backend";
+
   return (
     <section id="hero-section" className="relative min-h-[716px] flex items-center justify-center px-8 py-20">
       {/* Background Layer */}
@@ -26,7 +31,7 @@ export const HeroSection = () => {
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-ns-primary opacity-75" />
             <span className="relative inline-flex rounded-full h-2 w-2 bg-ns-primary" />
           </span>
-          System Status: Operational
+          {statusLabel}
         </div>
 
         {/* Headline */}

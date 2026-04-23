@@ -177,10 +177,10 @@ export const TicketRevealWorkspace = ({ ticketId }: { ticketId: string }) => {
 
               <article className="rounded-[1.75rem] border border-base-300 bg-base-100/85 p-6 shadow-xl">
                 <p className="text-xs uppercase tracking-[0.3em] text-secondary">Step 2</p>
-                <h2 className="mt-2 text-2xl font-black">User Decrypt</h2>
+                <h2 className="mt-2 text-2xl font-black">Decrypt and Prepare Claim</h2>
                 <p className="mt-3 text-sm leading-7 text-base-content/70">
-                  The browser signs the EIP-712 decrypt request, then uses the ticket-scoped backend proxy as the
-                  relayer URL.
+                  The browser first signs the owner-scoped `user-decrypt` request, then asks the same ticket-scoped
+                  relayer proxy for the public KMS proof required by `claimReward`.
                 </p>
 
                 <button
@@ -188,7 +188,7 @@ export const TicketRevealWorkspace = ({ ticketId }: { ticketId: string }) => {
                   disabled={!revealAuth || !isOwner || decryptMutation.isPending}
                   onClick={() => decryptMutation.mutate()}
                 >
-                  {decryptMutation.isPending ? "Decrypting..." : "Decrypt Reward"}
+                  {decryptMutation.isPending ? "Preparing..." : "Decrypt Reward and Prepare Claim"}
                 </button>
 
                 {decryptProgress && (
@@ -210,6 +210,7 @@ export const TicketRevealWorkspace = ({ ticketId }: { ticketId: string }) => {
                     <p className="mt-2 text-3xl font-black text-success">
                       {decryptionResult.clearRewardAmount.toString()}
                     </p>
+                    <p className="mt-2 text-xs uppercase tracking-[0.3em] text-success/80">Claim proof ready</p>
                     <p className="mt-2 break-all text-xs text-success/80">{decryptionResult.rewardHandle}</p>
                   </div>
                 )}
@@ -241,10 +242,10 @@ export const TicketRevealWorkspace = ({ ticketId }: { ticketId: string }) => {
                 )}
 
                 <div className="mt-4 rounded-xl border border-base-300 bg-base-200/80 p-4 text-sm text-base-content/70">
-                  <p className="font-semibold text-base-content">Current Boundary</p>
+                  <p className="font-semibold text-base-content">Claim Proof Path</p>
                   <p className="mt-2 leading-7">
-                    The frontend can now request reveal auth and decrypt the reward through the backend proxy. Claim
-                    proof assembly still needs a dedicated proof path on top of the current `user-decrypt` flow.
+                    Scratching a ticket now marks its reward handle as publicly decryptable, so the frontend can fetch a
+                    KMS-backed `decryptionProof` through the backend proxy and submit the final wallet-side claim.
                   </p>
                 </div>
               </article>

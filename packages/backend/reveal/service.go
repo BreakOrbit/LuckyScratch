@@ -284,6 +284,48 @@ func (s Service) ProxyUserDecryptSubmit(ctx context.Context, ticketID uint64, pa
 	return rewriteProxyResponseJobID(resp, localJobID), nil
 }
 
+func (s Service) ProxyPublicDecrypt(ctx context.Context, ticketID uint64, payload zama.PublicDecryptPayload) (zama.ProxyResponse, error) {
+	payload = sanitizePublicDecryptPayload(payload)
+	if !s.zama.Enabled() {
+		return zama.NewFailedResponse(http.StatusNotFound, "not_found", "zama relayer proxy is not enabled", nil), nil
+	}
+
+	owner, status, revealAuthorized, _, handle, err := s.ticketAccessState(ctx, ticketID)
+	if err != nil {
+		return s.internalProxyFailure("failed to validate ticket ownership onchain"), nil
+	}
+	if status != models.TicketStatusScratched || !revealAuthorized {
+		return s.validationProxyFailure("not_ready_for_decryption", "ticket is not ready for public decryption", []zama.ErrorDetail{{Field: "ticketId", Issue: "not_ready_for_decryption"}}), nil
+	}
+
+	revealRequest, err := s.queries.GetLatestRevealRequest(ctx, db.GetLatestRevealRequestParams{
+		ChainID:  s.cfg.Chain.ID,
+		TicketID: int64(ticketID),
+		Lower:    normalizeAddress(owner),
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return s.notFoundProxyFailure(ticketID, "no active reveal authorization found for this ticket owner"), nil
+		}
+		return s.internalProxyFailure("failed to load reveal authorization"), nil
+	}
+	if revealRequest.ExpiresAt.Valid && revealRequest.ExpiresAt.Time.Before(time.Now().UTC()) {
+		return s.validationProxyFailure("request_error", "reveal authorization has expired", []zama.ErrorDetail{{Field: "expiresAt", Issue: "expired"}}), nil
+	}
+
+	expectedHandle := fmt.Sprintf("0x%x", handle)
+	if validationErrors := validatePublicDecryptPayload(expectedHandle, payload); len(validationErrors) > 0 {
+		return s.validationProxyFailure("validation_failed", "public decrypt payload does not match the scratched ticket handle", validationErrors), nil
+	}
+
+	resp, err := s.zama.SubmitPublicDecrypt(ctx, payload)
+	if err != nil {
+		return s.internalProxyFailure("failed to reach upstream Zama relayer"), nil
+	}
+
+	return resp, nil
+}
+
 func (s Service) ProxyUserDecryptStatus(ctx context.Context, ticketID uint64, jobID string) (zama.ProxyResponse, error) {
 	jobID = strings.TrimSpace(jobID)
 	if jobID == "" {
@@ -377,6 +419,10 @@ func normalizeAddress(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
 }
 
+func normalizeHexString(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
+}
+
 func isMissingOwnerOfTokenError(err error) bool {
 	if err == nil {
 		return false
@@ -391,6 +437,16 @@ func sanitizeUserDecryptPayload(payload zama.UserDecryptPayload) zama.UserDecryp
 	payload.UserAddress = strings.TrimSpace(payload.UserAddress)
 	payload.Signature = strings.TrimPrefix(strings.TrimSpace(payload.Signature), "0x")
 	payload.PublicKey = strings.TrimPrefix(strings.TrimSpace(payload.PublicKey), "0x")
+	if strings.TrimSpace(payload.ExtraData) == "" {
+		payload.ExtraData = "0x00"
+	}
+	return payload
+}
+
+func sanitizePublicDecryptPayload(payload zama.PublicDecryptPayload) zama.PublicDecryptPayload {
+	for idx := range payload.CiphertextHandles {
+		payload.CiphertextHandles[idx] = strings.TrimSpace(payload.CiphertextHandles[idx])
+	}
 	if strings.TrimSpace(payload.ExtraData) == "" {
 		payload.ExtraData = "0x00"
 	}
@@ -440,6 +496,22 @@ func validateUserDecryptPayload(expected storedRevealPayload, actual zama.UserDe
 	if strings.TrimSpace(actual.ExtraData) != "0x00" {
 		details = append(details, zama.ErrorDetail{Field: "extraData", Issue: "must be 0x00"})
 	}
+	return details
+}
+
+func validatePublicDecryptPayload(expectedHandle string, actual zama.PublicDecryptPayload) []zama.ErrorDetail {
+	var details []zama.ErrorDetail
+
+	if len(actual.CiphertextHandles) != 1 {
+		details = append(details, zama.ErrorDetail{Field: "ciphertextHandles", Issue: "must contain exactly one scratched ticket handle"})
+	} else if normalizeHexString(actual.CiphertextHandles[0]) != normalizeHexString(expectedHandle) {
+		details = append(details, zama.ErrorDetail{Field: "ciphertextHandles", Issue: "must match the scratched ticket handle"})
+	}
+
+	if strings.TrimSpace(actual.ExtraData) != "0x00" {
+		details = append(details, zama.ErrorDetail{Field: "extraData", Issue: "must be 0x00"})
+	}
+
 	return details
 }
 

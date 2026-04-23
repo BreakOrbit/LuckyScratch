@@ -20,6 +20,9 @@ export default defineConfig([
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/ban-ts-comment": "off",
+      // The frontend renders backend/IPFS/user-supplied URLs plus SVG data URLs.
+      // Raw img tags are intentional to avoid remote-loader constraints in these flows.
+      "@next/next/no-img-element": "off",
 
       "prettier/prettier": [
         "warn",

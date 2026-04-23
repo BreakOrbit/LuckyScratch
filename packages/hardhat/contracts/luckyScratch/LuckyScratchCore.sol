@@ -480,6 +480,7 @@ contract LuckyScratchCore is AccessControl, ReentrancyGuard, Pausable, ZamaEther
         euint64 prizeHandle = encryptedTickets[ticketId].encryptedPrizeAmount;
         FHE.allowThis(prizeHandle);
         FHE.allow(prizeHandle, user);
+        FHE.makePubliclyDecryptable(prizeHandle);
 
         ILuckyScratchTicket(ticket).setTransferLocked(ticketId, true);
 

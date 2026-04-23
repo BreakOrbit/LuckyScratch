@@ -15,9 +15,7 @@ export const CTAPanels = () => {
           />
           <div className="absolute inset-0 bg-ns-surface-container-lowest/80 group-hover:bg-ns-surface-container-lowest/60 transition-colors" />
           <div className="relative z-10 p-12 h-full flex flex-col justify-center">
-            <h3 className="font-headline font-black text-4xl uppercase text-ns-on-surface mb-4">
-              Official Store
-            </h3>
+            <h3 className="font-headline font-black text-4xl uppercase text-ns-on-surface mb-4">Official Store</h3>
             <p className="text-ns-on-surface-variant mb-8 max-w-sm">
               Browse exclusive merch, hardware wallets, and VIP scratch passes.
             </p>
@@ -25,8 +23,7 @@ export const CTAPanels = () => {
               href="/store"
               className="text-ns-primary font-headline font-bold uppercase tracking-widest flex items-center gap-2 group-hover:gap-4 transition-all w-fit"
             >
-              Enter Store{" "}
-              <span className="material-symbols-outlined">shopping_bag</span>
+              Enter Store <span className="material-symbols-outlined">shopping_bag</span>
             </Link>
           </div>
         </div>
@@ -40,9 +37,7 @@ export const CTAPanels = () => {
           />
           <div className="absolute inset-0 bg-ns-surface-container-lowest/80 group-hover:bg-ns-surface-container-lowest/60 transition-colors" />
           <div className="relative z-10 p-12 h-full flex flex-col justify-center">
-            <h3 className="font-headline font-black text-4xl uppercase text-ns-on-surface mb-4">
-              Creator Dashboard
-            </h3>
+            <h3 className="font-headline font-black text-4xl uppercase text-ns-on-surface mb-4">Creator Dashboard</h3>
             <p className="text-ns-on-surface-variant mb-8 max-w-sm">
               Launch your own pool, customize ticket rarity, and earn platform fees.
             </p>
@@ -50,8 +45,7 @@ export const CTAPanels = () => {
               href="/create-pool"
               className="text-ns-secondary font-headline font-bold uppercase tracking-widest flex items-center gap-2 group-hover:gap-4 transition-all w-fit"
             >
-              Start Building{" "}
-              <span className="material-symbols-outlined">add_box</span>
+              Start Building <span className="material-symbols-outlined">add_box</span>
             </Link>
           </div>
         </div>

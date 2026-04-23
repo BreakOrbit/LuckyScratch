@@ -2,8 +2,6 @@ import { FhevmType } from "@fhevm/hardhat-plugin";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import type { BigNumberish } from "ethers";
 import { ethers, fhevm } from "hardhat";
-// @ts-expect-error fhevm mock-utils does not ship a typed CJS entry for this test helper.
-import { KMSVerifier } from "../../node_modules/@fhevm/mock-utils/_cjs/fhevm/contracts/KMSVerifier.js";
 import {
   LuckyScratchCore,
   LuckyScratchCore__factory,
@@ -27,7 +25,6 @@ export const DEFAULT_PLATFORM_FEE_BPS = 800;
 export const DEFAULT_TARGET_RTP_BPS = 5000;
 export const DEFAULT_HIT_RATE_BPS = 4000;
 export const DEFAULT_MAX_PRIZE = 15n * UNIT;
-const MOCK_KMS_PRIVATE_KEY = "388b7680e4e1afa06efbfd45cdd1fe39f3c6af381df6555a19661f283b97de91";
 
 export type Signers = {
   admin: HardhatEthersSigner;
@@ -199,13 +196,11 @@ export async function scratchAndDecrypt(deployed: DeployedLuckyScratch, user: Ha
 
 export async function buildClaimProof(deployed: DeployedLuckyScratch, ticketId: bigint) {
   const handle = await deployed.core.getTicketPrizeHandle(ticketId);
-  const clearReward = await fhevm.debugger.decryptEuint(FhevmType.euint64, handle);
-  const coprocessorConfig = await fhevm.getCoprocessorConfig(await deployed.core.getAddress());
-  const kmsSigner = new ethers.Wallet(MOCK_KMS_PRIVATE_KEY, ethers.provider);
-  const kmsVerifier = await KMSVerifier.create(ethers.provider, coprocessorConfig.KMSVerifierAddress, undefined, {
-    signers: [kmsSigner],
-  });
-  const result = await kmsVerifier.computeDecryptionSignatures([handle], [clearReward], "0x00");
+  const result = await fhevm.publicDecrypt([handle]);
+  const clearReward = result.clearValues[handle as `0x${string}`];
+  if (typeof clearReward !== "bigint") {
+    throw new Error(`Unexpected public decrypt value type for handle ${handle}`);
+  }
 
   return { handle, clearReward, decryptionProof: result.decryptionProof };
 }

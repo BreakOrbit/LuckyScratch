@@ -9,6 +9,9 @@ type CheckoutPanelProps = {
   walletBalance?: number;
   isConnected: boolean;
   isProcessing: boolean;
+  canPurchase?: boolean;
+  actionLabel?: string;
+  statusHint?: string;
   onPurchase: () => void;
   onConnect?: () => void;
 };
@@ -24,12 +27,23 @@ export const CheckoutPanel: React.FC<CheckoutPanelProps> = ({
   walletBalance = 0,
   isConnected,
   isProcessing,
+  canPurchase,
+  actionLabel,
+  statusHint,
   onPurchase,
   onConnect,
 }) => {
   const totalPrice = selectedCount * ticketPrice;
+  const totalPriceLabel = totalPrice.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  const walletBalanceLabel = walletBalance.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
   const hasEnoughBalance = walletBalance >= totalPrice;
-  const canPurchase = isConnected && selectedCount > 0 && hasEnoughBalance && !isProcessing;
+  const canPurchaseValue = canPurchase ?? (isConnected && selectedCount > 0 && hasEnoughBalance && !isProcessing);
 
   const displayIds = selectedIds.slice(0, 5);
   const moreCount = selectedIds.length - 5;
@@ -61,7 +75,7 @@ export const CheckoutPanel: React.FC<CheckoutPanelProps> = ({
               className="font-headline font-black text-3xl text-[#FFD700] neon-text-gold"
               style={{ animation: selectedCount > 0 ? "neon-pulse 3s ease-in-out infinite" : undefined }}
             >
-              {totalPrice} USDC
+              {totalPriceLabel} USDC
             </div>
           </div>
         </div>
@@ -71,11 +85,11 @@ export const CheckoutPanel: React.FC<CheckoutPanelProps> = ({
           {isConnected ? (
             <>
               <span className="text-xs text-white/50">
-                Balance: <span className="text-white/80 font-bold">{walletBalance} USDC</span>
+                Balance: <span className="text-white/80 font-bold">{walletBalanceLabel} USDC</span>
               </span>
               <span className="w-px h-4 bg-white/10" />
               <span className="text-xs text-white/50">
-                Required: <span className="text-white/80 font-bold">{totalPrice} USDC</span>
+                Required: <span className="text-white/80 font-bold">{totalPriceLabel} USDC</span>
               </span>
               {hasEnoughBalance ? (
                 <span className="text-xs text-green-400 font-bold">✅ Sufficient</span>
@@ -88,27 +102,33 @@ export const CheckoutPanel: React.FC<CheckoutPanelProps> = ({
           )}
         </div>
 
+        {statusHint ? (
+          <div className="mb-6 rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3 text-xs text-white/55">
+            {statusHint}
+          </div>
+        ) : null}
+
         {/* CTA Button */}
         <div className="relative flex justify-center">
           {isConnected ? (
             <button
               onClick={onPurchase}
-              disabled={!canPurchase}
+              disabled={!canPurchaseValue}
               className={`
                 relative overflow-hidden px-12 py-5 rounded-2xl font-headline font-black text-lg uppercase tracking-[0.15em]
                 transition-all duration-300 active:scale-95
                 ${
-                  canPurchase
+                  canPurchaseValue
                     ? "bg-gradient-to-r from-[#C62828] via-[#D4421A] to-[#FFD700] text-white shadow-[0_0_30px_rgba(198,40,40,0.4)] hover:shadow-[0_0_50px_rgba(198,40,40,0.6)]"
                     : "bg-white/5 text-white/20 border border-white/10 cursor-not-allowed"
                 }
               `}
               style={{
-                animation: canPurchase ? "breathe-glow 3s ease-in-out infinite" : undefined,
+                animation: canPurchaseValue ? "breathe-glow 3s ease-in-out infinite" : undefined,
               }}
             >
               {/* Orbiting particles */}
-              {canPurchase && (
+              {canPurchaseValue && (
                 <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-2xl">
                   {[...Array(3)].map((_, i) => (
                     <div
@@ -127,7 +147,7 @@ export const CheckoutPanel: React.FC<CheckoutPanelProps> = ({
               )}
 
               {/* Shimmer sweep */}
-              {canPurchase && (
+              {canPurchaseValue && (
                 <div
                   className="absolute inset-0 pointer-events-none"
                   style={{
@@ -139,7 +159,7 @@ export const CheckoutPanel: React.FC<CheckoutPanelProps> = ({
               )}
 
               <span className="relative z-10">
-                {isProcessing ? "⏳ Processing..." : <>💥 Mint & Purchase — {totalPrice} USDC</>}
+                {isProcessing ? "⏳ Processing..." : actionLabel || `💥 Mint & Purchase — ${totalPriceLabel} USDC`}
               </span>
             </button>
           ) : (

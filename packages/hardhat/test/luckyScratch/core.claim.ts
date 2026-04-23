@@ -1,4 +1,5 @@
 import { expect } from "chai";
+import { FhevmType } from "@fhevm/hardhat-plugin";
 import { fhevm } from "hardhat";
 import {
   approveAndPurchase,
@@ -49,6 +50,26 @@ describe("LuckyScratchClaim", function () {
     await expect(
       deployed.core.connect(deployed.alice).claimReward(zeroTicketId, zeroClaim.clearReward, zeroClaim.decryptionProof),
     ).to.be.revertedWithCustomError(deployed.core, "NoReward");
+  });
+
+  it("assembles claim proofs from scratched ticket handles", async function () {
+    const deployed = await deployLuckyScratchFixture();
+    await createPool(deployed);
+    await fulfillRound(deployed);
+
+    const [ticketId] = await approveAndPurchase(deployed, deployed.alice, 1);
+    await deployed.core.connect(deployed.alice).scratchTicket(ticketId);
+
+    const claim = await buildClaimProof(deployed, ticketId);
+    const userReward = await fhevm.userDecryptEuint(
+      FhevmType.euint64,
+      claim.handle,
+      await deployed.core.getAddress(),
+      deployed.alice,
+    );
+
+    expect(claim.clearReward).to.equal(userReward);
+    expect(claim.decryptionProof).to.not.equal("0x");
   });
 
   it("supports batch claims and creator profit / bond operations", async function () {

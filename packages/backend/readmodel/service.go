@@ -2,8 +2,10 @@ package readmodel
 
 import (
 	"context"
+	"time"
 
 	"lucky-scratch/config"
+	"lucky-scratch/store"
 	"lucky-scratch/store/db"
 )
 
@@ -24,6 +26,22 @@ func (s Service) ListPools(ctx context.Context, limit int, offset int) ([]db.Poo
 		ChainID: s.cfg.Chain.ID,
 		Limit:   int32(limit),
 		Offset:  int32(offset),
+	})
+}
+
+func (s Service) ListPoolsByCreator(ctx context.Context, creator string, limit int, offset int) ([]db.Pool, error) {
+	return s.queries.ListPoolsByCreator(ctx, db.ListPoolsByCreatorParams{
+		ChainID: s.cfg.Chain.ID,
+		Lower:   creator,
+		Limit:   int32(limit),
+		Offset:  int32(offset),
+	})
+}
+
+func (s Service) ListAllPoolsByCreator(ctx context.Context, creator string) ([]db.Pool, error) {
+	return s.queries.ListAllPoolsByCreator(ctx, db.ListAllPoolsByCreatorParams{
+		ChainID: s.cfg.Chain.ID,
+		Lower:   creator,
 	})
 }
 
@@ -51,6 +69,25 @@ func (s Service) ListTicketsByOwner(ctx context.Context, owner string, limit int
 	})
 }
 
+func (s Service) ListTicketsByPool(ctx context.Context, poolID uint64, limit int, offset int) ([]db.Ticket, error) {
+	return s.queries.ListTicketsByPool(ctx, db.ListTicketsByPoolParams{
+		ChainID: s.cfg.Chain.ID,
+		PoolID:  int64(poolID),
+		Limit:   int32(limit),
+		Offset:  int32(offset),
+	})
+}
+
+func (s Service) ListTicketsByPoolAndRound(ctx context.Context, poolID uint64, roundID uint64, limit int, offset int) ([]db.Ticket, error) {
+	return s.queries.ListTicketsByPoolAndRound(ctx, db.ListTicketsByPoolAndRoundParams{
+		ChainID: s.cfg.Chain.ID,
+		PoolID:  int64(poolID),
+		RoundID: int64(roundID),
+		Limit:   int32(limit),
+		Offset:  int32(offset),
+	})
+}
+
 func (s Service) ListWinsByUser(ctx context.Context, owner string, limit int, offset int) ([]db.Ticket, error) {
 	return s.queries.ListWinsByUser(ctx, db.ListWinsByUserParams{
 		ChainID: s.cfg.Chain.ID,
@@ -64,5 +101,32 @@ func (s Service) GetTicket(ctx context.Context, ticketID uint64) (db.Ticket, err
 	return s.queries.GetTicket(ctx, db.GetTicketParams{
 		ChainID:  s.cfg.Chain.ID,
 		TicketID: int64(ticketID),
+	})
+}
+
+func (s Service) GetPlatformOverview(ctx context.Context) (db.GetPlatformOverviewRow, error) {
+	return s.queries.GetPlatformOverview(ctx, s.cfg.Chain.ID)
+}
+
+func (s Service) ListRecentWins(ctx context.Context, limit int, offset int) ([]db.Ticket, error) {
+	return s.queries.ListRecentWins(ctx, db.ListRecentWinsParams{
+		ChainID: s.cfg.Chain.ID,
+		Limit:   int32(limit),
+		Offset:  int32(offset),
+	})
+}
+
+func (s Service) ListTopPlayersAllTime(ctx context.Context, limit int) ([]db.ListTopPlayersAllTimeRow, error) {
+	return s.queries.ListTopPlayersAllTime(ctx, db.ListTopPlayersAllTimeParams{
+		ChainID: s.cfg.Chain.ID,
+		Limit:   int32(limit),
+	})
+}
+
+func (s Service) ListTopPlayersSince(ctx context.Context, since time.Time, limit int) ([]db.ListTopPlayersSinceRow, error) {
+	return s.queries.ListTopPlayersSince(ctx, db.ListTopPlayersSinceParams{
+		ChainID:   s.cfg.Chain.ID,
+		UpdatedAt: store.Timestamptz(since.UTC()),
+		Limit:     int32(limit),
 	})
 }

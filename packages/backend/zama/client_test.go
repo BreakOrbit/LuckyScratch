@@ -141,6 +141,56 @@ func TestSubmitUserDecryptUsesAPIKeyHeader(t *testing.T) {
 	}
 }
 
+func TestSubmitPublicDecryptUsesAPIKeyHeader(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v2/public-decrypt" {
+			t.Fatalf("unexpected path %q", r.URL.Path)
+		}
+		if got := r.Header.Get("x-api-key"); got != "secret" {
+			t.Fatalf("unexpected api key header %q", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"signatures":     []string{"01"},
+			"decryptedValue": "02",
+			"extraData":      "0x",
+		})
+	}))
+	defer server.Close()
+
+	client, err := NewClient(config.ZamaConfig{
+		Mode:                               ModeRelayerSDK,
+		RelayerURL:                         server.URL,
+		APIKey:                             "secret",
+		HTTPTimeout:                        time.Second,
+		GatewayChainID:                     10901,
+		AclContractAddress:                 "0xacl",
+		KMSVerifierContractAddress:         "0xkms",
+		InputVerifierContractAddress:       "0xinput",
+		VerifyingContractAddressDecryption: "0xdecrypt",
+		VerifyingContractAddressInputVerification: "0xverify",
+		UserDecryptDurationDays:                   1,
+		MaxUserDecryptBits:                        2048,
+	})
+	if err != nil {
+		t.Fatalf("unexpected client error: %v", err)
+	}
+
+	resp, err := client.SubmitPublicDecrypt(t.Context(), PublicDecryptPayload{
+		CiphertextHandles: []string{"0xhandle"},
+		ExtraData:         "0x00",
+	})
+	if err != nil {
+		t.Fatalf("unexpected proxy error: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected status %d", resp.StatusCode)
+	}
+}
+
 func TestValidateRequiresRelayerFieldsWhenEnabled(t *testing.T) {
 	t.Parallel()
 

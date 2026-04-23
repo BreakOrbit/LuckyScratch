@@ -14,6 +14,7 @@ type Config struct {
 	Database    DatabaseConfig
 	Chain       ChainConfig
 	Deployments DeploymentsConfig
+	Storage     StorageConfig
 	Risk        RiskConfig
 	Reveal      RevealConfig
 	Zama        ZamaConfig
@@ -58,6 +59,16 @@ type DeploymentsConfig struct {
 	Dir        string
 	AutoImport bool
 	Version    string
+}
+
+type StorageConfig struct {
+	Provider         string
+	GatewayBaseURL   string
+	PinataJWT        string
+	PinataAPIBaseURL string
+	KuboAPIURL       string
+	UploadMaxBytes   int64
+	PoolDraftTTL     time.Duration
 }
 
 type RiskConfig struct {
@@ -137,6 +148,15 @@ func Load() Config {
 			Dir:        getEnv("DEPLOYMENTS_DIR", filepath.Join(projectRoot, "packages", "hardhat", "deployments")),
 			AutoImport: getEnvBool("AUTO_IMPORT_DEPLOYMENTS", true),
 			Version:    getEnv("DEPLOYMENT_VERSION", "v1"),
+		},
+		Storage: StorageConfig{
+			Provider:         strings.ToLower(getEnv("IPFS_PROVIDER", "")),
+			GatewayBaseURL:   strings.TrimRight(getEnv("IPFS_GATEWAY_BASE_URL", "https://gateway.pinata.cloud/ipfs"), "/"),
+			PinataJWT:        getEnv("IPFS_PINATA_JWT", ""),
+			PinataAPIBaseURL: strings.TrimRight(getEnv("IPFS_PINATA_API_BASE_URL", "https://api.pinata.cloud"), "/"),
+			KuboAPIURL:       strings.TrimRight(getEnv("IPFS_KUBO_API_URL", "http://127.0.0.1:5001"), "/"),
+			UploadMaxBytes:   getEnvInt64("IPFS_UPLOAD_MAX_BYTES", 10*1024*1024),
+			PoolDraftTTL:     getEnvDuration("POOL_DRAFT_TTL", 24*time.Hour),
 		},
 		Risk: RiskConfig{
 			RevealUnitCostWei: getEnvInt64("RISK_REVEAL_UNIT_COST_WEI", 0),

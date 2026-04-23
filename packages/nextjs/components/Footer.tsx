@@ -15,34 +15,19 @@ export const Footer = () => {
           </p>
         </div>
         <div className="flex flex-wrap justify-center md:justify-end gap-x-12 gap-y-4 font-body text-sm uppercase tracking-widest text-ns-on-surface-variant/60">
-          <Link
-            href="#"
-            className="hover:text-[#FFD700] transition-colors duration-300"
-          >
+          <Link href="#" className="hover:text-[#FFD700] transition-colors duration-300">
             Whitepaper
           </Link>
-          <Link
-            href="#"
-            className="hover:text-[#FFD700] transition-colors duration-300"
-          >
+          <Link href="#" className="hover:text-[#FFD700] transition-colors duration-300">
             Audit Report
           </Link>
-          <Link
-            href="#"
-            className="hover:text-[#FFD700] transition-colors duration-300"
-          >
+          <Link href="#" className="hover:text-[#FFD700] transition-colors duration-300">
             Terminals
           </Link>
-          <Link
-            href="#"
-            className="hover:text-[#FFD700] transition-colors duration-300"
-          >
+          <Link href="#" className="hover:text-[#FFD700] transition-colors duration-300">
             Support
           </Link>
-          <Link
-            href="#"
-            className="hover:text-[#FFD700] transition-colors duration-300"
-          >
+          <Link href="#" className="hover:text-[#FFD700] transition-colors duration-300">
             Privacy
           </Link>
         </div>
