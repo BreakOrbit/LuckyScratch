@@ -82,3 +82,33 @@ go run . worker
 ```
 
 The API and worker expect a reachable PostgreSQL instance plus a reachable EVM RPC.
+
+Docker quick start:
+
+```bash
+cd packages/backend
+cp .env.docker.example .env.docker
+docker compose --env-file .env.docker up -d
+./update-containers.sh --logs
+```
+
+The compose stack starts two containers:
+
+- `backend-api`
+- `backend-worker`
+
+You must provide `DATABASE_URL` for your existing PostgreSQL deployment before starting the stack.
+`packages/backend/.env.docker.example` is the recommended starting point for compose-based deployment.
+If your PostgreSQL server runs on the Docker host itself, do not use `127.0.0.1` inside the container; use a host-reachable address such as `host.docker.internal` instead.
+By default the backend containers connect to `http://host.docker.internal:8545` for `RPC_URL`, so a local Hardhat node running on the host is reachable from Docker on macOS, Windows, and modern Linux Docker installations that support `host-gateway`.
+If you need a different RPC, IPFS, Zama, or admin-token setup, export the corresponding environment variables before running `docker compose up -d`.
+For Sepolia, the minimal Zama setup is to point `RPC_URL` at a Sepolia RPC and set `CHAIN_ID=11155111` plus `CHAIN_NAME=sepolia`; the backend automatically loads the official Sepolia relayer and protocol contract defaults from `packages/backend/config/config.go`.
+On the official Zama Sepolia testnet relayer, `ZAMA_API_KEY` is typically not required. Leave the rest of the `ZAMA_*` overrides empty unless you are targeting a non-default relayer or overriding protocol addresses.
+
+`./update-containers.sh` now auto-loads `packages/backend/.env.docker` when that file exists.
+You can also point it at a different file explicitly:
+
+```bash
+./update-containers.sh --env-file .env.docker
+./update-containers.sh api --env-file .env.staging
+```

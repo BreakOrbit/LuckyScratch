@@ -30,6 +30,7 @@ This repository is currently running in **Hardhat flavor**.
 - The backend Go module path is now `lucky-scratch`, in-repo Go imports use `lucky-scratch/...` module-local paths, and the previous `packages/backend/internal/` layout has been flattened into top-level backend packages such as `packages/backend/app/`, `packages/backend/api/`, and `packages/backend/store/`
 - The backend structure now keeps `api/` and `jobs/` behind narrow dependency interfaces, uses `store/db.Querier` as the primary storage boundary instead of wiring concrete `*db.Queries` types through upper layers, and routes read-only pool / round / ticket queries through `packages/backend/readmodel/`
 - Backend SQL sources are organized under `packages/backend/sql/` with `sql/migrations/` for runtime migrations and `sql/queries/` for `sqlc` query files
+- Backend container assets now live under `packages/backend/Dockerfile`, `packages/backend/docker-compose.yml`, `packages/backend/.env.docker.example`, and `packages/backend/update-containers.sh`; the compose stack runs `backend-api` and `backend-worker` against an external PostgreSQL instance supplied through `DATABASE_URL`, mounts `packages/hardhat/deployments` read-only into `/app/deployments`, defaults `RPC_URL` to `http://host.docker.internal:8545`, `packages/backend/.env.docker.example` documents both local hardhat and Sepolia minimum Zama settings, and `update-containers.sh` now auto-loads `packages/backend/.env.docker` unless `--env-file` overrides it
 - Scaffold template example contracts and demo tasks have been removed; LuckyScratch is the only active contract suite
 - Deployment wiring lives in `packages/hardhat/deploy/02_deploy_lucky_scratch.ts`
 - Contract tests for LuckyScratch live in `packages/hardhat/test/luckyScratch/`
@@ -157,6 +158,8 @@ go test ./...
 go run .
 go run . api
 go run . worker
+docker compose up -d
+./update-containers.sh
 ```
 
 Backend runtime prerequisites:
