@@ -13,6 +13,13 @@ export type ScaffoldConfig = BaseConfig;
 
 export const DEFAULT_ALCHEMY_API_KEY = "cR4WnXePioePZ5fFrnSiR";
 
+const sepoliaRpcOverride = process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL?.trim();
+const rpcOverrides: Record<number, string> = {};
+
+if (sepoliaRpcOverride) {
+  rpcOverrides[chains.sepolia.id] = sepoliaRpcOverride;
+}
+
 const scaffoldConfig = {
   // The networks on which your DApp is live
   targetNetworks: [chains.sepolia, chains.hardhat],
@@ -25,10 +32,8 @@ const scaffoldConfig = {
   alchemyApiKey: process.env.NEXT_PUBLIC_ALCHEMY_API_KEY || DEFAULT_ALCHEMY_API_KEY,
   // If you want to use a different RPC for a specific network, you can add it here.
   // The key is the chain ID, and the value is the HTTP RPC URL
-  rpcOverrides: {
-    // Example:
-    // [chains.mainnet.id]: "https://mainnet.rpc.buidlguidl.com",
-  },
+  // `NEXT_PUBLIC_SEPOLIA_RPC_URL` overrides Sepolia specifically.
+  rpcOverrides,
   // This is ours WalletConnect's default project ID.
   // You can get your own at https://cloud.walletconnect.com
   // It's recommended to store it in an env variable:

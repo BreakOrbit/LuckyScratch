@@ -1,4 +1,4 @@
-import { getLuckyScratchBackendBaseURL } from "./config";
+import { getLuckyScratchBackendBaseURL, resolveLuckyScratchIPFSURL } from "./config";
 import type {
   ClaimPrecheckResponse,
   CreatePoolDraftInput,
@@ -8,6 +8,7 @@ import type {
   LuckyScratchPlatformOverview,
   LuckyScratchPlayerLeaderboardResponse,
   LuckyScratchPool,
+  LuckyScratchPoolMetadata,
   LuckyScratchPoolRound,
   LuckyScratchPoolsResponse,
   LuckyScratchPurchaseContext,
@@ -61,6 +62,46 @@ const requestJSON = async <T>(path: string, init?: RequestInit): Promise<T> => {
   return (await response.json()) as T;
 };
 
+const normalizePoolMetadata = (
+  metadata?: LuckyScratchPoolMetadata | null,
+): LuckyScratchPoolMetadata | null | undefined => {
+  if (!metadata) {
+    return metadata;
+  }
+
+  return {
+    ...metadata,
+    metadataGatewayUrl: resolveLuckyScratchIPFSURL(metadata.metadataGatewayUrl) || metadata.metadataGatewayUrl,
+    coverImageUrl: resolveLuckyScratchIPFSURL(metadata.coverImageUrl) || metadata.coverImageUrl,
+    ticketArtUrl: resolveLuckyScratchIPFSURL(metadata.ticketArtUrl) || metadata.ticketArtUrl,
+  };
+};
+
+const normalizePool = (pool: LuckyScratchPool): LuckyScratchPool => ({
+  ...pool,
+  metadata: normalizePoolMetadata(pool.metadata),
+});
+
+const normalizePoolsResponse = (response: LuckyScratchPoolsResponse): LuckyScratchPoolsResponse => ({
+  ...response,
+  items: response.items.map(normalizePool),
+});
+
+const normalizePurchaseContext = (response: LuckyScratchPurchaseContext): LuckyScratchPurchaseContext => ({
+  ...response,
+  pool: normalizePool(response.pool),
+});
+
+const normalizeUploadedImageAsset = (asset: UploadedImageAsset): UploadedImageAsset => ({
+  ...asset,
+  gatewayUrl: resolveLuckyScratchIPFSURL(asset.gatewayUrl) || asset.gatewayUrl,
+});
+
+const normalizePoolDraft = (draft: PoolDraft): PoolDraft => ({
+  ...draft,
+  metadataGatewayUrl: resolveLuckyScratchIPFSURL(draft.metadataGatewayUrl) || draft.metadataGatewayUrl,
+});
+
 export const luckyScratchAPI = {
   getHealth: () => requestJSON<LuckyScratchHealth>(`/healthz`),
   getTicket: (ticketId: string) => requestJSON<LuckyScratchTicket>(`/api/v1/tickets/${ticketId}`),
@@ -87,13 +128,13 @@ export const luckyScratchAPI = {
     }
     search.set("limit", String(params?.limit ?? 50));
     search.set("offset", String(params?.offset ?? 0));
-    return requestJSON<LuckyScratchPoolsResponse>(`/api/v1/pools?${search.toString()}`);
+    return requestJSON<LuckyScratchPoolsResponse>(`/api/v1/pools?${search.toString()}`).then(normalizePoolsResponse);
   },
-  getPool: (poolId: string | number) => requestJSON<LuckyScratchPool>(`/api/v1/pools/${poolId}`),
+  getPool: (poolId: string | number) => requestJSON<LuckyScratchPool>(`/api/v1/pools/${poolId}`).then(normalizePool),
   getPoolCurrentRound: (poolId: string | number) =>
     requestJSON<LuckyScratchPoolRound>(`/api/v1/pools/${poolId}/rounds/current`),
   getPurchaseContext: (poolId: string | number) =>
-    requestJSON<LuckyScratchPurchaseContext>(`/api/v1/pools/${poolId}/purchase-context`),
+    requestJSON<LuckyScratchPurchaseContext>(`/api/v1/pools/${poolId}/purchase-context`).then(normalizePurchaseContext),
   getCreatorSummary: (address: string) =>
     requestJSON<LuckyScratchCreatorSummary>(`/api/v1/users/${address}/created-pools/summary`),
   uploadImage: async (file: File, ownerAddress: string, kind: string) => {
@@ -107,13 +148,13 @@ export const luckyScratchAPI = {
       body: formData,
     });
 
-    return (await response.json()) as UploadedImageAsset;
+    return normalizeUploadedImageAsset((await response.json()) as UploadedImageAsset);
   },
   createPoolDraft: (payload: CreatePoolDraftInput) =>
     requestJSON<PoolDraft>(`/api/v1/pool-drafts`, {
       method: "POST",
       body: JSON.stringify(payload),
-    }),
+    }).then(normalizePoolDraft),
   finalizePool: (poolId: string | number, payload: FinalizePoolInput) =>
     requestJSON(`/api/v1/pools/${poolId}/finalize`, {
       method: "POST",
