@@ -25,6 +25,15 @@ EOF
 target="all"
 show_logs="false"
 env_file=""
+runtime_compose_override=""
+
+cleanup() {
+  if [[ -n "${runtime_compose_override}" && -f "${runtime_compose_override}" ]]; then
+    rm -f "${runtime_compose_override}"
+  fi
+}
+
+trap cleanup EXIT
 
 while (($# > 0)); do
   case "$1" in
@@ -66,15 +75,30 @@ if [[ -n "${env_file}" ]]; then
     exit 1
   fi
 
+  env_file="$(cd "$(dirname "${env_file}")" && pwd)/$(basename "${env_file}")"
+
   set -a
   # shellcheck disable=SC1090
   source "${env_file}"
   set +a
+
+  escaped_env_file="${env_file//\\/\\\\}"
+  escaped_env_file="${escaped_env_file//\"/\\\"}"
+  runtime_compose_override="$(mktemp "${TMPDIR:-/tmp}/lucky-scratch-backend-compose.XXXXXX.yml")"
+  cat > "${runtime_compose_override}" <<EOF
+services:
+  backend-api:
+    env_file:
+      - "${escaped_env_file}"
+  backend-worker:
+    env_file:
+      - "${escaped_env_file}"
+EOF
 fi
 
 compose() {
   if [[ -n "${env_file}" ]]; then
-    docker compose --env-file "${env_file}" -f "${COMPOSE_FILE}" "$@"
+    docker compose --env-file "${env_file}" -f "${COMPOSE_FILE}" -f "${runtime_compose_override}" "$@"
     return
   fi
 

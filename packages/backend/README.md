@@ -108,11 +108,13 @@ By default the backend containers connect to `http://host.docker.internal:8545` 
 If you need a different RPC, IPFS, Zama, or admin-token setup, export the corresponding environment variables before running `docker compose up -d`.
 If your frontend is deployed on another origin, set `CORS_ALLOWED_ORIGINS` in `.env.docker` before starting the stack. For example: `CORS_ALLOWED_ORIGINS=https://frontend.example.com`.
 If you intentionally want to allow any browser frontend to call the backend, set `CORS_ALLOW_ALL_ORIGINS=true` instead. That returns `Access-Control-Allow-Origin: *` for all origins.
+The compose stack now forwards both `CORS_ALLOW_ALL_ORIGINS` and `CORS_ALLOWED_ORIGINS` into `backend-api` and `backend-worker`, so values set in `.env.docker` are available inside the containers.
 For Sepolia, the minimal Zama setup is to point `RPC_URL` at a Sepolia RPC and set `CHAIN_ID=11155111` plus `CHAIN_NAME=sepolia`; the backend automatically loads the official Sepolia relayer and protocol contract defaults from `packages/backend/config/config.go`.
 On the official Zama Sepolia testnet relayer, `ZAMA_API_KEY` is typically not required. Leave the rest of the `ZAMA_*` overrides empty unless you are targeting a non-default relayer or overriding protocol addresses.
 
 `./update-containers.sh` now auto-loads `packages/backend/.env.docker` when that file exists.
 It rebuilds images with `docker compose build --pull --no-cache`, so backend updates do not reuse Docker build cache layers.
+When recreating containers, it also injects the selected env file into both backend services as runtime `env_file`, so newly added keys from the latest `.env.docker` become visible inside the containers even if they are not explicitly listed in `docker-compose.yml`.
 You can also point it at a different file explicitly:
 
 ```bash
