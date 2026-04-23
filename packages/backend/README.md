@@ -47,6 +47,8 @@ Recommended environment variables:
 - `CHAIN_FINALIZATION_DEPTH`
 - `CHAIN_REORG_LOOKBACK`
 - `API_PUBLIC_BASE_URL`
+- `CORS_ALLOW_ALL_ORIGINS`
+- `CORS_ALLOWED_ORIGINS`
 - `REVEAL_AUTH_TTL`
 - `REVEAL_SUBMIT_TIMEOUT`
 - `JOB_LOCK_TIMEOUT`
@@ -82,6 +84,8 @@ go run . worker
 ```
 
 The API and worker expect a reachable PostgreSQL instance plus a reachable EVM RPC.
+Cross-origin browser access also requires either `CORS_ALLOWED_ORIGINS` or `CORS_ALLOW_ALL_ORIGINS=true` when the frontend is served from a different origin than the backend. `CORS_ALLOWED_ORIGINS` is a comma-separated allowlist such as `https://app.example.com,https://www.example.com`.
+In `development`, the backend automatically allows `http://localhost:3000` and `http://127.0.0.1:3000` so the local Next.js app can talk to `:8080` without extra setup.
 
 Docker quick start:
 
@@ -102,6 +106,8 @@ You must provide `DATABASE_URL` for your existing PostgreSQL deployment before s
 If your PostgreSQL server runs on the Docker host itself, do not use `127.0.0.1` inside the container; use a host-reachable address such as `host.docker.internal` instead.
 By default the backend containers connect to `http://host.docker.internal:8545` for `RPC_URL`, so a local Hardhat node running on the host is reachable from Docker on macOS, Windows, and modern Linux Docker installations that support `host-gateway`.
 If you need a different RPC, IPFS, Zama, or admin-token setup, export the corresponding environment variables before running `docker compose up -d`.
+If your frontend is deployed on another origin, set `CORS_ALLOWED_ORIGINS` in `.env.docker` before starting the stack. For example: `CORS_ALLOWED_ORIGINS=https://frontend.example.com`.
+If you intentionally want to allow any browser frontend to call the backend, set `CORS_ALLOW_ALL_ORIGINS=true` instead. That returns `Access-Control-Allow-Origin: *` for all origins.
 For Sepolia, the minimal Zama setup is to point `RPC_URL` at a Sepolia RPC and set `CHAIN_ID=11155111` plus `CHAIN_NAME=sepolia`; the backend automatically loads the official Sepolia relayer and protocol contract defaults from `packages/backend/config/config.go`.
 On the official Zama Sepolia testnet relayer, `ZAMA_API_KEY` is typically not required. Leave the rest of the `ZAMA_*` overrides empty unless you are targeting a non-default relayer or overriding protocol addresses.
 

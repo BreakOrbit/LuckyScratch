@@ -63,6 +63,7 @@ This repository is currently running in **Hardhat flavor**.
 - The backend migration now includes the LuckyScratch read model, `deployment_registry`, `indexed_logs`, recurring `jobs`, and audit/cost tables needed by the live API/worker
 - When multiple active deployment rows exist for the same contract after a redeploy, the backend registry loader now keeps the newest deployment block per contract instead of falling back to an older still-active address
 - The backend indexer now paginates reconciliation / pending-VRF scans across all pools, filters logs to the supported LuckyScratchCore + ERC-721 event set before decoding, tracks admin-visible cursor lag, and exposes admin-triggered pool / round / ticket rebuild routes
+- The backend API now wraps all routes with configurable CORS handling driven by `CORS_ALLOWED_ORIGINS` plus `CORS_ALLOW_ALL_ORIGINS`; allowed origins receive browser preflight support for `GET`/`POST`/`OPTIONS`, `CORS_ALLOW_ALL_ORIGINS=true` returns wildcard browser access for any frontend origin, and `development` defaults still permit the local Next.js app at `http://localhost:3000` and `http://127.0.0.1:3000`
 
 ### LuckyScratch Current Scope
 
@@ -169,6 +170,7 @@ Backend runtime prerequisites:
 - `RPC_URL`
 - `ADMIN_TOKEN` is optional but recommended for admin routes
 - `API_PUBLIC_BASE_URL` is optional for direct deployments, but effectively required when the backend sits behind a reverse proxy that does not forward the public host/proto headers and reveal-auth must emit a stable absolute Zama proxy URL
+- `CORS_ALLOWED_ORIGINS` is optional in development because localhost origins are auto-allowed, but it is effectively required whenever a deployed frontend needs browser access from a different origin than the backend unless `CORS_ALLOW_ALL_ORIGINS=true` is explicitly enabled
 - `REVEAL_SUBMIT_TIMEOUT` is optional and controls how long a local Zama decrypt request may remain in `submitting` before the worker marks it failed
 - `JOB_LOCK_TIMEOUT` is optional and controls when a stale PostgreSQL-backed recurring job lock is reclaimed after a worker crash
 - `IPFS_PROVIDER` enables pool artwork / metadata uploads (`pinata` and `kubo` are currently supported)

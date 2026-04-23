@@ -30,11 +30,13 @@ type AppConfig struct {
 }
 
 type APIConfig struct {
-	Host              string
-	Port              int
-	PublicBaseURL     string
-	ReadHeaderTimeout time.Duration
-	ShutdownTimeout   time.Duration
+	Host                string
+	Port                int
+	PublicBaseURL       string
+	CORSAllowAllOrigins bool
+	CORSAllowedOrigins  []string
+	ReadHeaderTimeout   time.Duration
+	ShutdownTimeout     time.Duration
 }
 
 type DatabaseConfig struct {
@@ -112,21 +114,24 @@ type AdminConfig struct {
 
 func Load() Config {
 	backendRoot, projectRoot := detectRoots()
+	appEnv := getEnv("APP_ENV", "development")
 	zamaDefaults := defaultZamaConfig(getEnvInt64("CHAIN_ID", 11155111))
 
 	return Config{
 		App: AppConfig{
-			Env:         getEnv("APP_ENV", "development"),
+			Env:         appEnv,
 			LogLevel:    getEnv("LOG_LEVEL", "info"),
 			ProjectRoot: projectRoot,
 			BackendRoot: backendRoot,
 		},
 		API: APIConfig{
-			Host:              getEnv("API_HOST", "0.0.0.0"),
-			Port:              getEnvInt("API_PORT", 8080),
-			PublicBaseURL:     strings.TrimRight(getEnv("API_PUBLIC_BASE_URL", ""), "/"),
-			ReadHeaderTimeout: getEnvDuration("API_READ_HEADER_TIMEOUT", 5*time.Second),
-			ShutdownTimeout:   getEnvDuration("API_SHUTDOWN_TIMEOUT", 10*time.Second),
+			Host:                getEnv("API_HOST", "0.0.0.0"),
+			Port:                getEnvInt("API_PORT", 8080),
+			PublicBaseURL:       strings.TrimRight(getEnv("API_PUBLIC_BASE_URL", ""), "/"),
+			CORSAllowAllOrigins: getEnvBool("CORS_ALLOW_ALL_ORIGINS", false),
+			CORSAllowedOrigins:  getEnvList("CORS_ALLOWED_ORIGINS", defaultCORSAllowedOrigins(appEnv)),
+			ReadHeaderTimeout:   getEnvDuration("API_READ_HEADER_TIMEOUT", 5*time.Second),
+			ShutdownTimeout:     getEnvDuration("API_SHUTDOWN_TIMEOUT", 10*time.Second),
 		},
 		Database: DatabaseConfig{
 			URL:         getEnv("DATABASE_URL", ""),
@@ -313,6 +318,40 @@ func getEnvDuration(key string, fallback time.Duration) time.Duration {
 		return fallback
 	}
 	return parsed
+}
+
+func getEnvList(key string, fallback []string) []string {
+	raw, ok := os.LookupEnv(key)
+	if !ok || strings.TrimSpace(raw) == "" {
+		return append([]string(nil), fallback...)
+	}
+
+	parts := strings.Split(raw, ",")
+	values := make([]string, 0, len(parts))
+	seen := make(map[string]struct{}, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed == "" {
+			continue
+		}
+		if _, exists := seen[trimmed]; exists {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		values = append(values, trimmed)
+	}
+	return values
+}
+
+func defaultCORSAllowedOrigins(appEnv string) []string {
+	if !strings.EqualFold(strings.TrimSpace(appEnv), "development") {
+		return nil
+	}
+
+	return []string{
+		"http://localhost:3000",
+		"http://127.0.0.1:3000",
+	}
 }
 
 func (c ZamaConfig) Enabled() bool {

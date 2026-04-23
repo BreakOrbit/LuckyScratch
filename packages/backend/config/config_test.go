@@ -19,3 +19,24 @@ func TestDefaultZamaConfigForSepolia(t *testing.T) {
 		t.Fatal("expected decryption verifying contract default")
 	}
 }
+
+func TestDefaultCORSAllowedOriginsForDevelopment(t *testing.T) {
+	t.Parallel()
+
+	origins := defaultCORSAllowedOrigins("development")
+	if len(origins) != 2 {
+		t.Fatalf("expected 2 default dev origins, got %d", len(origins))
+	}
+	if origins[0] != "http://localhost:3000" {
+		t.Fatalf("unexpected first default dev origin: %q", origins[0])
+	}
+}
+
+func TestDefaultCORSAllowedOriginsForProduction(t *testing.T) {
+	t.Parallel()
+
+	origins := defaultCORSAllowedOrigins("production")
+	if len(origins) != 0 {
+		t.Fatalf("expected no default prod origins, got %#v", origins)
+	}
+}

@@ -209,9 +209,10 @@ func (s *recordingAdminService) RebuildTicket(_ context.Context, ticketID uint64
 	return nil
 }
 
-func newTestServer(adminSvc AdminService, token string) *Server {
+func newTestServer(adminSvc AdminService, token string, corsOrigins ...string) *Server {
 	cfg := config.Config{}
 	cfg.Admin.Token = token
+	cfg.API.CORSAllowedOrigins = append([]string(nil), corsOrigins...)
 	return NewServer(Dependencies{
 		Config:        cfg,
 		ReadService:   stubReadService{},
@@ -308,5 +309,89 @@ func TestAdminRoutesRequireBearerTokenWhenConfigured(t *testing.T) {
 	}
 	if len(adminSvc.rebuildPool) != 0 {
 		t.Fatalf("expected rebuild not to be called, got %#v", adminSvc.rebuildPool)
+	}
+}
+
+func TestCORSPreflightAllowsConfiguredOrigin(t *testing.T) {
+	t.Parallel()
+
+	server := newTestServer(&recordingAdminService{}, "", "https://app.example.com")
+
+	req := httptest.NewRequest(http.MethodOptions, "/api/v1/pools", nil)
+	req.Header.Set("Origin", "https://app.example.com")
+	req.Header.Set("Access-Control-Request-Method", http.MethodPost)
+	req.Header.Set("Access-Control-Request-Headers", "Content-Type")
+	recorder := httptest.NewRecorder()
+
+	server.Routes().ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d", recorder.Code)
+	}
+	if got := recorder.Header().Get("Access-Control-Allow-Origin"); got != "https://app.example.com" {
+		t.Fatalf("expected allow origin header, got %q", got)
+	}
+	if got := recorder.Header().Get("Access-Control-Allow-Headers"); got != "Content-Type" {
+		t.Fatalf("expected reflected allow headers, got %q", got)
+	}
+}
+
+func TestCORSPreflightRejectsDisallowedOrigin(t *testing.T) {
+	t.Parallel()
+
+	server := newTestServer(&recordingAdminService{}, "", "https://app.example.com")
+
+	req := httptest.NewRequest(http.MethodOptions, "/api/v1/pools", nil)
+	req.Header.Set("Origin", "https://evil.example.com")
+	req.Header.Set("Access-Control-Request-Method", http.MethodPost)
+	recorder := httptest.NewRecorder()
+
+	server.Routes().ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", recorder.Code)
+	}
+	if got := recorder.Header().Get("Access-Control-Allow-Origin"); got != "" {
+		t.Fatalf("expected no allow origin header, got %q", got)
+	}
+}
+
+func TestCORSAddsHeadersToSimpleRequests(t *testing.T) {
+	t.Parallel()
+
+	server := newTestServer(&recordingAdminService{}, "", "https://app.example.com")
+
+	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	req.Header.Set("Origin", "https://app.example.com")
+	recorder := httptest.NewRecorder()
+
+	server.Routes().ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", recorder.Code)
+	}
+	if got := recorder.Header().Get("Access-Control-Allow-Origin"); got != "https://app.example.com" {
+		t.Fatalf("expected allow origin header, got %q", got)
+	}
+}
+
+func TestCORSAllowAllOriginsHandlesArbitraryOrigin(t *testing.T) {
+	t.Parallel()
+
+	server := newTestServer(&recordingAdminService{}, "")
+	server.cfg.API.CORSAllowAllOrigins = true
+
+	req := httptest.NewRequest(http.MethodOptions, "/api/v1/pools", nil)
+	req.Header.Set("Origin", "https://any-frontend.example.com")
+	req.Header.Set("Access-Control-Request-Method", http.MethodPost)
+	recorder := httptest.NewRecorder()
+
+	server.Routes().ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d", recorder.Code)
+	}
+	if got := recorder.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Fatalf("expected wildcard allow origin header, got %q", got)
 	}
 }

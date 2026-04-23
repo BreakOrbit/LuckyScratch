@@ -19,6 +19,8 @@ import (
 	"lucky-scratch/zama"
 )
 
+var corsAllowedMethods = []string{http.MethodGet, http.MethodPost, http.MethodOptions}
+
 type ReadService interface {
 	ListPools(ctx context.Context, limit int, offset int) ([]db.Pool, error)
 	ListPoolsByCreator(ctx context.Context, creator string, limit int, offset int) ([]db.Pool, error)
@@ -98,7 +100,74 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/api/v1/admin/pools/", s.requireAdmin(s.handleAdminPoolRoutes))
 	mux.HandleFunc("/api/v1/admin/tickets/", s.requireAdmin(s.handleAdminTicketRoutes))
 
-	return mux
+	return s.withCORS(mux)
+}
+
+func (s *Server) withCORS(next http.Handler) http.Handler {
+	if !s.cfg.API.CORSAllowAllOrigins && len(s.cfg.API.CORSAllowedOrigins) == 0 {
+		return next
+	}
+
+	allowedMethods := strings.Join(corsAllowedMethods, ", ")
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := strings.TrimSpace(r.Header.Get("Origin"))
+		if origin == "" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		allowAllOrigins := s.cfg.API.CORSAllowAllOrigins
+		allowedOrigin, ok := matchCORSOrigin(origin, s.cfg.API.CORSAllowedOrigins)
+		if !allowAllOrigins && !ok {
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		headers := w.Header()
+		if allowAllOrigins || allowedOrigin == "*" {
+			headers.Set("Access-Control-Allow-Origin", "*")
+		} else {
+			headers.Set("Access-Control-Allow-Origin", origin)
+			headers.Add("Vary", "Origin")
+		}
+		headers.Add("Vary", "Access-Control-Request-Method")
+		headers.Add("Vary", "Access-Control-Request-Headers")
+		headers.Set("Access-Control-Allow-Methods", allowedMethods)
+		headers.Set("Access-Control-Max-Age", "600")
+
+		requestHeaders := strings.TrimSpace(r.Header.Get("Access-Control-Request-Headers"))
+		if requestHeaders == "" {
+			requestHeaders = "Authorization, Content-Type, X-Admin-Actor"
+		}
+		headers.Set("Access-Control-Allow-Headers", requestHeaders)
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func matchCORSOrigin(origin string, allowedOrigins []string) (string, bool) {
+	for _, allowedOrigin := range allowedOrigins {
+		switch strings.TrimSpace(allowedOrigin) {
+		case "":
+			continue
+		case "*":
+			return "*", true
+		default:
+			if strings.EqualFold(strings.TrimSpace(allowedOrigin), origin) {
+				return origin, true
+			}
+		}
+	}
+	return "", false
 }
 
 func (s *Server) handleHealthz(w http.ResponseWriter, _ *http.Request) {
