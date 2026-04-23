@@ -12,6 +12,7 @@ Usage: ./update-containers.sh [all|api|worker] [--logs] [--env-file PATH]
 Rebuilds the backend image and refreshes the running backend containers.
 An external PostgreSQL instance is expected via DATABASE_URL.
 If no env file is provided, the script automatically uses `.env.docker` when present.
+Builds always run with `--pull --no-cache`.
 
 Examples:
   ./update-containers.sh
@@ -103,7 +104,7 @@ case "$target" in
 esac
 
 echo "Rebuilding backend image for: ${services[*]}"
-compose build --pull "${services[@]}"
+compose build --pull --no-cache "${services[@]}"
 
 echo "Recreating containers..."
 compose up -d --remove-orphans "${services[@]}"

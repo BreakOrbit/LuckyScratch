@@ -112,6 +112,7 @@ For Sepolia, the minimal Zama setup is to point `RPC_URL` at a Sepolia RPC and s
 On the official Zama Sepolia testnet relayer, `ZAMA_API_KEY` is typically not required. Leave the rest of the `ZAMA_*` overrides empty unless you are targeting a non-default relayer or overriding protocol addresses.
 
 `./update-containers.sh` now auto-loads `packages/backend/.env.docker` when that file exists.
+It rebuilds images with `docker compose build --pull --no-cache`, so backend updates do not reuse Docker build cache layers.
 You can also point it at a different file explicitly:
 
 ```bash
