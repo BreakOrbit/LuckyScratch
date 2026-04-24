@@ -87,6 +87,15 @@ The API and worker expect a reachable PostgreSQL instance plus a reachable EVM R
 Cross-origin browser access also requires either `CORS_ALLOWED_ORIGINS` or `CORS_ALLOW_ALL_ORIGINS=true` when the frontend is served from a different origin than the backend. `CORS_ALLOWED_ORIGINS` is a comma-separated allowlist such as `https://app.example.com,https://www.example.com`.
 In `development`, the backend automatically allows `http://localhost:3000` and `http://127.0.0.1:3000` so the local Next.js app can talk to `:8080` without extra setup.
 
+Database cleanup after a full redeploy:
+
+```bash
+cd packages/backend
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f sql/clean_database.sql
+```
+
+Stop the backend API and worker before running cleanup. `sql/clean_database.sql` truncates every table in the PostgreSQL `public` schema, resets identity sequences, and keeps the schema itself. Restart the backend afterwards so migrations, deployment import, and indexing rebuild against the current deployment artifacts.
+
 Docker quick start:
 
 ```bash

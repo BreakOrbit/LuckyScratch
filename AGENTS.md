@@ -31,6 +31,7 @@ This repository is currently running in **Hardhat flavor**.
 - The backend structure now keeps `api/` and `jobs/` behind narrow dependency interfaces, uses `store/db.Querier` as the primary storage boundary instead of wiring concrete `*db.Queries` types through upper layers, and routes read-only pool / round / ticket queries through `packages/backend/readmodel/`
 - Backend SQL sources are organized under `packages/backend/sql/` with `sql/migrations/` for runtime migrations and `sql/queries/` for `sqlc` query files
 - Backend container assets now live under `packages/backend/Dockerfile`, `packages/backend/docker-compose.yml`, `packages/backend/.env.docker.example`, and `packages/backend/update-containers.sh`; the compose stack runs `backend-api` and `backend-worker` against an external PostgreSQL instance supplied through `DATABASE_URL`, mounts `packages/hardhat/deployments` read-only into `/app/deployments`, defaults `RPC_URL` to `http://host.docker.internal:8545`, explicitly forwards CORS env vars such as `CORS_ALLOW_ALL_ORIGINS` and `CORS_ALLOWED_ORIGINS`, `packages/backend/.env.docker.example` documents both local hardhat and Sepolia minimum Zama settings, and `update-containers.sh` now auto-loads `packages/backend/.env.docker` unless `--env-file` overrides it while rebuilding backend images with `docker compose build --pull --no-cache` and injecting the selected env file into both backend containers at runtime so the latest env keys are always visible inside the containers
+- Backend cleanup SQL lives at `packages/backend/sql/clean_database.sql`; it truncates every table in the PostgreSQL `public` schema, resets identity sequences, and keeps the schema itself for full backend data resets after a contract redeploy
 - Scaffold template example contracts and demo tasks have been removed; LuckyScratch is the only active contract suite
 - Deployment wiring lives in `packages/hardhat/deploy/02_deploy_lucky_scratch.ts`; by default the LuckyScratch deploy script deletes the local deployment records for the LuckyScratch contract set and redeploys fresh `LuckyScratchTicket`, `LuckyScratchTreasury`, `LuckyScratchVRFAdapter`, and `LuckyScratchCore` addresses instead of reusing previous artifacts
 - Contract tests for LuckyScratch live in `packages/hardhat/test/luckyScratch/`
@@ -166,6 +167,7 @@ go run . api
 go run . worker
 docker compose up -d
 ./update-containers.sh
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f sql/clean_database.sql
 ```
 
 Backend runtime prerequisites:
@@ -208,6 +210,7 @@ Additional notes:
 - `packages/nextjs/contracts/deployedContracts.ts` is generated from persisted deployment artifacts, so it can be empty until a supported live-network deployment is written to disk
 - Account utility commands avoid the default Sepolia runtime now: `yarn account` runs against Hardhat's in-process network, while `yarn account:generate`, `yarn account:import`, and `yarn account:reveal-pk` run via `ts-node`
 - Live-network deploys are wrapped by `packages/hardhat/scripts/runHardhatDeployWithPK.ts`, which now compiles on the local `hardhat` network first and then runs `deploy --no-compile` on the target network to avoid fhEVM plugin RPC probing issues on Sepolia/mainnet
+- After a full live redeploy, stop backend API/worker and run `psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f packages/backend/sql/clean_database.sql` when old indexed `pool_id` / `ticket_id` rows would collide with the fresh contract state; restart backend afterwards so migrations, `AUTO_IMPORT_DEPLOYMENTS=true`, and the indexer rebuild against the new deployment artifacts
 - The current backend is no longer phase-0: it now includes `sqlc`-generated repositories, deployment import into `deployment_registry`, go-ethereum contract wrappers, read-model query APIs, reveal-auth + claim-precheck + Zama proxy reconciliation, recurring PostgreSQL-backed jobs, and an event indexer with minimal reorg rewind/replay
 - The backend now uses a single root `main.go` entrypoint that can run `all`, `api`, or `worker` modes, while SQL source files live under `packages/backend/sql/`
 - The backend docs now fix two important implementation boundaries: deployment metadata must be tracked independently of raw Hardhat deployment files, and reveal/claim stays client-driven for final proof submission while the backend only performs authorization/precheck orchestration
