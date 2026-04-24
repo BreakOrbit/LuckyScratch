@@ -11,8 +11,13 @@ import {
   UNIT,
 } from "./helpers";
 
-function buildSingleTicketPrizeTiers(values: bigint[]) {
-  return values.map(prizeAmount => ({ prizeAmount, count: 1 }));
+function computeTargetRtpBps(totalPrizeBudget: bigint, ticketPrice: bigint, totalTickets: number) {
+  const grossRevenue = ticketPrice * BigInt(totalTickets);
+  return Number((totalPrizeBudget * 10_000n + grossRevenue / 2n) / grossRevenue);
+}
+
+function computeHitRateBps(winningTicketCount: number, totalTickets: number) {
+  return Number((BigInt(winningTicketCount) * 10_000n + BigInt(totalTickets) / 2n) / BigInt(totalTickets));
 }
 
 describe("LuckyScratchCreatePool", function () {
@@ -48,6 +53,30 @@ describe("LuckyScratchCreatePool", function () {
     });
     await expect(
       deployed.core.connect(deployed.creator).createPool(invalidMaxPrizeConfig, buildPrizeTiers()),
+    ).to.be.revertedWithCustomError(deployed.core, "InvalidPoolConfig");
+
+    const mismatchedMaxPrizeConfig = buildPoolConfig({
+      creator: deployed.creator.address,
+      maxPrize: 14n * 1_000_000n,
+    });
+    await expect(
+      deployed.core.connect(deployed.creator).createPool(mismatchedMaxPrizeConfig, buildPrizeTiers()),
+    ).to.be.revertedWithCustomError(deployed.core, "InvalidPoolConfig");
+
+    const mismatchedRtpConfig = buildPoolConfig({
+      creator: deployed.creator.address,
+      targetRtpBps: 6000,
+    });
+    await expect(
+      deployed.core.connect(deployed.creator).createPool(mismatchedRtpConfig, buildPrizeTiers()),
+    ).to.be.revertedWithCustomError(deployed.core, "InvalidPoolConfig");
+
+    const mismatchedHitRateConfig = buildPoolConfig({
+      creator: deployed.creator.address,
+      hitRateBps: 5000,
+    });
+    await expect(
+      deployed.core.connect(deployed.creator).createPool(mismatchedHitRateConfig, buildPrizeTiers()),
     ).to.be.revertedWithCustomError(deployed.core, "InvalidPoolConfig");
 
     const excessiveTicketCountConfig = buildPoolConfig({
@@ -95,25 +124,44 @@ describe("LuckyScratchCreatePool", function () {
       {
         budget: 100n * UNIT,
         expectedBond: 120n * UNIT,
+        ticketPrice: 20n * UNIT,
+        totalTickets: 10,
         maxPrize: 30n * UNIT,
-        hitRateBps: 6000,
-        prizes: [30n, 20n, 20n, 10n, 10n, 10n, 0n, 0n, 0n, 0n].map(value => value * UNIT),
+        winningTicketCount: 4,
+        tiers: [
+          { prizeAmount: 30n * UNIT, count: 2 },
+          { prizeAmount: 20n * UNIT, count: 2 },
+          { prizeAmount: 0n, count: 6 },
+        ],
       },
       {
         budget: 300n * UNIT,
         expectedBond: 345n * UNIT,
+        ticketPrice: 20n * UNIT,
+        totalTickets: 30,
         maxPrize: 90n * UNIT,
-        hitRateBps: 6000,
-        prizes: [90n, 60n, 60n, 30n, 30n, 30n, 0n, 0n, 0n, 0n].map(value => value * UNIT),
+        winningTicketCount: 6,
+        tiers: [
+          { prizeAmount: 90n * UNIT, count: 1 },
+          { prizeAmount: 60n * UNIT, count: 2 },
+          { prizeAmount: 30n * UNIT, count: 3 },
+          { prizeAmount: 0n, count: 24 },
+        ],
       },
       {
         budget: 1000n * UNIT,
         expectedBond: 1100n * UNIT,
+        ticketPrice: 20n * UNIT,
+        totalTickets: 100,
         maxPrize: 300n * UNIT,
-        hitRateBps: 7000,
-        prizes: [300n, 200n, 150n, 150n, 100n, 50n, 50n, 0n, 0n, 0n].map(value => value * UNIT),
+        winningTicketCount: 21,
+        tiers: [
+          { prizeAmount: 300n * UNIT, count: 1 },
+          { prizeAmount: 35n * UNIT, count: 20 },
+          { prizeAmount: 0n, count: 79 },
+        ],
       },
-    ] as const;
+    ];
 
     let expectedTreasuryBalance = 0n;
 
@@ -121,19 +169,18 @@ describe("LuckyScratchCreatePool", function () {
       const poolId = BigInt(index + 1);
       const config = buildPoolConfig({
         creator: deployed.creator.address,
-        ticketPrice: 10n * UNIT,
+        ticketPrice: poolCase.ticketPrice,
         totalPrizeBudget: poolCase.budget,
-        totalTicketsPerRound: poolCase.prizes.length,
+        totalTicketsPerRound: poolCase.totalTickets,
         maxPrize: poolCase.maxPrize,
-        hitRateBps: poolCase.hitRateBps,
+        hitRateBps: computeHitRateBps(poolCase.winningTicketCount, poolCase.totalTickets),
+        targetRtpBps: computeTargetRtpBps(poolCase.budget, poolCase.ticketPrice, poolCase.totalTickets),
       });
 
       await deployed.token
         .connect(deployed.creator)
         .approve(await deployed.treasury.getAddress(), poolCase.expectedBond);
-      await deployed.core
-        .connect(deployed.creator)
-        .createPool(config, buildSingleTicketPrizeTiers([...poolCase.prizes]));
+      await deployed.core.connect(deployed.creator).createPool(config, poolCase.tiers);
 
       const accounting = await deployed.core.poolAccounting(poolId);
       expectedTreasuryBalance += poolCase.expectedBond;

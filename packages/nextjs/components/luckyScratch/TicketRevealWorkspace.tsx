@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Address } from "@scaffold-ui/components";
 import { useAccount } from "wagmi";
-import { ArrowLeftIcon, CheckBadgeIcon, ShieldCheckIcon } from "@heroicons/react/24/outline";
+import { ArrowLeftIcon, CheckBadgeIcon, ShieldCheckIcon, SparklesIcon } from "@heroicons/react/24/outline";
 import { useLuckyScratchClaimPrecheck, useLuckyScratchTicket } from "~~/hooks/luckyScratch/useLuckyScratchQueries";
 import { useTicketRevealFlow } from "~~/hooks/luckyScratch/useTicketRevealFlow";
 import { useTargetNetwork } from "~~/hooks/scaffold-eth";
@@ -24,11 +24,13 @@ export const TicketRevealWorkspace = ({ ticketId }: { ticketId: string }) => {
     runtimeStatus,
     runtimeError,
     revealAuth,
+    scratchMutation,
     revealAuthMutation,
     decryptMutation,
     claimMutation,
     decryptProgress,
     decryptionResult,
+    isScratchPending,
     isClaimPending,
     claimDisabledReason,
   } = useTicketRevealFlow(ticketId);
@@ -37,6 +39,21 @@ export const TicketRevealWorkspace = ({ ticketId }: { ticketId: string }) => {
   const claimPrecheck = claimPrecheckQuery.data;
   const isOwner = Boolean(address && ticket?.owner && address.toLowerCase() === ticket.owner.toLowerCase());
   const expectedChainId = revealAuth?.authPayload.chainId || chainId;
+  const effectiveTicketStatus = claimPrecheck?.status || ticket?.status;
+  const effectiveRevealAuthorized = claimPrecheck?.revealAuthorized ?? ticket?.revealAuthorized;
+  const canScratchTicket = Boolean(isOwner && effectiveTicketStatus === "Unscratched");
+  const canRequestRevealAuth = Boolean(
+    isOwner && ((effectiveTicketStatus === "Scratched" && effectiveRevealAuthorized) || scratchMutation.isSuccess),
+  );
+  const revealAuthDisabledReason = !isOwner
+    ? "Only the current ticket owner can request reveal authorization."
+    : effectiveTicketStatus === "Unscratched" && !scratchMutation.isSuccess
+      ? "Scratch this ticket onchain first."
+      : effectiveTicketStatus === "Claimed"
+        ? "This ticket has already been claimed."
+        : !effectiveRevealAuthorized
+          ? "Waiting for reveal authorization to be indexed."
+          : null;
 
   return (
     <div className="flex grow flex-col bg-[radial-gradient(circle_at_top_left,_hsla(var(--s)/0.14),transparent_24%),radial-gradient(circle_at_bottom_right,_hsla(var(--a)/0.16),transparent_28%),linear-gradient(180deg,hsla(var(--b1)/0.98),hsla(var(--b2)/0.98))]">
@@ -126,7 +143,36 @@ export const TicketRevealWorkspace = ({ ticketId }: { ticketId: string }) => {
               </div>
             </section>
 
-            <section className="grid gap-6 lg:grid-cols-3">
+            <section className="grid gap-6 lg:grid-cols-2 xl:grid-cols-4">
+              <article className="rounded-[1.75rem] border border-base-300 bg-base-100/85 p-6 shadow-xl">
+                <div className="flex items-center gap-2 text-secondary">
+                  <SparklesIcon className="h-5 w-5" />
+                  <p className="text-xs uppercase tracking-[0.3em]">Step 0</p>
+                </div>
+                <h2 className="mt-2 text-2xl font-black">Scratch Onchain</h2>
+                <p className="mt-3 text-sm leading-7 text-base-content/70">
+                  The scratch transaction assigns the encrypted reward handle and locks the ticket before decryption.
+                </p>
+
+                <button
+                  className="btn btn-primary mt-5 w-full"
+                  disabled={!canScratchTicket || isScratchPending}
+                  onClick={() => scratchMutation.mutate()}
+                >
+                  {isScratchPending ? "Scratching..." : "Scratch Ticket"}
+                </button>
+
+                {!isOwner ? (
+                  <p className="mt-3 text-xs leading-6 text-warning">
+                    Only the current ticket owner can scratch this ticket.
+                  </p>
+                ) : ticket.status === "Unscratched" ? null : (
+                  <div className="mt-4 rounded-xl border border-success/20 bg-success/10 p-4 text-sm text-success">
+                    Ticket status is {ticket.status}.
+                  </div>
+                )}
+              </article>
+
               <article className="rounded-[1.75rem] border border-base-300 bg-base-100/85 p-6 shadow-xl">
                 <p className="text-xs uppercase tracking-[0.3em] text-secondary">Step 1</p>
                 <h2 className="mt-2 text-2xl font-black">Reveal Authorization</h2>
@@ -158,15 +204,13 @@ export const TicketRevealWorkspace = ({ ticketId }: { ticketId: string }) => {
 
                 <button
                   className="btn btn-primary mt-5 w-full"
-                  disabled={!isOwner || revealAuthMutation.isPending}
+                  disabled={!canRequestRevealAuth || revealAuthMutation.isPending}
                   onClick={() => revealAuthMutation.mutate()}
                 >
                   {revealAuthMutation.isPending ? "Authorizing..." : "Request Reveal Auth"}
                 </button>
-                {!isOwner && (
-                  <p className="mt-3 text-xs leading-6 text-warning">
-                    Only the current ticket owner can request reveal authorization.
-                  </p>
+                {revealAuthDisabledReason && (
+                  <p className="mt-3 text-xs leading-6 text-warning">{revealAuthDisabledReason}</p>
                 )}
                 {revealAuth && (
                   <div className="mt-4 rounded-xl border border-success/20 bg-success/10 p-4 text-sm text-success">
@@ -205,13 +249,41 @@ export const TicketRevealWorkspace = ({ ticketId }: { ticketId: string }) => {
                 )}
 
                 {decryptionResult && (
-                  <div className="mt-4 rounded-xl border border-success/20 bg-success/10 p-4">
-                    <p className="text-xs uppercase tracking-[0.3em] text-success">Decrypted Reward</p>
-                    <p className="mt-2 text-3xl font-black text-success">
+                  <div
+                    className={`mt-4 rounded-xl border p-4 ${
+                      decryptionResult.clearRewardAmount === 0n
+                        ? "border-warning/25 bg-warning/10"
+                        : "border-success/20 bg-success/10"
+                    }`}
+                  >
+                    <p
+                      className={`text-xs uppercase tracking-[0.3em] ${
+                        decryptionResult.clearRewardAmount === 0n ? "text-warning" : "text-success"
+                      }`}
+                    >
+                      Decrypted Reward
+                    </p>
+                    <p
+                      className={`mt-2 text-3xl font-black ${
+                        decryptionResult.clearRewardAmount === 0n ? "text-warning" : "text-success"
+                      }`}
+                    >
                       {decryptionResult.clearRewardAmount.toString()}
                     </p>
-                    <p className="mt-2 text-xs uppercase tracking-[0.3em] text-success/80">Claim proof ready</p>
-                    <p className="mt-2 break-all text-xs text-success/80">{decryptionResult.rewardHandle}</p>
+                    <p
+                      className={`mt-2 text-xs uppercase tracking-[0.3em] ${
+                        decryptionResult.clearRewardAmount === 0n ? "text-warning/80" : "text-success/80"
+                      }`}
+                    >
+                      {decryptionResult.clearRewardAmount === 0n ? "No claim needed" : "Claim proof ready"}
+                    </p>
+                    <p
+                      className={`mt-2 break-all text-xs ${
+                        decryptionResult.clearRewardAmount === 0n ? "text-warning/80" : "text-success/80"
+                      }`}
+                    >
+                      {decryptionResult.rewardHandle}
+                    </p>
                   </div>
                 )}
               </article>

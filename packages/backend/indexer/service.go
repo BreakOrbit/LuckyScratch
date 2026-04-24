@@ -420,6 +420,7 @@ type decodedEvent struct {
 	RoundID      int64
 	TicketID     int64
 	UserAddress  string
+	ClaimAmount  int64
 	Payload      map[string]any
 }
 
@@ -478,6 +479,10 @@ func (s Service) decodeLog(deployment contracts.Deployment, logEntry types.Log) 
 		result.Event.TicketID = topicUint64(logEntry.Topics[2])
 		result.Event.PoolID = topicUint64(logEntry.Topics[3])
 		result.Event.RoundID = asUint64(out[0])
+		if len(out) > 1 {
+			result.Event.ClaimAmount = asUint64(out[1])
+			result.Event.Payload["clearRewardAmount"] = bigToString(out[1])
+		}
 	case "CreatorProfitWithdrawn":
 		result.Event.PoolID = topicUint64(logEntry.Topics[1])
 		result.Event.UserAddress = topicAddress(logEntry.Topics[2]).Hex()
@@ -570,7 +575,10 @@ func (s Service) applyEvent(ctx context.Context, decoded decodedLog) error {
 		}
 		return s.syncRound(ctx, uint64(decoded.Event.PoolID), uint64(decoded.Event.RoundID), eventContext(decoded.Event.context()), nil, nil)
 	case "RewardClaimed":
-		amount, _ := s.extractClaimAmount(ctx, decoded.Event.TxHash, uint64(decoded.Event.TicketID))
+		amount := decoded.Event.ClaimAmount
+		if amount == 0 {
+			amount, _ = s.extractClaimAmount(ctx, decoded.Event.TxHash, uint64(decoded.Event.TicketID))
+		}
 		if err := s.syncTicket(ctx, uint64(decoded.Event.TicketID), eventContext(decoded.Event.context()), decoded.Event.UserAddress, amount); err != nil {
 			return err
 		}

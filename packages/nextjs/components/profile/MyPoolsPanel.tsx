@@ -2,11 +2,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 import { BanknotesIcon, MagnifyingGlassIcon, PlusCircleIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { useLuckyScratchCreatorSummary, useLuckyScratchPools } from "~~/hooks/luckyScratch/useLuckyScratchQueries";
+import { useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 import { formatPercentFromBps, formatUsdcFromMicro, fromMicroUsdc } from "~~/services/luckyScratch/poolMath";
 import type { LuckyScratchPool } from "~~/services/luckyScratch/types";
+import { notification } from "~~/utils/scaffold-eth";
 
 const summaryCardClassName =
   "rounded-2xl border border-white/10 bg-[#141B2C] p-5 shadow-[0_24px_60px_rgba(0,0,0,0.28)]";
@@ -48,6 +51,21 @@ const poolSubtitle = (pool: LuckyScratchPool) => {
   return `Pool #${pool.poolId} • Round ${pool.currentRound || 1} • ${status}`;
 };
 
+type PoolAction = "withdraw-profit" | "refund-bond" | "close-pool" | "roll-round";
+
+const poolActionLabel = (action: PoolAction) => {
+  switch (action) {
+    case "withdraw-profit":
+      return "Withdraw Profit";
+    case "refund-bond":
+      return "Refund Bond";
+    case "close-pool":
+      return "Close Pool";
+    case "roll-round":
+      return "Roll Round";
+  }
+};
+
 type SummaryCardProps = {
   label: string;
   value: string;
@@ -64,11 +82,73 @@ const SummaryCard = ({ label, value, caption }: SummaryCardProps) => (
 
 export function MyPoolsPanel() {
   const { address } = useAccount();
+  const queryClient = useQueryClient();
+  const { writeContractAsync, isMining } = useScaffoldWriteContract({ contractName: "LuckyScratchCore" });
   const [query, setQuery] = useState("");
   const [selectedPool, setSelectedPool] = useState<LuckyScratchPool | null>(null);
 
   const { data: summary, isLoading: summaryLoading } = useLuckyScratchCreatorSummary(address);
   const { data: poolsResponse, isLoading: poolsLoading, isError, error } = useLuckyScratchPools(address);
+  const poolActionMutation = useMutation({
+    mutationFn: async ({ pool, action }: { pool: LuckyScratchPool; action: PoolAction }) => {
+      if (!address) {
+        throw new Error("Connect your wallet before managing creator pools.");
+      }
+
+      if (action === "withdraw-profit") {
+        if (pool.claimableCreatorProfit <= 0) {
+          throw new Error("This pool has no claimable creator profit.");
+        }
+        return writeContractAsync({
+          functionName: "withdrawCreatorProfit",
+          args: [BigInt(pool.poolId), BigInt(pool.claimableCreatorProfit)],
+        });
+      }
+
+      if (action === "refund-bond") {
+        if (pool.status !== "Closed" || pool.lockedBond <= 0) {
+          throw new Error("Bond refund is only available after the pool is closed.");
+        }
+        return writeContractAsync({
+          functionName: "refundBond",
+          args: [BigInt(pool.poolId)],
+        });
+      }
+
+      if (action === "close-pool") {
+        if (pool.status === "Closed" || pool.closeRequested) {
+          throw new Error("This pool is already closed or closing.");
+        }
+        return writeContractAsync({
+          functionName: "closePool",
+          args: [BigInt(pool.poolId)],
+        });
+      }
+
+      if (pool.mode !== "Loop" || pool.currentRoundState?.status !== "Settled" || pool.closeRequested) {
+        throw new Error("This loop pool is not ready to roll.");
+      }
+      return writeContractAsync({
+        functionName: "rollToNextRound",
+        args: [BigInt(pool.poolId)],
+      });
+    },
+    onSuccess: async (_result, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["readContract"] }),
+        queryClient.invalidateQueries({ queryKey: ["lucky-scratch", "pools", address?.toLowerCase() || "all"] }),
+        queryClient.invalidateQueries({ queryKey: ["lucky-scratch", "pools", String(variables.pool.poolId)] }),
+        queryClient.invalidateQueries({
+          queryKey: ["lucky-scratch", "users", address?.toLowerCase(), "created-pools", "summary"],
+        }),
+      ]);
+      setSelectedPool(null);
+      notification.success(`${poolActionLabel(variables.action)} transaction submitted.`);
+    },
+    onError: error => {
+      notification.error(error instanceof Error ? error.message : "Pool action failed.");
+    },
+  });
 
   const pools =
     poolsResponse?.items.filter(pool => {
@@ -183,6 +263,12 @@ export function MyPoolsPanel() {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         {pools.map(pool => {
           const progress = roundProgress(pool);
+          const actionPending = poolActionMutation.isPending || isMining;
+          const canWithdrawProfit = pool.claimableCreatorProfit > 0;
+          const canRefundBond = pool.status === "Closed" && pool.lockedBond > 0;
+          const canClosePool = pool.status !== "Closed" && !pool.closeRequested;
+          const canRollRound =
+            pool.mode === "Loop" && pool.currentRoundState?.status === "Settled" && !pool.closeRequested;
           return (
             <article
               key={pool.poolId}
@@ -270,6 +356,38 @@ export function MyPoolsPanel() {
                 </div>
 
                 <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    disabled={!canWithdrawProfit || actionPending}
+                    onClick={() => poolActionMutation.mutate({ pool, action: "withdraw-profit" })}
+                    className="inline-flex items-center gap-2 rounded-xl border border-[#FFD66D]/30 bg-[#2A2312] px-4 py-3 text-sm font-bold text-[#FFD66D] transition disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Withdraw Profit
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!canRollRound || actionPending}
+                    onClick={() => poolActionMutation.mutate({ pool, action: "roll-round" })}
+                    className="inline-flex items-center rounded-xl border border-white/10 px-4 py-3 text-sm font-bold text-[#DCE2F9] transition hover:border-[#FFD700]/30 hover:text-[#FFD66D] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Roll Round
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!canClosePool || actionPending}
+                    onClick={() => poolActionMutation.mutate({ pool, action: "close-pool" })}
+                    className="inline-flex items-center rounded-xl border border-white/10 px-4 py-3 text-sm font-bold text-[#DCE2F9] transition hover:border-[#FFD700]/30 hover:text-[#FFD66D] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Close Pool
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!canRefundBond || actionPending}
+                    onClick={() => poolActionMutation.mutate({ pool, action: "refund-bond" })}
+                    className="inline-flex items-center rounded-xl border border-white/10 px-4 py-3 text-sm font-bold text-[#DCE2F9] transition hover:border-[#FFD700]/30 hover:text-[#FFD66D] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Refund Bond
+                  </button>
                   <button
                     type="button"
                     onClick={() => setSelectedPool(pool)}

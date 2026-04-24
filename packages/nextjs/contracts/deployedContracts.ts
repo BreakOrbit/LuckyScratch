@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-eth/contract";
 const deployedContracts = {
   11155111: {
     LuckyScratchCore: {
-      address: "0x9E8D942f9A90D77b2c42B6e7d521494C7CbC25e2",
+      address: "0x5D9cB7000deF1E5E03fb470Ae9AAc5EeAD6b970e",
       abi: [
         {
           inputs: [
@@ -544,6 +544,12 @@ const deployedContracts = {
               internalType: "uint256",
               name: "roundId",
               type: "uint256",
+            },
+            {
+              indexed: false,
+              internalType: "uint64",
+              name: "clearRewardAmount",
+              type: "uint64",
             },
           ],
           name: "RewardClaimed",
@@ -1742,10 +1748,10 @@ const deployedContracts = {
         setTreasury: "contracts/luckyScratch/interfaces/ILuckyScratchCore.sol",
         setVrfAdapter: "contracts/luckyScratch/interfaces/ILuckyScratchCore.sol",
       },
-      deployedOnBlock: 10708637,
+      deployedOnBlock: 10720023,
     },
     LuckyScratchTicket: {
-      address: "0xCCf6eD4d3f9f3420F71ca2351CD67a6f672EBd7e",
+      address: "0x7e0561798bc105e3861e74AfE0C4CB86B4b49b16",
       abi: [
         {
           inputs: [
@@ -2390,10 +2396,10 @@ const deployedContracts = {
         setCore: "contracts/luckyScratch/interfaces/ILuckyScratchTicket.sol",
         setTransferLocked: "contracts/luckyScratch/interfaces/ILuckyScratchTicket.sol",
       },
-      deployedOnBlock: 10708634,
+      deployedOnBlock: 10720020,
     },
     LuckyScratchTreasury: {
-      address: "0xcCDfBEF5A0a6ba1F2af4190Ef77d1F653c010979",
+      address: "0x60c95eaC49516F88371eF984a7e1c1dB3de18E31",
       abi: [
         {
           inputs: [
@@ -2720,10 +2726,10 @@ const deployedContracts = {
         token: "contracts/luckyScratch/interfaces/ILuckyScratchTreasury.sol",
         withdrawCreatorProfit: "contracts/luckyScratch/interfaces/ILuckyScratchTreasury.sol",
       },
-      deployedOnBlock: 10708635,
+      deployedOnBlock: 10720021,
     },
     LuckyScratchVRFAdapter: {
-      address: "0xD4F1DfeB83a1C745a5b704C1030A91b4f9b0dc0c",
+      address: "0x92084E7624b410eCf1f6e6E6878b981c1606b4c4",
       abi: [
         {
           inputs: [
@@ -3100,7 +3106,7 @@ const deployedContracts = {
         requestRandomness: "contracts/luckyScratch/interfaces/ILuckyScratchVRFAdapter.sol",
         setCore: "contracts/luckyScratch/interfaces/ILuckyScratchVRFAdapter.sol",
       },
-      deployedOnBlock: 10708636,
+      deployedOnBlock: 10720022,
     },
   },
 } as const;

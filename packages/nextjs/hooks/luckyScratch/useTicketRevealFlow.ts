@@ -60,9 +60,16 @@ export const useTicketRevealFlow = (ticketId: string) => {
     clearTicketSession,
   } = useFhevmRuntime();
   const {
-    writeContractAsync,
+    writeContractAsync: writeClaimContractAsync,
     isPending: isClaimPending,
     isMining: isClaimMining,
+  } = useScaffoldWriteContract({
+    contractName: "LuckyScratchCore",
+  });
+  const {
+    writeContractAsync: writeScratchContractAsync,
+    isPending: isScratchPending,
+    isMining: isScratchMining,
   } = useScaffoldWriteContract({
     contractName: "LuckyScratchCore",
   });
@@ -77,6 +84,37 @@ export const useTicketRevealFlow = (ticketId: string) => {
     setDecryptProgress("");
     clearTicketSession(ticketId);
   }, [clearTicketSession, ticketId]);
+
+  const scratchMutation = useMutation({
+    mutationFn: async () => {
+      if (!address) {
+        throw new Error("Connect your wallet before scratching this ticket.");
+      }
+
+      return writeScratchContractAsync({
+        functionName: "scratchTicket",
+        args: [BigInt(ticketId)],
+      });
+    },
+    onSuccess: async () => {
+      setRevealAuth(null);
+      setDecryptionResult(null);
+      setDecryptProgress("");
+      clearTicketSession(ticketId);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["readContract"] }),
+        queryClient.invalidateQueries({ queryKey: ["lucky-scratch", "tickets", ticketId] }),
+        queryClient.invalidateQueries({ queryKey: ["lucky-scratch", "tickets", ticketId, "claim-precheck"] }),
+        ...(address
+          ? [queryClient.invalidateQueries({ queryKey: ["lucky-scratch", "users", address.toLowerCase(), "tickets"] })]
+          : []),
+      ]);
+      notification.success("Scratch transaction submitted.");
+    },
+    onError: error => {
+      notification.error(toErrorMessage(error));
+    },
+  });
 
   const revealAuthMutation = useMutation({
     mutationFn: async () => {
@@ -180,6 +218,16 @@ export const useTicketRevealFlow = (ticketId: string) => {
       }
 
       const clearRewardAmount = toBigIntValue(clearRewardValue, "User decrypt reward");
+      if (clearRewardAmount === 0n) {
+        setDecryptProgress("Reward decrypted for the owner. This ticket has no claimable reward.");
+        return {
+          clearRewardAmount,
+          decryptionProof: "0x",
+          rewardHandle,
+          publicKey: keypair.publicKey,
+          signature,
+        } satisfies RevealDecryptionResult;
+      }
 
       setDecryptProgress("Reward decrypted for the owner. Fetching the public claim proof for onchain verification.");
       const publicDecrypt = await instance.publicDecrypt([rewardHandle]);
@@ -206,7 +254,11 @@ export const useTicketRevealFlow = (ticketId: string) => {
     },
     onSuccess: result => {
       setDecryptionResult(result);
-      notification.success("Ticket reward decrypted and claim proof prepared.");
+      notification.success(
+        result.clearRewardAmount === 0n
+          ? "Ticket reward decrypted. This ticket has no claimable reward."
+          : "Ticket reward decrypted and claim proof prepared.",
+      );
     },
     onError: error => {
       notification.error(toErrorMessage(error));
@@ -219,7 +271,11 @@ export const useTicketRevealFlow = (ticketId: string) => {
         throw new Error("Decrypt the reward before submitting the claim transaction.");
       }
 
-      return writeContractAsync({
+      if (decryptionResult.clearRewardAmount === 0n) {
+        throw new Error("This ticket has no reward to claim.");
+      }
+
+      return writeClaimContractAsync({
         functionName: "claimReward",
         args: [BigInt(ticketId), decryptionResult.clearRewardAmount, decryptionResult.decryptionProof],
       });
@@ -247,6 +303,9 @@ export const useTicketRevealFlow = (ticketId: string) => {
     if (!decryptionResult) {
       return "Decrypt the reward first.";
     }
+    if (decryptionResult.clearRewardAmount === 0n) {
+      return "This ticket has no reward to claim.";
+    }
     return null;
   }, [decryptionResult]);
 
@@ -256,11 +315,13 @@ export const useTicketRevealFlow = (ticketId: string) => {
     runtimeStatus,
     runtimeError,
     revealAuth,
+    scratchMutation,
     revealAuthMutation,
     decryptMutation,
     claimMutation,
     decryptProgress,
     decryptionResult,
+    isScratchPending: scratchMutation.isPending || isScratchPending || isScratchMining,
     isClaimPending: isClaimPending || isClaimMining,
     claimDisabledReason,
   };

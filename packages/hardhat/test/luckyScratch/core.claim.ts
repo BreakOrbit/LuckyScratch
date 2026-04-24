@@ -33,9 +33,13 @@ describe("LuckyScratchClaim", function () {
 
     const winnerBalanceBefore = await deployed.token.balanceOf(deployed.alice.address);
     const winningClaim = await buildClaimProof(deployed, winningTicketId);
-    await deployed.core
-      .connect(deployed.alice)
-      .claimReward(winningTicketId, winningClaim.clearReward, winningClaim.decryptionProof);
+    await expect(
+      deployed.core
+        .connect(deployed.alice)
+        .claimReward(winningTicketId, winningClaim.clearReward, winningClaim.decryptionProof),
+    )
+      .to.emit(deployed.core, "RewardClaimed")
+      .withArgs(deployed.alice.address, winningTicketId, 1n, 1n, winningClaim.clearReward);
 
     const winnerBalanceAfter = await deployed.token.balanceOf(deployed.alice.address);
     expect(winnerBalanceAfter - winnerBalanceBefore).to.equal(winningClaim.clearReward);

@@ -74,7 +74,13 @@ contract LuckyScratchCore is AccessControl, ReentrancyGuard, Pausable, ZamaEther
         uint256 ticketId,
         bool revealAuthorized
     );
-    event RewardClaimed(address indexed user, uint256 indexed ticketId, uint256 indexed poolId, uint256 roundId);
+    event RewardClaimed(
+        address indexed user,
+        uint256 indexed ticketId,
+        uint256 indexed poolId,
+        uint256 roundId,
+        uint64 clearRewardAmount
+    );
     event CreatorProfitWithdrawn(uint256 indexed poolId, address indexed creator, uint256 amount);
     event BondRefunded(uint256 indexed poolId, address indexed creator, uint256 amount);
     event PoolClosed(uint256 indexed poolId);
@@ -517,7 +523,7 @@ contract LuckyScratchCore is AccessControl, ReentrancyGuard, Pausable, ZamaEther
 
         ILuckyScratchTreasury(treasury).payoutReward(user, ticketData.poolId, clearRewardAmount);
         _maybeSettleRound(ticketData.poolId, ticketData.roundId);
-        emit RewardClaimed(user, ticketId, ticketData.poolId, ticketData.roundId);
+        emit RewardClaimed(user, ticketId, ticketData.poolId, ticketData.roundId, clearRewardAmount);
     }
 
     function _requireDependenciesConfigured() internal view {
@@ -553,9 +559,19 @@ contract LuckyScratchCore is AccessControl, ReentrancyGuard, Pausable, ZamaEther
             revert InvalidPoolConfig();
         }
 
-        if (!PoolMathLib.validatePrizeBudget(tiers, config.totalTicketsPerRound, config.totalPrizeBudget)) {
+        (bool budgetValid, bool metricsValid) = PoolMathLib.validatePrizeEconomics(
+            tiers,
+            config.totalTicketsPerRound,
+            config.ticketPrice,
+            config.totalPrizeBudget,
+            config.hitRateBps,
+            config.targetRtpBps,
+            config.maxPrize
+        );
+        if (!budgetValid) {
             revert InvalidPrizeTiers();
         }
+        if (!metricsValid) revert InvalidPoolConfig();
     }
 
     function _mintTicketForIndex(

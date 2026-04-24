@@ -8,20 +8,53 @@ library PoolMathLib {
     uint64 internal constant SMALL_POOL_BUDGET_MAX = 200_000_000;
     uint64 internal constant MEDIUM_POOL_BUDGET_MAX = 500_000_000;
 
-    function validatePrizeBudget(
+    function validatePrizeEconomics(
         PrizeTierInput[] calldata tiers,
         uint32 totalTickets,
-        uint64 expectedBudget
-    ) internal pure returns (bool) {
+        uint64 ticketPrice,
+        uint64 expectedBudget,
+        uint16 expectedHitRateBps,
+        uint16 expectedRtpBps,
+        uint64 expectedMaxPrize
+    ) internal pure returns (bool budgetValid, bool metricsValid) {
         uint256 ticketCount;
         uint256 budget;
+        uint256 positivePrizeCount;
+        uint64 maxPrize;
 
         for (uint256 i = 0; i < tiers.length; i++) {
-            ticketCount += tiers[i].count;
-            budget += uint256(tiers[i].prizeAmount) * uint256(tiers[i].count);
+            PrizeTierInput calldata tier = tiers[i];
+            if (tier.count == 0) {
+                return (false, false);
+            }
+
+            ticketCount += tier.count;
+            budget += uint256(tier.prizeAmount) * uint256(tier.count);
+
+            if (tier.prizeAmount > 0) {
+                positivePrizeCount += tier.count;
+                if (tier.prizeAmount > maxPrize) {
+                    maxPrize = tier.prizeAmount;
+                }
+            }
         }
 
-        return ticketCount == totalTickets && budget == expectedBudget;
+        if (ticketCount != totalTickets || budget != expectedBudget || maxPrize == 0) {
+            return (false, false);
+        }
+
+        uint256 grossRevenue = uint256(ticketPrice) * ticketCount;
+        if (grossRevenue == 0) {
+            return (true, false);
+        }
+
+        uint256 derivedHitRateBps = ((positivePrizeCount * BPS_DENOMINATOR) + (ticketCount / 2)) / ticketCount;
+        uint256 derivedRtpBps = ((budget * BPS_DENOMINATOR) + (grossRevenue / 2)) / grossRevenue;
+
+        return (
+            true,
+            maxPrize == expectedMaxPrize && derivedHitRateBps == expectedHitRateBps && derivedRtpBps == expectedRtpBps
+        );
     }
 
     function computeBondRequirement(uint64 totalPrizeBudget) internal pure returns (uint64) {

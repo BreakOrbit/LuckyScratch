@@ -3,13 +3,16 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useQueries } from "@tanstack/react-query";
+import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
+import { useAccount } from "wagmi";
 import { ArrowLeftIcon, ArrowTopRightOnSquareIcon, SparklesIcon, TicketIcon } from "@heroicons/react/24/outline";
 import { TicketRevealWorkspace } from "~~/components/luckyScratch/TicketRevealWorkspace";
 import { useLuckyScratchPool } from "~~/hooks/luckyScratch/useLuckyScratchQueries";
+import { useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 import { luckyScratchAPI } from "~~/services/luckyScratch/api";
 import { formatPercentFromBps, formatUsdcFromMicro } from "~~/services/luckyScratch/poolMath";
 import type { LuckyScratchTicket } from "~~/services/luckyScratch/types";
+import { notification } from "~~/utils/scaffold-eth";
 
 type ScratchPageProps = {
   poolId: string;
@@ -43,6 +46,11 @@ const ticketStatusClassName = (status: string) => {
 
 export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
   const searchParams = useSearchParams();
+  const { address } = useAccount();
+  const queryClient = useQueryClient();
+  const { writeContractAsync, isMining: isBatchScratchMining } = useScaffoldWriteContract({
+    contractName: "LuckyScratchCore",
+  });
   const ticketIds = useMemo(() => {
     const raw = searchParams.get("tickets") || "";
     return [
@@ -63,6 +71,44 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
       enabled: Boolean(ticketId),
     })),
   });
+  const ticketItems = ticketQueries
+    .map(query => query.data)
+    .filter((ticket): ticket is LuckyScratchTicket => Boolean(ticket));
+  const scratchableTicketIds = ticketItems
+    .filter(
+      ticket =>
+        ticket.status === "Unscratched" && Boolean(address && ticket.owner.toLowerCase() === address.toLowerCase()),
+    )
+    .map(ticket => String(ticket.ticketId));
+  const batchScratchMutation = useMutation({
+    mutationFn: async () => {
+      if (!address) {
+        throw new Error("Connect your wallet before scratching tickets.");
+      }
+      if (scratchableTicketIds.length === 0) {
+        throw new Error("No owned unscratched tickets are ready for batch scratch.");
+      }
+
+      return writeContractAsync({
+        functionName: "batchScratch",
+        args: [scratchableTicketIds.map(ticketId => BigInt(ticketId))],
+      });
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["readContract"] }),
+        queryClient.invalidateQueries({ queryKey: ["lucky-scratch", "pools", poolId] }),
+        queryClient.invalidateQueries({ queryKey: ["lucky-scratch", "users", address?.toLowerCase(), "tickets"] }),
+        ...scratchableTicketIds.map(ticketId =>
+          queryClient.invalidateQueries({ queryKey: ["lucky-scratch", "tickets", ticketId] }),
+        ),
+      ]);
+      notification.success("Batch scratch transaction submitted.");
+    },
+    onError: error => {
+      notification.error(error instanceof Error ? error.message : "Batch scratch failed.");
+    },
+  });
 
   if (ticketIds.length === 1) {
     return <TicketRevealWorkspace ticketId={ticketIds[0]} />;
@@ -71,9 +117,7 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
   const pool = poolQuery.data;
   const isLoadingTickets = ticketQueries.some(query => query.isLoading);
   const hasTicketError = ticketQueries.find(query => query.isError);
-  const ticketItems = ticketQueries
-    .map(query => query.data)
-    .filter((ticket): ticket is LuckyScratchTicket => Boolean(ticket));
+  const isBatchScratchPending = batchScratchMutation.isPending || isBatchScratchMining;
 
   return (
     <div className="min-h-screen bg-[#0C1323] font-body text-[#DCE2F9]">
@@ -129,6 +173,17 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
                 <SparklesIcon className="h-5 w-5" />
                 Buy more tickets
               </Link>
+              {ticketItems.length > 0 ? (
+                <button
+                  type="button"
+                  disabled={scratchableTicketIds.length === 0 || isBatchScratchPending}
+                  onClick={() => batchScratchMutation.mutate()}
+                  className="inline-flex items-center gap-2 rounded-xl border border-[#FFD66D]/35 bg-[#2A2312] px-4 py-3 text-sm font-bold text-[#FFD66D] transition disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <SparklesIcon className="h-5 w-5" />
+                  {isBatchScratchPending ? "Scratching..." : `Scratch Ready Tickets (${scratchableTicketIds.length})`}
+                </button>
+              ) : null}
             </div>
           </div>
 

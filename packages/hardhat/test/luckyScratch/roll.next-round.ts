@@ -1,15 +1,6 @@
 import { expect } from "chai";
 import { fhevm } from "hardhat";
-import {
-  approveAndPurchase,
-  buildPoolConfig,
-  buildWinningClaims,
-  computeBondRequirement,
-  createPool,
-  deployLuckyScratchFixture,
-  fulfillRound,
-  UNIT,
-} from "./helpers";
+import { approveAndPurchase, buildWinningClaims, createPool, deployLuckyScratchFixture, fulfillRound } from "./helpers";
 
 describe("LuckyScratchRollNextRound", function () {
   beforeEach(function () {
@@ -52,27 +43,9 @@ describe("LuckyScratchRollNextRound", function () {
     expect(nextRound.status).to.equal(1);
   });
 
-  it("moves loop pools into Closing when next-round funds are insufficient", async function () {
+  it("keeps loop pools rollable after claimable creator profit is withdrawn", async function () {
     const deployed = await deployLuckyScratchFixture();
-    const config = buildPoolConfig({
-      creator: deployed.creator.address,
-      mode: 1,
-      ticketPrice: 5n * UNIT,
-      totalPrizeBudget: 100n * UNIT,
-      targetRtpBps: 5000,
-      hitRateBps: 4000,
-      maxPrize: 30n * UNIT,
-    });
-    const tiers = [
-      { prizeAmount: 30n * UNIT, count: 2 },
-      { prizeAmount: 20n * UNIT, count: 2 },
-      { prizeAmount: 0n, count: 6 },
-    ];
-
-    await deployed.token
-      .connect(deployed.creator)
-      .approve(await deployed.treasury.getAddress(), computeBondRequirement(config.totalPrizeBudget));
-    await deployed.core.connect(deployed.creator).createPool(config, tiers);
+    await createPool(deployed, { mode: 1 });
     await fulfillRound(deployed);
 
     const ticketIds = await approveAndPurchase(deployed, deployed.alice, 10);
@@ -83,9 +56,15 @@ describe("LuckyScratchRollNextRound", function () {
       positiveClaims.map(item => item.amount),
       positiveClaims.map(item => item.proof),
     );
+
+    const claimableProfit = await deployed.core.claimableCreatorProfit(1n);
+    expect(claimableProfit).to.be.greaterThan(0n);
+    await deployed.core.connect(deployed.creator).withdrawCreatorProfit(1n, claimableProfit);
+
     await deployed.core.connect(deployed.creator).rollToNextRound(1n);
 
     const state = await deployed.core.poolStates(1n);
-    expect(state.status).to.equal(3);
+    expect(state.currentRound).to.equal(2);
+    expect(state.status).to.equal(0);
   });
 });

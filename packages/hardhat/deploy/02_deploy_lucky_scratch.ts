@@ -31,6 +31,13 @@ const VRF_BY_NETWORK: Record<string, VrfNetworkConfig> = {
   },
 };
 
+const LUCKY_SCRATCH_CONTRACT_NAMES = [
+  "LuckyScratchTicket",
+  "LuckyScratchTreasury",
+  "LuckyScratchVRFAdapter",
+  "LuckyScratchCore",
+] as const;
+
 function parseBooleanEnv(value: string | undefined, defaultValue: boolean): boolean {
   if (value == null || value === "") return defaultValue;
   const normalized = value.trim().toLowerCase();
@@ -59,12 +66,28 @@ function getSubscriptionId(networkName: string): bigint {
   return BigInt(rawValue);
 }
 
+async function deleteLuckyScratchDeploymentRecords(hre: HardhatRuntimeEnvironment) {
+  const { delete: deleteDeployment, getOrNull, log } = hre.deployments;
+
+  for (const contractName of LUCKY_SCRATCH_CONTRACT_NAMES) {
+    const existing = await getOrNull(contractName);
+    if (!existing) {
+      continue;
+    }
+
+    await deleteDeployment(contractName);
+    log(`Deleted local deployment record for ${contractName} at ${existing.address}; redeploying fresh.`);
+  }
+}
+
 const deployLuckyScratch: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deployer } = await hre.getNamedAccounts();
-  const { deploy, execute, getOrNull, log } = hre.deployments;
+  const { deploy, execute, log } = hre.deployments;
   const networkName = hre.network.name;
   const paymentTokenAddress = CUSDC_BY_NETWORK[networkName];
   const vrfConfig = VRF_BY_NETWORK[networkName];
+  const reuseExistingDeployments = parseBooleanEnv(process.env.LUCKY_SCRATCH_REUSE_EXISTING, false);
+  const mainnetRedeployConfirmed = parseBooleanEnv(process.env.LUCKY_SCRATCH_FORCE_MAINNET_REDEPLOY, false);
 
   if (!paymentTokenAddress) {
     throw new Error(
@@ -74,6 +97,11 @@ const deployLuckyScratch: DeployFunction = async function (hre: HardhatRuntimeEn
   if (!vrfConfig) {
     throw new Error(
       `LuckyScratch deployment is only configured for networks with a Chainlink VRF coordinator. Supported networks: ${Object.keys(VRF_BY_NETWORK).join(", ")}.`,
+    );
+  }
+  if (networkName === "mainnet" && !reuseExistingDeployments && !mainnetRedeployConfirmed) {
+    throw new Error(
+      "LuckyScratch full redeploy is enabled by default, but mainnet requires LUCKY_SCRATCH_FORCE_MAINNET_REDEPLOY=true. Set LUCKY_SCRATCH_REUSE_EXISTING=true to keep existing mainnet deployments.",
     );
   }
 
@@ -87,46 +115,43 @@ const deployLuckyScratch: DeployFunction = async function (hre: HardhatRuntimeEn
   const keyHash = process.env.CHAINLINK_VRF_KEY_HASH ?? vrfConfig.keyHash;
   const coordinator = process.env.CHAINLINK_VRF_COORDINATOR ?? vrfConfig.coordinator;
 
-  const existingTicket = await getOrNull("LuckyScratchTicket");
-  const existingTreasury = await getOrNull("LuckyScratchTreasury");
-  const existingVrfAdapter = await getOrNull("LuckyScratchVRFAdapter");
-  const existingCore = await getOrNull("LuckyScratchCore");
+  if (reuseExistingDeployments) {
+    log("LuckyScratch deploy is reusing existing deployment records because LUCKY_SCRATCH_REUSE_EXISTING=true.");
+  } else {
+    await deleteLuckyScratchDeploymentRecords(hre);
+  }
 
-  const ticketDeployment = existingTicket
-    ? existingTicket
-    : await deploy("LuckyScratchTicket", {
-        from: deployer,
-        args: [deployer],
-        log: true,
-        autoMine: true,
-      });
+  const ticketDeployment = await deploy("LuckyScratchTicket", {
+    from: deployer,
+    args: [deployer],
+    log: true,
+    autoMine: true,
+    skipIfAlreadyDeployed: reuseExistingDeployments,
+  });
 
-  const treasuryDeployment = existingTreasury
-    ? existingTreasury
-    : await deploy("LuckyScratchTreasury", {
-        from: deployer,
-        args: [deployer, paymentTokenAddress],
-        log: true,
-        autoMine: true,
-      });
+  const treasuryDeployment = await deploy("LuckyScratchTreasury", {
+    from: deployer,
+    args: [deployer, paymentTokenAddress],
+    log: true,
+    autoMine: true,
+    skipIfAlreadyDeployed: reuseExistingDeployments,
+  });
 
-  const vrfDeployment = existingVrfAdapter
-    ? existingVrfAdapter
-    : await deploy("LuckyScratchVRFAdapter", {
-        from: deployer,
-        args: [deployer, coordinator, subscriptionId, keyHash, callbackGasLimit, requestConfirmations, nativePayment],
-        log: true,
-        autoMine: true,
-      });
+  const vrfDeployment = await deploy("LuckyScratchVRFAdapter", {
+    from: deployer,
+    args: [deployer, coordinator, subscriptionId, keyHash, callbackGasLimit, requestConfirmations, nativePayment],
+    log: true,
+    autoMine: true,
+    skipIfAlreadyDeployed: reuseExistingDeployments,
+  });
 
-  const coreDeployment = existingCore
-    ? existingCore
-    : await deploy("LuckyScratchCore", {
-        from: deployer,
-        args: [deployer],
-        log: true,
-        autoMine: true,
-      });
+  const coreDeployment = await deploy("LuckyScratchCore", {
+    from: deployer,
+    args: [deployer],
+    log: true,
+    autoMine: true,
+    skipIfAlreadyDeployed: reuseExistingDeployments,
+  });
 
   await execute("LuckyScratchTicket", { from: deployer, log: true, autoMine: true }, "setCore", coreDeployment.address);
   await execute(

@@ -218,11 +218,19 @@ export function CreatePoolPage() {
       notification.error("LuckyScratchCore deployment metadata is unavailable.");
       return;
     }
+    if (!approvalAvailable) {
+      notification.error("cUSDC contract or treasury metadata is unavailable on the current network.");
+      return;
+    }
     if (validationErrors.length > 0) {
       notification.error(validationErrors[0]);
       return;
     }
-    if (approvalAvailable && !approvalSatisfied) {
+    if (!balanceSufficient) {
+      notification.error("Your cUSDC balance is lower than the estimated creator bond.");
+      return;
+    }
+    if (!approvalSatisfied) {
       notification.error("Approve the estimated bond amount in cUSDC before creating the pool.");
       return;
     }
@@ -678,7 +686,9 @@ export function CreatePoolPage() {
                   isSubmitting ||
                   isMining ||
                   validationErrors.length > 0 ||
-                  (approvalAvailable && (!approvalSatisfied || !balanceSufficient))
+                  !approvalAvailable ||
+                  !approvalSatisfied ||
+                  !balanceSufficient
                 }
                 onClick={handleCreatePool}
                 className="mt-6 inline-flex w-full items-center justify-center gap-3 rounded-2xl bg-[linear-gradient(135deg,#ffd700_0%,#e9c400_60%,#ffe16d_100%)] px-5 py-4 font-headline text-lg font-bold text-[#705E00] transition disabled:cursor-not-allowed disabled:opacity-50"
