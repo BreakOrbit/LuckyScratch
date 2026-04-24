@@ -14,7 +14,7 @@ import { useAccount } from "wagmi";
 import { useLuckyScratchPurchaseContext } from "~~/hooks/luckyScratch/useLuckyScratchQueries";
 import { useDeployedContractInfo, useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 import { formatPercentFromBps, fromMicroUsdc } from "~~/services/luckyScratch/poolMath";
-import { notification } from "~~/utils/scaffold-eth";
+import { getParsedError, notification } from "~~/utils/scaffold-eth";
 
 type GamePhase = "selecting" | "authorizing" | "purchasing" | "purchased";
 
@@ -74,6 +74,8 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
 
   const purchaseContext = purchaseContextQuery.data;
   const pool = purchaseContext?.pool;
+  const currentRound = purchaseContext?.currentRound || pool?.currentRoundState;
+  const roundReady = Boolean(pool?.status === "Active" && pool?.initialized && currentRound?.status === "Ready");
   const totalAvailableTickets = purchaseContext?.availableTicketIndexes.length || 0;
   const availableIds = useMemo(
     () => (purchaseContext?.availableTicketIndexes || []).map(index => formatTicketDisplayId(index)),
@@ -132,6 +134,7 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
   const canSubmitPurchase =
     Boolean(address) &&
     Boolean(coreContract) &&
+    roundReady &&
     activeCount > 0 &&
     isGalleryReady &&
     operatorCheckAvailable &&
@@ -159,6 +162,10 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
     }
     if (!operatorCheckAvailable) {
       notification.error("cUSDC contract or treasury metadata is unavailable on the current network.");
+      return;
+    }
+    if (!roundReady) {
+      notification.error("This pool is waiting for VRF initialization before tickets can be purchased.");
       return;
     }
     if (!canSubmitPurchase) {
@@ -217,7 +224,7 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
         queryClient.invalidateQueries({ queryKey: ["lucky-scratch", "users", address.toLowerCase(), "tickets"] }),
       ]);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Ticket purchase failed.";
+      const message = getParsedError(error) || "Ticket purchase failed.";
       notification.error(message);
       setPhase("selecting");
     }
@@ -232,6 +239,7 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
     pool,
     poolId,
     queryClient,
+    roundReady,
     setOperatorAsync,
     treasuryContract,
     writeContractAsync,
@@ -271,13 +279,15 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
   const issuer = pool.protocolOwned ? "Official" : "Community";
   const statusHint = !address
     ? "Connect your wallet to authorize confidential cUSDC payments."
-    : !operatorCheckAvailable
-      ? "The current network does not expose cUSDC / treasury metadata to the frontend, so purchase is disabled."
-      : !operatorReady
-        ? "This action will authorize LuckyScratchTreasury as your cUSDC operator before purchasing."
-        : pool.selectable
-          ? "Manual and quick pick both submit the exact ticket indexes selected below. Payment uses confidential cUSDC."
-          : "This pool is not selectable, so the final on-chain ticket indexes are assigned automatically.";
+    : !roundReady
+      ? "This round is waiting for VRF initialization before ticket purchases can open."
+      : !operatorCheckAvailable
+        ? "The current network does not expose cUSDC / treasury metadata to the frontend, so purchase is disabled."
+        : !operatorReady
+          ? "This action will authorize LuckyScratchTreasury as your cUSDC operator before purchasing."
+          : pool.selectable
+            ? "Manual and quick pick both submit the exact ticket indexes selected below. Payment uses confidential cUSDC."
+            : "This pool is not selectable, so the final on-chain ticket indexes are assigned automatically.";
 
   return (
     <div className="relative min-h-screen bg-ns-background text-ns-on-surface font-body">
@@ -312,8 +322,8 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
             pool.metadata?.description ||
             "Pool detail is now sourced from backend read-model data and on-chain configuration."
           }
-          totalTickets={pool.currentRoundState?.totalTickets || pool.totalTicketsPerRound}
-          soldTickets={pool.currentRoundState?.soldCount || 0}
+          totalTickets={currentRound?.totalTickets || pool.totalTicketsPerRound}
+          soldTickets={currentRound?.soldCount || 0}
           coverImage={pool.metadata?.coverImageUrl}
           onGoBack={handleGoBack}
         />
@@ -328,7 +338,12 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
           </div>
         )}
 
-        {totalAvailableTickets === 0 ? (
+        {!roundReady ? (
+          <div className="rounded-3xl border border-[#8D6C1D] bg-[#493916]/30 p-8 text-center text-[#FFD66D]">
+            The current round is waiting for VRF initialization. Ticket purchases will open after randomness is
+            fulfilled.
+          </div>
+        ) : totalAvailableTickets === 0 ? (
           <div className="rounded-3xl border border-[#8D6C1D] bg-[#493916]/30 p-8 text-center text-[#FFD66D]">
             The current round is sold out. Wait for the next loop round or choose another pool.
           </div>
@@ -361,7 +376,7 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
           </div>
         )}
 
-        {phase === "selecting" && isGalleryReady && activeCount > 0 && (
+        {phase === "selecting" && roundReady && isGalleryReady && activeCount > 0 && (
           <CheckoutPanel
             selectedCount={activeCount}
             selectedIds={activeSelection}
