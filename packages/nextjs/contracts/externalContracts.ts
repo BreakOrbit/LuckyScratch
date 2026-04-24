@@ -31,8 +31,22 @@ const confidentialUsdcABI = [
       { internalType: "uint48", name: "until", type: "uint48" },
     ],
     name: "setOperator",
-    outputs: [{ internalType: "bool", name: "", type: "bool" }],
+    outputs: [],
     stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "underlying",
+    outputs: [{ internalType: "address", name: "", type: "address" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "rate",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
     type: "function",
   },
   {

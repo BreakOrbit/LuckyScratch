@@ -169,13 +169,11 @@ export function CusdcFaucetPage() {
         args: [address, amountMicro],
       });
 
-      if (!allowanceReady) {
-        setStage("Approving wrapper...");
-        await writeUnderlyingAsync({
-          functionName: "approve",
-          args: [cusdcContract.address, amountMicro],
-        });
-      }
+      setStage("Approving wrapper...");
+      await writeUnderlyingAsync({
+        functionName: "approve",
+        args: [cusdcContract.address, amountMicro],
+      });
 
       setStage("Wrapping into confidential cUSDC...");
       await writeCusdcAsync({
