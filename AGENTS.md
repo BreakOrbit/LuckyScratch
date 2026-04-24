@@ -35,7 +35,7 @@ This repository is currently running in **Hardhat flavor**.
 - Scaffold template example contracts and demo tasks have been removed; LuckyScratch is the only active contract suite
 - Deployment wiring lives in `packages/hardhat/deploy/02_deploy_lucky_scratch.ts`; by default the LuckyScratch deploy script deletes the local deployment records for the LuckyScratch contract set and redeploys fresh `LuckyScratchTicket`, `LuckyScratchTreasury`, `LuckyScratchVRFAdapter`, and `LuckyScratchCore` addresses instead of reusing previous artifacts
 - Contract tests for LuckyScratch live in `packages/hardhat/test/luckyScratch/`
-- Production deployment now targets real `cUSDC` addresses and real Chainlink VRF v2.5 network settings on supported networks such as Sepolia; no local mock token is deployed by the LuckyScratch deploy script
+- Production deployment now targets real Zama confidential `cUSDC` wrapper addresses and real Chainlink VRF v2.5 network settings on supported networks such as Sepolia; no local mock token is deployed by the LuckyScratch deploy script
 - `createPool` now applies the documented 6-decimal cUSDC bond schedule correctly (`50-200` => `+20%`, `201-500` => `+15%`, `501-2000` => `+10%`) and caps `totalTicketsPerRound` at `256` to bound VRF initialization cost
 - Ticket metadata in `LuckyScratchCore.tickets` is now slot-packed with `uint64` pool / round ids, and the claim path no longer maintains an unused encrypted lifetime-winnings accumulator
 - The homepage no longer exposes a scaffold demo contract panel; it is now a project status entry page
@@ -45,13 +45,14 @@ This repository is currently running in **Hardhat flavor**.
 - The homepage official and community pool cards now show `win rate` / `RTP` and `max prize` on the metadata row, while the purchase CTA appends the single-ticket price in parentheses
 - The homepage featured pool cards and store pool cards now route users into the purchase flow at `packages/nextjs/app/purchase/[poolId]/page.tsx`
 - `packages/nextjs/components/rankings/PoolRankingsPage.tsx` and `PlayerRankingsPage.tsx` now render live leaderboard data from the backend instead of podium / table demo arrays; pool rankings use indexed pool sales + hit-rate data, while player rankings aggregate claimed winning tickets
-- The purchase frontend now renders a live ticket-selection and checkout experience under `packages/nextjs/app/purchase/[poolId]/page.tsx` with the main body in `packages/nextjs/components/purchase/PurchasePage.tsx`; it reads backend purchase-context data, derives sold/available ticket indexes from the indexed round, checks live `cUSDC` balance/allowance, submits `approve` when needed, executes `LuckyScratchCore.purchaseTickets` / `purchaseTicketsWithSelection`, parses `TicketPurchased`, and routes minted ticket ids into the scratch flow
+- The purchase frontend now renders a live ticket-selection and checkout experience under `packages/nextjs/app/purchase/[poolId]/page.tsx` with the main body in `packages/nextjs/components/purchase/PurchasePage.tsx`; it reads backend purchase-context data, derives sold/available ticket indexes from the indexed round, checks whether `LuckyScratchTreasury` is a cUSDC operator, submits `setOperator` when needed, executes `LuckyScratchCore.purchaseTickets` / `purchaseTicketsWithSelection`, parses `TicketPurchased`, and routes minted ticket ids into the scratch flow
 - The scratch frontend now renders a live reveal handoff under `packages/nextjs/app/scratch/[poolId]/page.tsx` with the main body in `packages/nextjs/components/scratch/ScratchPage.tsx`; a single `ticketId` opens the real `TicketRevealWorkspace` with a wallet-driven `scratchTicket` step before reveal-auth, while batch mode reads backend ticket records for the provided ids and can submit `LuckyScratchCore.batchScratch` for owned unscratched tickets before linking each ticket into the real reveal/decrypt workspace instead of fabricating scratch outcomes
-- The create-pool frontend under `packages/nextjs/app/create-pool/page.tsx` / `packages/nextjs/components/create-pool/CreatePoolPage.tsx` now uses real LuckyScratch constraints (`256` ticket cap, supported ticket-price presets, RTP/hit-rate/max-prize validation), requires live `cUSDC` / treasury metadata before uploading backend draft assets, can read/approve live `cUSDC` allowance via `packages/nextjs/contracts/externalContracts.ts`, uploads cover/ticket artwork to the backend IPFS service, creates a backend metadata draft, calls `LuckyScratchCore.createPool`, parses `PoolCreated`, and finalizes pool metadata binding back through the backend
+- The create-pool frontend under `packages/nextjs/app/create-pool/page.tsx` / `packages/nextjs/components/create-pool/CreatePoolPage.tsx` now uses real LuckyScratch constraints (`256` ticket cap, supported ticket-price presets, RTP/hit-rate/max-prize validation), requires live `cUSDC` / treasury metadata before uploading backend draft assets, checks and submits confidential cUSDC operator authorization through `packages/nextjs/contracts/externalContracts.ts`, uploads cover/ticket artwork to the backend IPFS service, creates a backend metadata draft, calls `LuckyScratchCore.createPool`, parses `PoolCreated`, and finalizes pool metadata binding back through the backend
+- `packages/nextjs/app/faucet/page.tsx` now provides a Sepolia cUSDC faucet that mints Zama's public mock underlying USDC, approves and wraps it into confidential `cUSDCMock`, and can authorize `LuckyScratchTreasury` as the wallet's confidential cUSDC operator
 - The frontend public env template now lives in `packages/nextjs/.env.example`; `NEXT_PUBLIC_BACKEND_URL` controls backend API requests, `NEXT_PUBLIC_IPFS_GATEWAY_BASE_URL` can rewrite backend-returned Pinata/IPFS asset URLs for display, and `NEXT_PUBLIC_SEPOLIA_RPC_URL` overrides the Sepolia RPC used by wagmi plus the browser-side Zama relayer SDK
 - The default RainbowKit wallet list under `packages/nextjs/services/web3/wagmiConnectors.tsx` now excludes `Base Account`; the app currently surfaces MetaMask, WalletConnect, Ledger, Rainbow, Safe, and the optional burner wallet, which avoids Coinbase/Base telemetry-init warnings firing during homepage load
 - The wallet header wallet button uses the project primary yellow in both disconnected and connected states; wallet UX is Sepolia-first, the connected button shows only avatar plus short address, and wrong-network state only offers disconnect instead of in-app chain switching
-- The profile overview and left-side identity card now read wallet-indexed tickets, claimed wins, creator summary, and live `cUSDC` balance; the page no longer shows hard-coded profile numbers or addresses
+- The profile overview and left-side identity card now read wallet-indexed tickets, claimed wins, creator summary, and the wallet's confidential cUSDC balance handle; the page no longer shows hard-coded profile numbers or addresses
 - The profile frontend sidebar `Setting` action now renders a converted settings terminal panel from `doc/profile/user_profile_settings_terminal/code.html` via `packages/nextjs/components/profile/SettingsPanel.tsx`
 - The profile frontend sidebar `My Pools` action now reads creator-filtered pool data from the backend via `packages/nextjs/components/profile/MyPoolsPanel.tsx`; cards show real sales amount, platform fee, sold/total tickets, locked bond, and claimable creator profit, expose wallet-driven creator operations for profit withdrawal, loop round rolling, pool closing, and bond refund when the indexed state allows them, while the modal shows creator accounting line items instead of sold-winner totals the backend cannot source
 - The profile `My Pools` panel CTA now routes to `/create-pool`
@@ -202,7 +203,7 @@ yarn test
 Additional notes:
 
 - LuckyScratch tests are written against the Hardhat fhEVM mock environment
-- Tests use `packages/hardhat/contracts/test/TestUSDC.sol`; this test token is not part of the production deployment path
+- Tests use `packages/hardhat/contracts/test/TestConfidentialUSDC.sol`; this test-only confidential token is not part of the production deployment path
 - If contract size becomes a problem, check `packages/hardhat/hardhat.config.ts` before refactoring; the repo currently relies on optimizer + `viaIR`
 - Current gas optimization direction favors removing redundant storage writes and avoiding unnecessary memory copies in `LuckyScratchCore` rather than relaxing security or privacy constraints
 - Sepolia/mainnet deployment of `LuckyScratchVRFAdapter` requires `CHAINLINK_VRF_SUBSCRIPTION_ID_<NETWORK>` or `CHAINLINK_VRF_SUBSCRIPTION_ID`; optional overrides are `CHAINLINK_VRF_COORDINATOR`, `CHAINLINK_VRF_KEY_HASH`, `CHAINLINK_VRF_CALLBACK_GAS_LIMIT`, `CHAINLINK_VRF_REQUEST_CONFIRMATIONS`, and `CHAINLINK_VRF_NATIVE_PAYMENT`
@@ -258,7 +259,7 @@ Additional notes:
 - `packages/hardhat/contracts/luckyScratch/LuckyScratchTicket.sol`
 - `packages/hardhat/contracts/luckyScratch/LuckyScratchTreasury.sol`
 - `packages/hardhat/contracts/luckyScratch/LuckyScratchVRFAdapter.sol`
-- `packages/hardhat/contracts/test/TestUSDC.sol` (test-only utility)
+- `packages/hardhat/contracts/test/TestConfidentialUSDC.sol` (test-only confidential cUSDC utility)
 - `packages/hardhat/contracts/luckyScratch/interfaces/`
 - `packages/hardhat/contracts/luckyScratch/libraries/`
 - `packages/hardhat/contracts/luckyScratch/types/`
@@ -298,6 +299,8 @@ await writeContractAsync({
   args: [1n, 1],
 });
 ```
+
+For confidential cUSDC payment flows, the wallet must first call `CUSDCToken.setOperator(LuckyScratchTreasury, validUntil)`; LuckyScratch then moves the exact public accounting amount through cUSDC `confidentialTransferFrom` / `confidentialTransfer` inside `LuckyScratchTreasury`.
 
 #### Reading Events
 

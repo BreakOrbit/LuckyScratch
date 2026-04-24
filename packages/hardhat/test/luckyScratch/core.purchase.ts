@@ -3,6 +3,7 @@ import { fhevm } from "hardhat";
 import {
   approveAndPurchase,
   approveAndPurchaseSelection,
+  authorizeTreasuryOperator,
   createPool,
   deployLuckyScratchFixture,
   fulfillRound,
@@ -43,7 +44,7 @@ describe("LuckyScratchPurchase", function () {
     const selected = await approveAndPurchaseSelection(deployed, deployed.alice, [1, 3]);
     expect(selected).to.have.length(2);
 
-    await deployed.token.connect(deployed.bob).approve(await deployed.treasury.getAddress(), 2_000_000n);
+    await authorizeTreasuryOperator(deployed, deployed.bob);
 
     await expect(
       deployed.core.connect(deployed.bob).purchaseTicketsWithSelection(POOL_ID, [1]),

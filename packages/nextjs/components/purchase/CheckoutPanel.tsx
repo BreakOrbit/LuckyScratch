@@ -6,7 +6,7 @@ type CheckoutPanelProps = {
   selectedCount: number;
   selectedIds: string[];
   ticketPrice: number;
-  walletBalance?: number;
+  walletBalance?: number | null;
   isConnected: boolean;
   isProcessing: boolean;
   canPurchase?: boolean;
@@ -38,12 +38,16 @@ export const CheckoutPanel: React.FC<CheckoutPanelProps> = ({
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-  const walletBalanceLabel = walletBalance.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-  const hasEnoughBalance = walletBalance >= totalPrice;
-  const canPurchaseValue = canPurchase ?? (isConnected && selectedCount > 0 && hasEnoughBalance && !isProcessing);
+  const walletBalanceLabel =
+    typeof walletBalance === "number"
+      ? walletBalance.toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+      : null;
+  const hasEnoughBalance = typeof walletBalance === "number" ? walletBalance >= totalPrice : null;
+  const canPurchaseValue =
+    canPurchase ?? (isConnected && selectedCount > 0 && hasEnoughBalance !== false && !isProcessing);
 
   const displayIds = selectedIds.slice(0, 5);
   const moreCount = selectedIds.length - 5;
@@ -85,16 +89,21 @@ export const CheckoutPanel: React.FC<CheckoutPanelProps> = ({
           {isConnected ? (
             <>
               <span className="text-xs text-white/50">
-                Balance: <span className="text-white/80 font-bold">{walletBalanceLabel} USDC</span>
+                Balance:{" "}
+                <span className="text-white/80 font-bold">
+                  {walletBalanceLabel ? `${walletBalanceLabel} USDC` : "encrypted cUSDC"}
+                </span>
               </span>
               <span className="w-px h-4 bg-white/10" />
               <span className="text-xs text-white/50">
                 Required: <span className="text-white/80 font-bold">{totalPriceLabel} USDC</span>
               </span>
-              {hasEnoughBalance ? (
-                <span className="text-xs text-green-400 font-bold">✅ Sufficient</span>
+              {hasEnoughBalance == null ? (
+                <span className="text-xs text-[#9CF0FF] font-bold">Confidential</span>
+              ) : hasEnoughBalance ? (
+                <span className="text-xs text-green-400 font-bold">Sufficient</span>
               ) : (
-                <span className="text-xs text-red-400 font-bold">❌ Insufficient</span>
+                <span className="text-xs text-red-400 font-bold">Insufficient</span>
               )}
             </>
           ) : (

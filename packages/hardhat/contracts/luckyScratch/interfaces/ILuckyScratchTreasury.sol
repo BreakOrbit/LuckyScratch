@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import { euint64 } from "@fhevm/solidity/lib/FHE.sol";
+
 interface ILuckyScratchTreasury {
     function token() external view returns (address);
 
@@ -18,5 +20,5 @@ interface ILuckyScratchTreasury {
 
     function refundBond(address recipient, uint256 poolId, uint256 amount) external;
 
-    function currentBalance() external view returns (uint256);
+    function currentBalance() external view returns (euint64);
 }

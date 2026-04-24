@@ -51,7 +51,7 @@ export function OverviewPanel() {
   const { data: paymentTokenContract } = useDeployedContractInfo({ contractName: "CUSDCToken" });
   const paymentBalanceQuery = useScaffoldReadContract({
     contractName: "CUSDCToken",
-    functionName: "balanceOf",
+    functionName: "confidentialBalanceOf",
     args: [address],
     query: {
       enabled: Boolean(address && paymentTokenContract?.address),
@@ -61,7 +61,7 @@ export function OverviewPanel() {
   const tickets = useMemo(() => ticketsQuery.data?.items ?? [], [ticketsQuery.data?.items]);
   const claimedWins = useMemo(() => winsQuery.data?.items ?? [], [winsQuery.data?.items]);
   const creatorSummary = creatorSummaryQuery.data;
-  const balanceMicro = paymentBalanceQuery.data;
+  const confidentialBalanceHandle = paymentBalanceQuery.data;
 
   const ticketCount = tickets.length;
   const revealedCount = tickets.filter(ticket => ticket.status !== "Unscratched").length;
@@ -123,20 +123,20 @@ export function OverviewPanel() {
           </div>
           <div className="mb-2 flex items-baseline gap-3">
             <h3 className="font-headline text-4xl font-black tracking-tighter text-ns-on-surface">
-              {paymentBalanceQuery.isLoading ? "--" : formatUsdcFromMicro(balanceMicro)}
+              {paymentBalanceQuery.isLoading ? "--" : confidentialBalanceHandle ? "Encrypted" : "--"}
             </h3>
-            <span className="text-sm font-bold text-ns-primary-container">USDC</span>
+            <span className="text-sm font-bold text-ns-primary-container">cUSDC</span>
           </div>
           <p className="mb-6 text-xs text-ns-on-surface-variant">
             {paymentTokenContract?.address
-              ? "Direct contract balance from the current network."
+              ? "Confidential balance handle from the current network."
               : "cUSDC metadata is not available on the current network."}
           </p>
           <Link
-            href="/store"
+            href="/faucet"
             className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-ns-primary-container py-3 text-sm font-bold text-ns-on-primary transition-all hover:brightness-110 active:scale-95"
           >
-            BUY TICKETS
+            GET cUSDC
             <ArrowRightIcon className="h-4 w-4" />
           </Link>
         </div>

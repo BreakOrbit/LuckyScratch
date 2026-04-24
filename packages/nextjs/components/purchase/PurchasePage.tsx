@@ -16,7 +16,7 @@ import { useDeployedContractInfo, useScaffoldReadContract, useScaffoldWriteContr
 import { formatPercentFromBps, fromMicroUsdc } from "~~/services/luckyScratch/poolMath";
 import { notification } from "~~/utils/scaffold-eth";
 
-type GamePhase = "selecting" | "approving" | "purchasing" | "purchased";
+type GamePhase = "selecting" | "authorizing" | "purchasing" | "purchased";
 
 type PurchasePageProps = {
   poolId: string;
@@ -48,6 +48,10 @@ const poolEmojiFromMetadata = (name?: string) => {
   return "🎟️";
 };
 
+const CUSDC_OPERATOR_VALIDITY_SECONDS = 60 * 60 * 24 * 365;
+
+const getOperatorExpiry = () => Math.floor(Date.now() / 1000) + CUSDC_OPERATOR_VALIDITY_SECONDS;
+
 export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -57,7 +61,7 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
   const { data: treasuryContract } = useDeployedContractInfo({ contractName: "LuckyScratchTreasury" });
   const { data: paymentTokenContract } = useDeployedContractInfo({ contractName: "CUSDCToken" });
   const { writeContractAsync, isMining } = useScaffoldWriteContract({ contractName: "LuckyScratchCore" });
-  const { writeContractAsync: approveTokenAsync, isMining: isApprovingToken } = useScaffoldWriteContract({
+  const { writeContractAsync: setOperatorAsync, isMining: isAuthorizingToken } = useScaffoldWriteContract({
     contractName: "CUSDCToken",
   });
 
@@ -95,21 +99,13 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
     [activeSelection, displayIdToIndex],
   );
 
-  const approvalAvailable = Boolean(address && treasuryContract?.address && paymentTokenContract?.address);
-  const { data: currentAllowance } = useScaffoldReadContract({
+  const operatorCheckAvailable = Boolean(address && treasuryContract?.address && paymentTokenContract?.address);
+  const { data: treasuryIsOperator } = useScaffoldReadContract({
     contractName: "CUSDCToken",
-    functionName: "allowance",
+    functionName: "isOperator",
     args: [address, treasuryContract?.address],
     query: {
-      enabled: approvalAvailable,
-    },
-  });
-  const { data: paymentTokenBalance } = useScaffoldReadContract({
-    contractName: "CUSDCToken",
-    functionName: "balanceOf",
-    args: [address],
-    query: {
-      enabled: Boolean(address && paymentTokenContract?.address),
+      enabled: operatorCheckAvailable,
     },
   });
 
@@ -132,15 +128,13 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-  const approvalSatisfied = typeof currentAllowance === "bigint" && currentAllowance >= BigInt(totalCostMicro);
-  const balanceSufficient = typeof paymentTokenBalance === "bigint" && paymentTokenBalance >= BigInt(totalCostMicro);
+  const operatorReady = treasuryIsOperator === true;
   const canSubmitPurchase =
     Boolean(address) &&
     Boolean(coreContract) &&
     activeCount > 0 &&
     isGalleryReady &&
-    balanceSufficient &&
-    approvalAvailable &&
+    operatorCheckAvailable &&
     (pool?.selectable ? activeTicketIndexes.length === activeCount : true);
 
   const handleSelect = useCallback((id: string) => {
@@ -163,12 +157,8 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
       notification.error("Connect your wallet before purchasing tickets.");
       return;
     }
-    if (!approvalAvailable) {
+    if (!operatorCheckAvailable) {
       notification.error("cUSDC contract or treasury metadata is unavailable on the current network.");
-      return;
-    }
-    if (!balanceSufficient) {
-      notification.error("Your cUSDC balance is lower than the required purchase amount.");
       return;
     }
     if (!canSubmitPurchase) {
@@ -177,11 +167,11 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
     }
 
     try {
-      if (!approvalSatisfied) {
-        setPhase("approving");
-        await approveTokenAsync({
-          functionName: "approve",
-          args: [treasuryContract!.address, BigInt(totalCostMicro)],
+      if (!operatorReady) {
+        setPhase("authorizing");
+        await setOperatorAsync({
+          functionName: "setOperator",
+          args: [treasuryContract!.address, getOperatorExpiry()],
         });
         await queryClient.invalidateQueries({ queryKey: ["readContract"] });
       }
@@ -235,16 +225,14 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
     activeCount,
     activeTicketIndexes,
     address,
-    approvalAvailable,
-    approvalSatisfied,
-    approveTokenAsync,
-    balanceSufficient,
     canSubmitPurchase,
     coreContract,
+    operatorCheckAvailable,
+    operatorReady,
     pool,
     poolId,
     queryClient,
-    totalCostMicro,
+    setOperatorAsync,
     treasuryContract,
     writeContractAsync,
   ]);
@@ -280,19 +268,16 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
     );
   }
 
-  const walletBalanceUsdc = fromMicroUsdc(paymentTokenBalance);
   const issuer = pool.protocolOwned ? "Official" : "Community";
   const statusHint = !address
-    ? "Connect your wallet to read cUSDC balance and approve ticket payments."
-    : !approvalAvailable
+    ? "Connect your wallet to authorize confidential cUSDC payments."
+    : !operatorCheckAvailable
       ? "The current network does not expose cUSDC / treasury metadata to the frontend, so purchase is disabled."
-      : !balanceSufficient
-        ? "Your cUSDC balance is below the current purchase total."
-        : !approvalSatisfied
-          ? "This action will request a cUSDC approval before submitting the purchase transaction."
-          : pool.selectable
-            ? "Manual and quick pick both submit the exact ticket indexes selected below."
-            : "This pool is not selectable, so the final on-chain ticket indexes are assigned automatically.";
+      : !operatorReady
+        ? "This action will authorize LuckyScratchTreasury as your cUSDC operator before purchasing."
+        : pool.selectable
+          ? "Manual and quick pick both submit the exact ticket indexes selected below. Payment uses confidential cUSDC."
+          : "This pool is not selectable, so the final on-chain ticket indexes are assigned automatically.";
 
   return (
     <div className="relative min-h-screen bg-ns-background text-ns-on-surface font-body">
@@ -381,26 +366,28 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
             selectedCount={activeCount}
             selectedIds={activeSelection}
             ticketPrice={fromMicroUsdc(pool.ticketPrice)}
-            walletBalance={walletBalanceUsdc}
+            walletBalance={null}
             isConnected={Boolean(address)}
             isProcessing={false}
             canPurchase={canSubmitPurchase}
-            actionLabel={approvalSatisfied ? undefined : `💥 Approve & Purchase — ${totalCostLabel} USDC`}
+            actionLabel={operatorReady ? undefined : `Authorize & Purchase — ${totalCostLabel} USDC`}
             statusHint={statusHint}
             onPurchase={handlePurchase}
           />
         )}
 
-        {(phase === "approving" || phase === "purchasing" || isMining || isApprovingToken) && (
+        {(phase === "authorizing" || phase === "purchasing" || isMining || isAuthorizingToken) && (
           <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 backdrop-blur-md">
             <div className="text-center">
               <div className="mx-auto mb-6 h-16 w-16 animate-spin rounded-full border-4 border-[#FFD700] border-t-transparent" />
               <div className="mb-2 font-headline text-2xl font-bold text-white">
-                {phase === "approving" || isApprovingToken ? "Approving cUSDC..." : "Submitting Purchase..."}
+                {phase === "authorizing" || isAuthorizingToken
+                  ? "Authorizing cUSDC Operator..."
+                  : "Submitting Purchase..."}
               </div>
               <div className="text-sm text-white/40">
-                {phase === "approving" || isApprovingToken
-                  ? "Confirm the allowance transaction in your wallet."
+                {phase === "authorizing" || isAuthorizingToken
+                  ? "Confirm the cUSDC operator transaction in your wallet."
                   : `Buying ${activeCount} ticket${activeCount !== 1 ? "s" : ""} on-chain`}
               </div>
             </div>

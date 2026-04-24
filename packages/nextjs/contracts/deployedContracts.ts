@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-eth/contract";
 const deployedContracts = {
   11155111: {
     LuckyScratchCore: {
-      address: "0x5D9cB7000deF1E5E03fb470Ae9AAc5EeAD6b970e",
+      address: "0x56C746118D249B78bA1C44B59184638910a60E3D",
       abi: [
         {
           inputs: [
@@ -1748,10 +1748,10 @@ const deployedContracts = {
         setTreasury: "contracts/luckyScratch/interfaces/ILuckyScratchCore.sol",
         setVrfAdapter: "contracts/luckyScratch/interfaces/ILuckyScratchCore.sol",
       },
-      deployedOnBlock: 10720023,
+      deployedOnBlock: 10720389,
     },
     LuckyScratchTicket: {
-      address: "0x7e0561798bc105e3861e74AfE0C4CB86B4b49b16",
+      address: "0x32d51Ca8170dBdaD98EaC92a6F53B3191FEFF20e",
       abi: [
         {
           inputs: [
@@ -2396,10 +2396,10 @@ const deployedContracts = {
         setCore: "contracts/luckyScratch/interfaces/ILuckyScratchTicket.sol",
         setTransferLocked: "contracts/luckyScratch/interfaces/ILuckyScratchTicket.sol",
       },
-      deployedOnBlock: 10720020,
+      deployedOnBlock: 10720383,
     },
     LuckyScratchTreasury: {
-      address: "0x60c95eaC49516F88371eF984a7e1c1dB3de18E31",
+      address: "0x2bA719ED38F4c6248ea92e85df707cC8E27949b9",
       abi: [
         {
           inputs: [
@@ -2418,30 +2418,8 @@ const deployedContracts = {
           type: "constructor",
         },
         {
-          inputs: [
-            {
-              internalType: "address",
-              name: "target",
-              type: "address",
-            },
-          ],
-          name: "AddressEmptyCode",
-          type: "error",
-        },
-        {
-          inputs: [
-            {
-              internalType: "address",
-              name: "account",
-              type: "address",
-            },
-          ],
-          name: "AddressInsufficientBalance",
-          type: "error",
-        },
-        {
           inputs: [],
-          name: "FailedInnerCall",
+          name: "AmountTooLarge",
           type: "error",
         },
         {
@@ -2477,14 +2455,8 @@ const deployedContracts = {
           type: "error",
         },
         {
-          inputs: [
-            {
-              internalType: "address",
-              name: "token",
-              type: "address",
-            },
-          ],
-          name: "SafeERC20FailedOperation",
+          inputs: [],
+          name: "ZamaProtocolUnsupported",
           type: "error",
         },
         {
@@ -2536,6 +2508,19 @@ const deployedContracts = {
         },
         {
           inputs: [],
+          name: "confidentialProtocolId",
+          outputs: [
+            {
+              internalType: "uint256",
+              name: "",
+              type: "uint256",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [],
           name: "core",
           outputs: [
             {
@@ -2552,9 +2537,9 @@ const deployedContracts = {
           name: "currentBalance",
           outputs: [
             {
-              internalType: "uint256",
+              internalType: "euint64",
               name: "",
-              type: "uint256",
+              type: "bytes32",
             },
           ],
           stateMutability: "view",
@@ -2726,10 +2711,10 @@ const deployedContracts = {
         token: "contracts/luckyScratch/interfaces/ILuckyScratchTreasury.sol",
         withdrawCreatorProfit: "contracts/luckyScratch/interfaces/ILuckyScratchTreasury.sol",
       },
-      deployedOnBlock: 10720021,
+      deployedOnBlock: 10720386,
     },
     LuckyScratchVRFAdapter: {
-      address: "0x92084E7624b410eCf1f6e6E6878b981c1606b4c4",
+      address: "0x1B24788d3354F2989bAe9aCc5E08655F1F9B829c",
       abi: [
         {
           inputs: [
@@ -3106,7 +3091,7 @@ const deployedContracts = {
         requestRandomness: "contracts/luckyScratch/interfaces/ILuckyScratchVRFAdapter.sol",
         setCore: "contracts/luckyScratch/interfaces/ILuckyScratchVRFAdapter.sol",
       },
-      deployedOnBlock: 10720022,
+      deployedOnBlock: 10720387,
     },
   },
 } as const;

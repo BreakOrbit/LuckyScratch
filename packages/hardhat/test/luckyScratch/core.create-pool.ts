@@ -3,8 +3,9 @@ import { fhevm } from "hardhat";
 import {
   buildPoolConfig,
   buildPrizeTiers,
-  computeBondRequirement,
+  authorizeTreasuryOperator,
   createPool,
+  decryptConfidentialBalance,
   deployLuckyScratchFixture,
   fulfillRound,
   POOL_ID,
@@ -27,9 +28,7 @@ describe("LuckyScratchCreatePool", function () {
 
   it("enforces documented pool parameter constraints", async function () {
     const deployed = await deployLuckyScratchFixture();
-    await deployed.token
-      .connect(deployed.creator)
-      .approve(await deployed.treasury.getAddress(), computeBondRequirement(50n * 1_000_000n));
+    await authorizeTreasuryOperator(deployed, deployed.creator);
 
     const invalidPriceConfig = buildPoolConfig({
       creator: deployed.creator.address,
@@ -177,16 +176,16 @@ describe("LuckyScratchCreatePool", function () {
         targetRtpBps: computeTargetRtpBps(poolCase.budget, poolCase.ticketPrice, poolCase.totalTickets),
       });
 
-      await deployed.token
-        .connect(deployed.creator)
-        .approve(await deployed.treasury.getAddress(), poolCase.expectedBond);
+      await authorizeTreasuryOperator(deployed, deployed.creator);
       await deployed.core.connect(deployed.creator).createPool(config, poolCase.tiers);
 
       const accounting = await deployed.core.poolAccounting(poolId);
       expectedTreasuryBalance += poolCase.expectedBond;
 
       expect(accounting.lockedBond).to.equal(poolCase.expectedBond);
-      expect(await deployed.treasury.currentBalance()).to.equal(expectedTreasuryBalance);
+      expect(await decryptConfidentialBalance(deployed, await deployed.treasury.getAddress())).to.equal(
+        expectedTreasuryBalance,
+      );
     }
   });
 });

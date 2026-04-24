@@ -6,6 +6,7 @@ import {
   buildClaimProof,
   buildWinningClaims,
   createPool,
+  decryptConfidentialBalance,
   deployLuckyScratchFixture,
   fulfillRound,
   scratchAndDecrypt,
@@ -31,7 +32,7 @@ describe("LuckyScratchClaim", function () {
       if (clearReward === 0n && zeroTicketId === 0n) zeroTicketId = ticketId;
     }
 
-    const winnerBalanceBefore = await deployed.token.balanceOf(deployed.alice.address);
+    const winnerBalanceBefore = await decryptConfidentialBalance(deployed, deployed.alice.address);
     const winningClaim = await buildClaimProof(deployed, winningTicketId);
     await expect(
       deployed.core
@@ -41,7 +42,7 @@ describe("LuckyScratchClaim", function () {
       .to.emit(deployed.core, "RewardClaimed")
       .withArgs(deployed.alice.address, winningTicketId, 1n, 1n, winningClaim.clearReward);
 
-    const winnerBalanceAfter = await deployed.token.balanceOf(deployed.alice.address);
+    const winnerBalanceAfter = await decryptConfidentialBalance(deployed, deployed.alice.address);
     expect(winnerBalanceAfter - winnerBalanceBefore).to.equal(winningClaim.clearReward);
 
     await expect(
@@ -125,9 +126,9 @@ describe("LuckyScratchClaim", function () {
     const claimableProfit = await deployed.core.claimableCreatorProfit(1n);
     expect(claimableProfit).to.equal(42_000_000n);
 
-    const creatorBalanceBefore = await deployed.token.balanceOf(deployed.creator.address);
+    const creatorBalanceBefore = await decryptConfidentialBalance(deployed, deployed.creator.address);
     await deployed.core.connect(deployed.creator).withdrawCreatorProfit(1n, claimableProfit);
-    const creatorBalanceAfter = await deployed.token.balanceOf(deployed.creator.address);
+    const creatorBalanceAfter = await decryptConfidentialBalance(deployed, deployed.creator.address);
     expect(creatorBalanceAfter - creatorBalanceBefore).to.equal(42_000_000n);
 
     await expect(deployed.core.connect(deployed.creator).refundBond(1n)).to.not.be.reverted;

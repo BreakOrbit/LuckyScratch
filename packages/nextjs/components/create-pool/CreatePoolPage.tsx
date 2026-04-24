@@ -80,7 +80,7 @@ export function CreatePoolPage() {
   const { data: coreContract } = useDeployedContractInfo({ contractName: "LuckyScratchCore" });
   const { data: treasuryContract } = useDeployedContractInfo({ contractName: "LuckyScratchTreasury" });
   const { data: paymentTokenContract } = useDeployedContractInfo({ contractName: "CUSDCToken" });
-  const { writeContractAsync: approveTokenAsync, isMining: isApprovingToken } = useScaffoldWriteContract({
+  const { writeContractAsync: setOperatorAsync, isMining: isAuthorizingToken } = useScaffoldWriteContract({
     contractName: "CUSDCToken",
   });
 
@@ -96,7 +96,7 @@ export function CreatePoolPage() {
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [ticketArtFile, setTicketArtFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [isApprovingBond, setIsApprovingBond] = useState<boolean>(false);
+  const [isAuthorizingOperator, setIsAuthorizingOperator] = useState<boolean>(false);
   const [submissionStage, setSubmissionStage] = useState<string>("");
 
   const coverPreviewURL = useFilePreview(coverFile);
@@ -111,26 +111,16 @@ export function CreatePoolPage() {
   const hitRateBps = totalTickets > 0 ? Math.round((winningTicketCount * 10_000) / totalTickets) : 0;
   const targetRtpBps = grossRevenueMicro > 0 ? Math.round((prizePoolMicro * 10_000) / grossRevenueMicro) : 0;
   const estimatedBondMicro = computeBondRequirementMicro(prizePoolMicro);
-  const approvalAvailable = Boolean(address && treasuryContract?.address && paymentTokenContract?.address);
-  const { data: currentAllowance } = useScaffoldReadContract({
+  const operatorAvailable = Boolean(address && treasuryContract?.address && paymentTokenContract?.address);
+  const { data: treasuryIsOperator } = useScaffoldReadContract({
     contractName: "CUSDCToken",
-    functionName: "allowance",
+    functionName: "isOperator",
     args: [address, treasuryContract?.address],
     query: {
-      enabled: approvalAvailable,
+      enabled: operatorAvailable,
     },
   });
-  const { data: paymentTokenBalance } = useScaffoldReadContract({
-    contractName: "CUSDCToken",
-    functionName: "balanceOf",
-    args: [address],
-    query: {
-      enabled: Boolean(address && paymentTokenContract?.address),
-    },
-  });
-  const approvalSatisfied = typeof currentAllowance === "bigint" && currentAllowance >= BigInt(estimatedBondMicro);
-  const balanceSufficient =
-    typeof paymentTokenBalance === "bigint" && paymentTokenBalance >= BigInt(estimatedBondMicro);
+  const operatorReady = treasuryIsOperator === true;
 
   const validationErrors = [
     !address ? "Connect the creator wallet before creating a pool." : null,
@@ -184,27 +174,27 @@ export function CreatePoolPage() {
     setter(event.target.files?.[0] ?? null);
   };
 
-  const handleApproveBond = async () => {
+  const handleAuthorizeTreasury = async () => {
     if (!treasuryContract?.address) {
       notification.error("LuckyScratchTreasury deployment metadata is unavailable on the current network.");
       return;
     }
 
-    setIsApprovingBond(true);
-    setSubmissionStage("Approving cUSDC allowance for LuckyScratchTreasury...");
+    setIsAuthorizingOperator(true);
+    setSubmissionStage("Authorizing LuckyScratchTreasury as a confidential cUSDC operator...");
 
     try {
-      await approveTokenAsync({
-        functionName: "approve",
-        args: [treasuryContract.address, BigInt(estimatedBondMicro)],
+      await setOperatorAsync({
+        functionName: "setOperator",
+        args: [treasuryContract.address, Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 365],
       });
       await queryClient.invalidateQueries({ queryKey: ["readContract"] });
-      notification.success("cUSDC approval transaction completed.");
+      notification.success("cUSDC operator authorization completed.");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to approve cUSDC.";
+      const message = error instanceof Error ? error.message : "Failed to authorize cUSDC operator.";
       notification.error(message);
     } finally {
-      setIsApprovingBond(false);
+      setIsAuthorizingOperator(false);
       setSubmissionStage("");
     }
   };
@@ -218,7 +208,7 @@ export function CreatePoolPage() {
       notification.error("LuckyScratchCore deployment metadata is unavailable.");
       return;
     }
-    if (!approvalAvailable) {
+    if (!operatorAvailable) {
       notification.error("cUSDC contract or treasury metadata is unavailable on the current network.");
       return;
     }
@@ -226,12 +216,8 @@ export function CreatePoolPage() {
       notification.error(validationErrors[0]);
       return;
     }
-    if (!balanceSufficient) {
-      notification.error("Your cUSDC balance is lower than the estimated creator bond.");
-      return;
-    }
-    if (!approvalSatisfied) {
-      notification.error("Approve the estimated bond amount in cUSDC before creating the pool.");
+    if (!operatorReady) {
+      notification.error("Authorize LuckyScratchTreasury as your cUSDC operator before creating the pool.");
       return;
     }
 
@@ -598,17 +584,10 @@ export function CreatePoolPage() {
                   ["Estimated bond", `${formatUsdcFromMicro(estimatedBondMicro)} USDC`],
                   ["Unallocated tickets", `${Math.max(remainingTicketCount, 0)}`],
                   [
-                    "cUSDC allowance",
-                    approvalAvailable && typeof currentAllowance === "bigint"
-                      ? `${formatUsdcFromMicro(currentAllowance)} USDC`
-                      : "unavailable",
+                    "cUSDC operator",
+                    operatorAvailable ? (operatorReady ? "authorized" : "needs authorization") : "unavailable",
                   ],
-                  [
-                    "cUSDC balance",
-                    approvalAvailable && typeof paymentTokenBalance === "bigint"
-                      ? `${formatUsdcFromMicro(paymentTokenBalance)} USDC`
-                      : "unavailable",
-                  ],
+                  ["cUSDC balance", "encrypted"],
                 ].map(([label, value]) => (
                   <div key={label} className="flex items-center justify-between rounded-2xl bg-[#0B1120] px-4 py-3">
                     <span className="text-sm text-[#9FB0D0]">{label}</span>
@@ -618,35 +597,35 @@ export function CreatePoolPage() {
               </div>
 
               <div className="mt-5 rounded-2xl border border-[#4A587B] bg-[#10192D] p-4 text-sm text-[#9FB0D0]">
-                `protocolOwned` is fixed to `false` for this creator flow. On Sepolia/mainnet the page can approve the
-                current estimated bond in cUSDC for `LuckyScratchTreasury`; if the allowance or balance is too low,
-                `createPool` will revert during bond lock.
+                `protocolOwned` is fixed to `false` for this creator flow. Confidential cUSDC balances are encrypted, so
+                this page authorizes `LuckyScratchTreasury` as an operator and the bond lock happens inside
+                `createPool`.
               </div>
 
-              {approvalAvailable ? (
+              {operatorAvailable ? (
                 <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
                   <button
                     type="button"
-                    onClick={handleApproveBond}
-                    disabled={isApprovingBond || isApprovingToken || approvalSatisfied}
+                    onClick={handleAuthorizeTreasury}
+                    disabled={isAuthorizingOperator || isAuthorizingToken || operatorReady}
                     className="inline-flex items-center justify-center rounded-2xl border border-[#00DAF3]/25 bg-[#0F2031] px-4 py-3 text-sm font-bold text-[#9CF0FF] transition disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {approvalSatisfied
-                      ? "Bond Approval Ready"
-                      : isApprovingBond || isApprovingToken
-                        ? "Approving..."
-                        : "Approve Estimated Bond"}
+                    {operatorReady
+                      ? "Treasury Operator Ready"
+                      : isAuthorizingOperator || isAuthorizingToken
+                        ? "Authorizing..."
+                        : "Authorize Treasury Operator"}
                   </button>
                   <div
                     className={`rounded-2xl px-4 py-3 text-sm ${
-                      approvalSatisfied && balanceSufficient
+                      operatorReady
                         ? "border border-[#0F5B3A] bg-[#0A3322] text-[#8AF4C5]"
                         : "border border-[#8E4A74] bg-[#2A1521] text-[#FFB4AB]"
                     }`}
                   >
-                    {approvalSatisfied && balanceSufficient
-                      ? "Allowance and balance cover the current estimated bond."
-                      : "Approval or cUSDC balance is below the current estimated bond."}
+                    {operatorReady
+                      ? "Treasury can move the exact clear accounting amount through confidential cUSDC."
+                      : "Treasury must be an operator before it can lock the encrypted creator bond."}
                   </div>
                 </div>
               ) : null}
@@ -683,12 +662,7 @@ export function CreatePoolPage() {
               <button
                 type="button"
                 disabled={
-                  isSubmitting ||
-                  isMining ||
-                  validationErrors.length > 0 ||
-                  !approvalAvailable ||
-                  !approvalSatisfied ||
-                  !balanceSufficient
+                  isSubmitting || isMining || validationErrors.length > 0 || !operatorAvailable || !operatorReady
                 }
                 onClick={handleCreatePool}
                 className="mt-6 inline-flex w-full items-center justify-center gap-3 rounded-2xl bg-[linear-gradient(135deg,#ffd700_0%,#e9c400_60%,#ffe16d_100%)] px-5 py-4 font-headline text-lg font-bold text-[#705E00] transition disabled:cursor-not-allowed disabled:opacity-50"

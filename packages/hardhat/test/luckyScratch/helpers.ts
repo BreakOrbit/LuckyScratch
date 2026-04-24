@@ -11,8 +11,8 @@ import {
   LuckyScratchTreasury__factory,
   LuckyScratchVRFAdapter,
   LuckyScratchVRFAdapter__factory,
-  TestUSDC,
-  TestUSDC__factory,
+  TestConfidentialUSDC,
+  TestConfidentialUSDC__factory,
 } from "../../typechain-types";
 
 export const UNIT = 1_000_000n;
@@ -34,7 +34,7 @@ export type Signers = {
 };
 
 export type DeployedLuckyScratch = Signers & {
-  token: TestUSDC;
+  token: TestConfidentialUSDC;
   ticket: LuckyScratchTicket;
   treasury: LuckyScratchTreasury;
   vrfAdapter: LuckyScratchVRFAdapter;
@@ -103,6 +103,20 @@ export function computeBondRequirement(totalPrizeBudget: BigNumberish): bigint {
   return budget + budget / 10n;
 }
 
+export async function authorizeTreasuryOperator(deployed: DeployedLuckyScratch, holder: HardhatEthersSigner) {
+  await deployed.token.connect(holder).setOperator(await deployed.treasury.getAddress(), 281_474_976_710_655n);
+}
+
+export async function decryptConfidentialBalance(deployed: DeployedLuckyScratch, account: string) {
+  const handle = await deployed.token.confidentialBalanceOf(account);
+  const result = await fhevm.publicDecrypt([handle]);
+  const clearBalance = result.clearValues[handle as `0x${string}`];
+  if (typeof clearBalance !== "bigint") {
+    throw new Error(`Unexpected confidential balance value type for handle ${handle}`);
+  }
+  return clearBalance;
+}
+
 export async function getCurrentRoundState(deployed: DeployedLuckyScratch, poolId = POOL_ID) {
   const state = await deployed.core.poolStates(poolId);
   const round = await deployed.core.roundStates(poolId, state.currentRound);
@@ -112,7 +126,7 @@ export async function getCurrentRoundState(deployed: DeployedLuckyScratch, poolI
 export async function deployLuckyScratchFixture(): Promise<DeployedLuckyScratch> {
   const [admin, creator, alice, bob] = await ethers.getSigners();
 
-  const tokenFactory = (await ethers.getContractFactory("TestUSDC")) as TestUSDC__factory;
+  const tokenFactory = (await ethers.getContractFactory("TestConfidentialUSDC")) as TestConfidentialUSDC__factory;
   const ticketFactory = (await ethers.getContractFactory("LuckyScratchTicket")) as LuckyScratchTicket__factory;
   const treasuryFactory = (await ethers.getContractFactory("LuckyScratchTreasury")) as LuckyScratchTreasury__factory;
   const vrfFactory = (await ethers.getContractFactory("LuckyScratchVRFAdapter")) as LuckyScratchVRFAdapter__factory;
@@ -143,9 +157,8 @@ export async function deployLuckyScratchFixture(): Promise<DeployedLuckyScratch>
 export async function createPool(deployed: DeployedLuckyScratch, overrides: Partial<PoolConfigInput> = {}) {
   const config = buildPoolConfig({ ...overrides, creator: deployed.creator.address });
   const tiers = buildPrizeTiers();
-  const bondRequirement = computeBondRequirement(config.totalPrizeBudget);
 
-  await deployed.token.connect(deployed.creator).approve(await deployed.treasury.getAddress(), bondRequirement);
+  await authorizeTreasuryOperator(deployed, deployed.creator);
   await deployed.core.connect(deployed.creator).createPool(config, tiers);
 
   return { config, tiers };
@@ -161,9 +174,7 @@ export async function approveAndPurchase(
   buyer: HardhatEthersSigner,
   quantity: number | bigint,
 ) {
-  const { round } = await getCurrentRoundState(deployed);
-  const ticketPrice = round.ticketPrice;
-  await deployed.token.connect(buyer).approve(await deployed.treasury.getAddress(), ticketPrice * BigInt(quantity));
+  await authorizeTreasuryOperator(deployed, buyer);
   const tx = await deployed.core.connect(buyer).purchaseTickets(POOL_ID, quantity);
   const receipt = await tx.wait();
 
@@ -175,11 +186,7 @@ export async function approveAndPurchaseSelection(
   buyer: HardhatEthersSigner,
   indexes: number[],
 ) {
-  const { round } = await getCurrentRoundState(deployed);
-  const ticketPrice = round.ticketPrice;
-  await deployed.token
-    .connect(buyer)
-    .approve(await deployed.treasury.getAddress(), ticketPrice * BigInt(indexes.length));
+  await authorizeTreasuryOperator(deployed, buyer);
   const tx = await deployed.core.connect(buyer).purchaseTicketsWithSelection(POOL_ID, indexes);
   const receipt = await tx.wait();
 

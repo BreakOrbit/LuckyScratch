@@ -2,24 +2,24 @@
 pragma solidity ^0.8.24;
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { FHE, euint64 } from "@fhevm/solidity/lib/FHE.sol";
+import { ZamaEthereumConfig } from "@fhevm/solidity/config/ZamaConfig.sol";
+import { IConfidentialUSDC } from "./interfaces/IConfidentialUSDC.sol";
 import { ILuckyScratchTreasury } from "./interfaces/ILuckyScratchTreasury.sol";
 
-contract LuckyScratchTreasury is Ownable, ReentrancyGuard, ILuckyScratchTreasury {
-    using SafeERC20 for IERC20;
-
+contract LuckyScratchTreasury is Ownable, ReentrancyGuard, ZamaEthereumConfig, ILuckyScratchTreasury {
     error OnlyCore();
     error ZeroAddress();
+    error AmountTooLarge();
 
-    IERC20 private immutable paymentToken;
+    IConfidentialUSDC private immutable paymentToken;
 
     address public override core;
 
     constructor(address initialOwner, address tokenAddress) Ownable(initialOwner) {
         if (tokenAddress == address(0)) revert ZeroAddress();
-        paymentToken = IERC20(tokenAddress);
+        paymentToken = IConfidentialUSDC(tokenAddress);
     }
 
     modifier onlyCore() {
@@ -37,30 +37,37 @@ contract LuckyScratchTreasury is Ownable, ReentrancyGuard, ILuckyScratchTreasury
     }
 
     function collectTicketPayment(address payer, uint256, uint256 amount) external override onlyCore nonReentrant {
-        paymentToken.safeTransferFrom(payer, address(this), amount);
+        paymentToken.confidentialTransferFrom(payer, address(this), _prepareAmount(amount));
     }
 
     function lockBond(address payer, uint256, uint256 amount) external override onlyCore nonReentrant {
         if (amount == 0) return;
-        paymentToken.safeTransferFrom(payer, address(this), amount);
+        paymentToken.confidentialTransferFrom(payer, address(this), _prepareAmount(amount));
     }
 
     function payoutReward(address recipient, uint256, uint256 amount) external override onlyCore nonReentrant {
         if (amount == 0) return;
-        paymentToken.safeTransfer(recipient, amount);
+        paymentToken.confidentialTransfer(recipient, _prepareAmount(amount));
     }
 
     function withdrawCreatorProfit(address recipient, uint256, uint256 amount) external override onlyCore nonReentrant {
         if (amount == 0) return;
-        paymentToken.safeTransfer(recipient, amount);
+        paymentToken.confidentialTransfer(recipient, _prepareAmount(amount));
     }
 
     function refundBond(address recipient, uint256, uint256 amount) external override onlyCore nonReentrant {
         if (amount == 0) return;
-        paymentToken.safeTransfer(recipient, amount);
+        paymentToken.confidentialTransfer(recipient, _prepareAmount(amount));
     }
 
-    function currentBalance() external view override returns (uint256) {
-        return paymentToken.balanceOf(address(this));
+    function currentBalance() external view override returns (euint64) {
+        return paymentToken.confidentialBalanceOf(address(this));
+    }
+
+    function _prepareAmount(uint256 amount) internal returns (euint64 encryptedAmount) {
+        if (amount > type(uint64).max) revert AmountTooLarge();
+        encryptedAmount = FHE.asEuint64(uint64(amount));
+        FHE.allowTransient(encryptedAmount, address(this));
+        FHE.allowTransient(encryptedAmount, address(paymentToken));
     }
 }
