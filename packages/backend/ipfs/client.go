@@ -8,6 +8,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strings"
 
@@ -30,12 +31,29 @@ func NewClient(cfg config.StorageConfig) (Client, error) {
 	case "":
 		return nil, nil
 	case "pinata":
+		if strings.TrimSpace(cfg.PinataJWT) == "" {
+			return nil, fmt.Errorf("IPFS_PINATA_JWT is required when IPFS_PROVIDER=pinata")
+		}
+		if err := validatePinataAPIBaseURL(cfg.PinataAPIBaseURL); err != nil {
+			return nil, err
+		}
 		return &pinataClient{cfg: cfg, http: &http.Client{}}, nil
 	case "kubo":
 		return &kuboClient{cfg: cfg, http: &http.Client{}}, nil
 	default:
 		return nil, fmt.Errorf("unsupported IPFS_PROVIDER %q", cfg.Provider)
 	}
+}
+
+func validatePinataAPIBaseURL(rawURL string) error {
+	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return fmt.Errorf("IPFS_PINATA_API_BASE_URL must be an absolute Pinata API URL")
+	}
+	if strings.HasSuffix(strings.ToLower(parsed.Hostname()), ".mypinata.cloud") {
+		return fmt.Errorf("IPFS_PINATA_API_BASE_URL must point to the Pinata API, not a gateway domain; use IPFS_GATEWAY_BASE_URL for gateways")
+	}
+	return nil
 }
 
 type pinataClient struct {

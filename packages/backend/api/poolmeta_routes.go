@@ -35,6 +35,11 @@ func (s *Server) handleUploadImages(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, s.cfg.Storage.UploadMaxBytes)
 	}
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			writeError(w, http.StatusRequestEntityTooLarge, err)
+			return
+		}
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
@@ -52,6 +57,14 @@ func (s *Server) handleUploadImages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	logAPIEvent(
+		"upload_image_received",
+		"owner", r.FormValue("ownerAddress"),
+		"kind", r.FormValue("kind"),
+		"filename", header.Filename,
+		"mime", header.Header.Get("Content-Type"),
+		"size_bytes", len(data),
+	)
 	resp, err := s.poolMeta.UploadImage(r.Context(), poolmeta.UploadImageInput{
 		OwnerAddress: r.FormValue("ownerAddress"),
 		Kind:         r.FormValue("kind"),
@@ -64,6 +77,14 @@ func (s *Server) handleUploadImages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	logAPIEvent(
+		"upload_image_created",
+		"asset_id", resp.AssetID,
+		"owner", resp.OwnerAddress,
+		"kind", resp.Kind,
+		"cid", resp.CID,
+		"size_bytes", resp.SizeBytes,
+	)
 	writeJSON(w, http.StatusCreated, resp)
 }
 
@@ -83,12 +104,26 @@ func (s *Server) handlePoolDrafts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	logAPIEvent(
+		"pool_draft_create_received",
+		"owner", req.OwnerAddress,
+		"name", req.Name,
+		"cover_asset_id", req.CoverAssetID,
+		"ticket_asset_id", req.TicketArtAssetID,
+		"tier_count", len(req.PrizeTiers),
+	)
 	resp, err := s.poolMeta.CreateDraft(r.Context(), req)
 	if err != nil {
 		writeServiceError(w, err)
 		return
 	}
 
+	logAPIEvent(
+		"pool_draft_created",
+		"draft_id", resp.DraftID,
+		"theme_id", resp.ThemeID,
+		"metadata_cid", resp.MetadataCID,
+	)
 	writeJSON(w, http.StatusCreated, resp)
 }
 
@@ -108,12 +143,25 @@ func (s *Server) handleFinalizePool(w http.ResponseWriter, r *http.Request, pool
 		return
 	}
 
+	logAPIEvent(
+		"pool_finalize_received",
+		"pool_id", poolID,
+		"draft_id", req.DraftID,
+		"owner", req.OwnerAddress,
+		"tx", req.CreateTxHash,
+	)
 	resp, err := s.poolMeta.FinalizePool(r.Context(), poolID, req)
 	if err != nil {
 		writeServiceError(w, err)
 		return
 	}
 
+	logAPIEvent(
+		"pool_finalized",
+		"pool_id", resp.PoolID,
+		"owner", resp.OwnerAddress,
+		"theme_id", resp.ThemeID,
+	)
 	writeJSON(w, http.StatusOK, resp)
 }
 

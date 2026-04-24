@@ -100,7 +100,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/api/v1/admin/pools/", s.requireAdmin(s.handleAdminPoolRoutes))
 	mux.HandleFunc("/api/v1/admin/tickets/", s.requireAdmin(s.handleAdminTicketRoutes))
 
-	return s.withCORS(mux)
+	return s.withRequestLogging(s.withCORS(mux))
 }
 
 func (s *Server) withCORS(next http.Handler) http.Handler {
@@ -660,10 +660,13 @@ func (s *Server) handleAdminJobRoutes(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	if err := s.adminService.RetryJob(r.Context(), jobID, s.adminActor(r)); err != nil {
+	actor := s.adminActor(r)
+	logAPIEvent("admin_job_retry_received", "job_id", jobID, "actor", actor)
+	if err := s.adminService.RetryJob(r.Context(), jobID, actor); err != nil {
 		writeServiceError(w, err)
 		return
 	}
+	logAPIEvent("admin_job_retry_queued", "job_id", jobID, "actor", actor)
 	writeJSON(w, http.StatusOK, map[string]any{"jobId": jobID, "status": "pending"})
 }
 
@@ -698,10 +701,13 @@ func (s *Server) handleAdminPoolRoutes(w http.ResponseWriter, r *http.Request) {
 			writeMethodNotAllowed(w)
 			return
 		}
-		if err := s.adminService.RebuildPool(r.Context(), poolID, s.adminActor(r)); err != nil {
+		actor := s.adminActor(r)
+		logAPIEvent("admin_pool_reindex_received", "pool_id", poolID, "actor", actor)
+		if err := s.adminService.RebuildPool(r.Context(), poolID, actor); err != nil {
 			writeServiceError(w, err)
 			return
 		}
+		logAPIEvent("admin_pool_reindexed", "pool_id", poolID, "actor", actor)
 		writeJSON(w, http.StatusOK, map[string]any{"poolId": poolID, "status": "reindexed"})
 	case len(parts) == 4 && parts[1] == "rounds" && parts[3] == "reindex":
 		if r.Method != http.MethodPost {
@@ -713,10 +719,13 @@ func (s *Server) handleAdminPoolRoutes(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, parseErr)
 			return
 		}
-		if err := s.adminService.RebuildRound(r.Context(), poolID, roundID, s.adminActor(r)); err != nil {
+		actor := s.adminActor(r)
+		logAPIEvent("admin_round_reindex_received", "pool_id", poolID, "round_id", roundID, "actor", actor)
+		if err := s.adminService.RebuildRound(r.Context(), poolID, roundID, actor); err != nil {
 			writeServiceError(w, err)
 			return
 		}
+		logAPIEvent("admin_round_reindexed", "pool_id", poolID, "round_id", roundID, "actor", actor)
 		writeJSON(w, http.StatusOK, map[string]any{"poolId": poolID, "roundId": roundID, "status": "reindexed"})
 	default:
 		writeError(w, http.StatusNotFound, errors.New("route not found"))
@@ -740,10 +749,13 @@ func (s *Server) handleAdminTicketRoutes(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	if err := s.adminService.RebuildTicket(r.Context(), ticketID, s.adminActor(r)); err != nil {
+	actor := s.adminActor(r)
+	logAPIEvent("admin_ticket_reindex_received", "ticket_id", ticketID, "actor", actor)
+	if err := s.adminService.RebuildTicket(r.Context(), ticketID, actor); err != nil {
 		writeServiceError(w, err)
 		return
 	}
+	logAPIEvent("admin_ticket_reindexed", "ticket_id", ticketID, "actor", actor)
 	writeJSON(w, http.StatusOK, map[string]any{"ticketId": ticketID, "status": "reindexed"})
 }
 
@@ -958,13 +970,16 @@ func writeError(w http.ResponseWriter, status int, err error) {
 
 func writeServiceError(w http.ResponseWriter, err error) {
 	if typed, ok := apperrors.As(err); ok {
+		logServiceError(typed.StatusCode, err)
 		writeJSON(w, typed.StatusCode, map[string]string{"error": typed.PublicMessage})
 		return
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
+		logServiceError(http.StatusNotFound, err)
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 		return
 	}
+	logServiceError(http.StatusInternalServerError, err)
 	writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 }
 

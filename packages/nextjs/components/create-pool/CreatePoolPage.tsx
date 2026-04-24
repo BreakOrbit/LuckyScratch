@@ -43,6 +43,7 @@ type RewardTierDraft = {
 const panelClassName = "rounded-3xl border border-white/10 bg-[#11192B] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.24)]";
 const inputClassName =
   "w-full rounded-2xl border border-white/10 bg-[#0B1120] px-4 py-3 text-sm text-[#DCE2F9] outline-none transition focus:border-[#FFD700]/35";
+const MAX_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 const createTierId = () => `tier-${Math.random().toString(36).slice(2, 10)}`;
 
@@ -171,7 +172,14 @@ export function CreatePoolPage() {
   };
 
   const handleFileChange = (setter: (file: File | null) => void) => (event: ChangeEvent<HTMLInputElement>) => {
-    setter(event.target.files?.[0] ?? null);
+    const file = event.target.files?.[0] ?? null;
+    if (file && file.size > MAX_IMAGE_UPLOAD_BYTES) {
+      setter(null);
+      event.target.value = "";
+      notification.error("Image upload limit is 10 MB. Choose a smaller image before creating the pool.");
+      return;
+    }
+    setter(file);
   };
 
   const handleAuthorizeTreasury = async () => {

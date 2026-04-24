@@ -141,7 +141,7 @@ func (s Service) UploadImage(ctx context.Context, input UploadImageInput) (Uploa
 
 	result, err := s.ipfs.UploadFile(ctx, filename, mimeType, input.Data)
 	if err != nil {
-		return UploadedAsset{}, err
+		return UploadedAsset{}, apperrors.BadGateway("image upload provider failed", err)
 	}
 
 	sum := sha256.Sum256(input.Data)
@@ -223,7 +223,7 @@ func (s Service) CreateDraft(ctx context.Context, input CreatePoolDraftInput) (P
 
 	metadataResult, err := s.ipfs.UploadJSON(ctx, themeKey+".json", metadataPayload)
 	if err != nil {
-		return PoolDraft{}, err
+		return PoolDraft{}, apperrors.BadGateway("metadata upload provider failed", err)
 	}
 
 	poolConfigPreview, err := json.Marshal(input.PoolConfigPreview)

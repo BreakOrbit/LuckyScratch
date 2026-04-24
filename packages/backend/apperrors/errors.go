@@ -56,6 +56,10 @@ func Conflict(publicMessage string, cause error) error {
 	return New(http.StatusConflict, publicMessage, cause)
 }
 
+func BadGateway(publicMessage string, cause error) error {
+	return New(http.StatusBadGateway, publicMessage, cause)
+}
+
 func TooManyRequests(publicMessage string, cause error) error {
 	return New(http.StatusTooManyRequests, publicMessage, cause)
 }
