@@ -1,10 +1,10 @@
 "use client";
 
 import type { NextPage } from "next";
-import { TicketsDashboard } from "~~/components/luckyScratch/TicketsDashboard";
+import { MyTicketsVault } from "~~/components/my-tickets/MyTicketsVault";
 
 const MyTicketsPage: NextPage = () => {
-  return <TicketsDashboard />;
+  return <MyTicketsVault />;
 };
 
 export default MyTicketsPage;

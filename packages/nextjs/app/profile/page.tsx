@@ -10,7 +10,7 @@ import {
   StarIcon,
   TicketIcon,
 } from "@heroicons/react/24/outline";
-import MyTicketsPage from "~~/app/my-tickets/page";
+import { MyTicketsVault } from "~~/components/my-tickets/MyTicketsVault";
 import { MyPoolsPanel } from "~~/components/profile/MyPoolsPanel";
 import { OverviewPanel } from "~~/components/profile/OverviewPanel";
 import { SettingsPanel } from "~~/components/profile/SettingsPanel";
@@ -193,7 +193,7 @@ export default function ProfilePage() {
 
         <div className="space-y-8 lg:col-span-9">
           {activeSection === "overview" && renderSectionShell(<OverviewPanel />)}
-          {activeSection === "my-tickets" && renderSectionShell(<MyTicketsPage />, { padded: false })}
+          {activeSection === "my-tickets" && renderSectionShell(<MyTicketsVault embedded />, { padded: false })}
           {activeSection === "my-pools" && renderSectionShell(<MyPoolsPanel />, { framed: false })}
           {activeSection === "setting" && renderSectionShell(<SettingsPanel />)}
         </div>

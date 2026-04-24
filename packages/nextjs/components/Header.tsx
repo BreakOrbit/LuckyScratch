@@ -19,8 +19,6 @@ export const menuLinks: HeaderMenuLink[] = [
   { label: "Create Pool", href: "/create-pool" },
   { label: "My Profile", href: "/profile" },
   { label: "cUSDC Faucet", href: "/faucet" },
-  { label: "Reveal Workspace", href: "/tickets" },
-  { label: "Debug", href: "/debug" },
 ];
 
 export const HeaderMenuLinks = () => {

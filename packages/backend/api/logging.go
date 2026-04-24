@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"runtime/debug"
 	"strings"
 	"time"
 )
@@ -32,23 +33,31 @@ func (s *Server) withRequestLogging(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		startedAt := time.Now()
 		recorder := &statusRecorder{ResponseWriter: w}
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				log.Printf("api panic method=%s path=%s err=%v stack=%s", r.Method, r.URL.EscapedPath(), recovered, debug.Stack())
+				if recorder.status == 0 {
+					writeJSON(recorder, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+				}
+			}
+
+			status := recorder.status
+			if status == 0 {
+				status = http.StatusOK
+			}
+			log.Printf(
+				"api request method=%s path=%s status=%d bytes=%d duration=%s remote=%s cf_ray=%s",
+				r.Method,
+				r.URL.EscapedPath(),
+				status,
+				recorder.bytes,
+				time.Since(startedAt).Round(time.Millisecond),
+				clientIP(r),
+				r.Header.Get("CF-Ray"),
+			)
+		}()
 
 		next.ServeHTTP(recorder, r)
-
-		status := recorder.status
-		if status == 0 {
-			status = http.StatusOK
-		}
-		log.Printf(
-			"api request method=%s path=%s status=%d bytes=%d duration=%s remote=%s cf_ray=%s",
-			r.Method,
-			r.URL.EscapedPath(),
-			status,
-			recorder.bytes,
-			time.Since(startedAt).Round(time.Millisecond),
-			clientIP(r),
-			r.Header.Get("CF-Ray"),
-		)
 	})
 }
 

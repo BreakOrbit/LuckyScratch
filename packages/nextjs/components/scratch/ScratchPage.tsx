@@ -5,8 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
-import { ArrowLeftIcon, ArrowTopRightOnSquareIcon, SparklesIcon, TicketIcon } from "@heroicons/react/24/outline";
-import { TicketRevealWorkspace } from "~~/components/luckyScratch/TicketRevealWorkspace";
+import { ArrowLeftIcon, SparklesIcon, TicketIcon } from "@heroicons/react/24/outline";
 import { useLuckyScratchPool } from "~~/hooks/luckyScratch/useLuckyScratchQueries";
 import { useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 import { luckyScratchAPI } from "~~/services/luckyScratch/api";
@@ -21,7 +20,7 @@ type ScratchPageProps = {
 const ticketStatusLabel = (status: string) => {
   switch (status) {
     case "Unscratched":
-      return "Ready To Reveal";
+      return "Ready To Scratch";
     case "Scratched":
       return "Revealed";
     case "Claimed":
@@ -110,10 +109,6 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
     },
   });
 
-  if (ticketIds.length === 1) {
-    return <TicketRevealWorkspace ticketId={ticketIds[0]} />;
-  }
-
   const pool = poolQuery.data;
   const isLoadingTickets = ticketQueries.some(query => query.isLoading);
   const hasTicketError = ticketQueries.find(query => query.isError);
@@ -138,8 +133,8 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
                   {pool?.metadata?.name || `Pool #${poolId}`}
                 </h1>
                 <p className="mt-3 max-w-2xl text-sm leading-7 text-[#9FB0D0]">
-                  The purchase flow is now live. Batch scratch no longer fabricates reveal results here. Open each
-                  ticket to run the real backend `reveal-auth` and decrypt flow.
+                  Review selected tickets, submit wallet-driven scratch transactions, and return to your ticket vault
+                  when finished.
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-3 text-sm md:min-w-[320px]">
@@ -250,17 +245,10 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
 
                     <div className="mt-5 flex flex-wrap gap-3">
                       <Link
-                        href={`/tickets/${ticket.ticketId}`}
+                        href="/my-tickets"
                         className="inline-flex items-center gap-2 rounded-xl bg-[linear-gradient(135deg,#ffd700_0%,#e9c400_60%,#ffe16d_100%)] px-4 py-3 text-sm font-bold text-[#705E00]"
                       >
-                        Open reveal flow
-                        <ArrowTopRightOnSquareIcon className="h-4 w-4" />
-                      </Link>
-                      <Link
-                        href={`/tickets/${ticket.ticketId}`}
-                        className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white transition hover:border-[#FFD66D]/40 hover:text-[#FFD66D]"
-                      >
-                        View ticket workspace
+                        Back to ticket vault
                         <TicketIcon className="h-4 w-4" />
                       </Link>
                     </div>

@@ -189,6 +189,9 @@ const deployLuckyScratch: DeployFunction = async function (hre: HardhatRuntimeEn
   log(`LuckyScratch payment token: ${paymentTokenAddress}`);
   log(`LuckyScratch VRF coordinator: ${coordinator}`);
   log(`LuckyScratch VRF subscription id: ${subscriptionId.toString()}`);
+  log(
+    `LuckyScratch VRF consumer: ${vrfDeployment.address} (add this LuckyScratchVRFAdapter address to the Chainlink VRF subscription before createPool)`,
+  );
   log(`LuckyScratch VRF native payment: ${nativePayment}`);
 };
 

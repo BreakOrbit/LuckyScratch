@@ -1,4 +1,4 @@
-import { getParsedError } from "./getParsedError";
+import { getKnownExternalErrorMessage, getParsedError } from "./getParsedError";
 import { AllowedChainIds } from "./networks";
 import { notification } from "./notification";
 import { MutateOptions } from "@tanstack/react-query";
@@ -343,9 +343,14 @@ export type AbiParameterTuple = Extract<AbiParameter, { type: "tuple" | `tuple[$
  */
 export const getParsedErrorWithAllAbis = (error: any, chainId: AllowedChainIds): string => {
   const originalParsedError = getParsedError(error);
+  const knownExternalError = getKnownExternalErrorMessage(originalParsedError);
+
+  if (knownExternalError) {
+    return knownExternalError;
+  }
 
   // Check if this is an unrecognized error signature
-  if (/Encoded error signature.*not found on ABI/i.test(originalParsedError)) {
+  if (/0x[a-fA-F0-9]{8}/.test(originalParsedError) && /not found on (?:the provided )?ABI/i.test(originalParsedError)) {
     const signatureMatch = originalParsedError.match(/0x[a-fA-F0-9]{8}/);
     const signature = signatureMatch ? signatureMatch[0] : "";
 

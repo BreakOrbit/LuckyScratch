@@ -32,7 +32,7 @@ import {
   formatUsdcFromMicro,
   toMicroUsdc,
 } from "~~/services/luckyScratch/poolMath";
-import { notification } from "~~/utils/scaffold-eth";
+import { getParsedError, notification } from "~~/utils/scaffold-eth";
 
 type RewardTierDraft = {
   id: string;
@@ -199,7 +199,7 @@ export function CreatePoolPage() {
       await queryClient.invalidateQueries({ queryKey: ["readContract"] });
       notification.success("cUSDC operator authorization completed.");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to authorize cUSDC operator.";
+      const message = getParsedError(error) || "Failed to authorize cUSDC operator.";
       notification.error(message);
     } finally {
       setIsAuthorizingOperator(false);
@@ -338,7 +338,7 @@ export function CreatePoolPage() {
       notification.success("Pool created and metadata finalized.");
       router.push(`/pool-detail/${createdPoolId}`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to create pool.";
+      const message = getParsedError(error) || "Failed to create pool.";
       notification.error(message);
     } finally {
       setIsSubmitting(false);

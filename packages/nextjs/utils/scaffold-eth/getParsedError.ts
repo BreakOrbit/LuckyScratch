@@ -1,5 +1,15 @@
 import { BaseError as BaseViemError, ContractFunctionRevertedError } from "viem";
 
+const KNOWN_EXTERNAL_ERROR_MESSAGES: Record<string, string> = {
+  "0x79bfd401":
+    "Chainlink VRF rejected the request with InvalidConsumer(uint256,address). Add the deployed LuckyScratchVRFAdapter address as a consumer on the configured VRF subscription, make sure the subscription is funded, then retry creating the pool.",
+};
+
+export const getKnownExternalErrorMessage = (message?: string): string | undefined => {
+  const selector = message?.match(/0x[a-fA-F0-9]{8}/)?.[0]?.toLowerCase();
+  return selector ? KNOWN_EXTERNAL_ERROR_MESSAGES[selector] : undefined;
+};
+
 /**
  * Parses an viem/wagmi error to get a displayable string
  * @param e - error object
@@ -10,10 +20,20 @@ export const getParsedError = (error: any): string => {
 
   if (parsedError instanceof BaseViemError) {
     if (parsedError.details) {
+      const knownExternalError = getKnownExternalErrorMessage(parsedError.details);
+      if (knownExternalError) {
+        return knownExternalError;
+      }
+
       return parsedError.details;
     }
 
     if (parsedError.shortMessage) {
+      const knownExternalError = getKnownExternalErrorMessage(parsedError.shortMessage);
+      if (knownExternalError) {
+        return knownExternalError;
+      }
+
       if (
         parsedError instanceof ContractFunctionRevertedError &&
         parsedError.data &&
@@ -31,5 +51,6 @@ export const getParsedError = (error: any): string => {
     return parsedError.message ?? parsedError.name ?? "An unknown error occurred";
   }
 
-  return parsedError?.message ?? "An unknown error occurred";
+  const fallbackMessage = parsedError?.message ?? "An unknown error occurred";
+  return getKnownExternalErrorMessage(fallbackMessage) ?? fallbackMessage;
 };
