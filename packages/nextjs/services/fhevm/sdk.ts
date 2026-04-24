@@ -62,6 +62,20 @@ const resolveRPCURL = (chainId: number) => {
   return chain?.rpcUrls.default.http[0];
 };
 
+export const ZAMA_SEPOLIA_SDK_CONFIG: ZamaSDKConfig = {
+  relayerUrl: "https://relayer.testnet.zama.org",
+  usesBackendProxy: false,
+  gatewayChainId: 10901,
+  fhevmExecutorContractAddress: "0x92C920834Ec8941d2C77D188936E1f7A6f49c127",
+  aclContractAddress: "0xf0Ffdc93b7E186bC2f8CB3dAA75D86d1930A433D",
+  hcuContractAddress: "0xa10998783c8CF88D886Bc30307e631D6686F0A22",
+  kmsVerifierContractAddress: "0xbE0E383937d564D7FF0BC3b46c51f0bF8d5C311A",
+  inputVerifierContractAddress: "0xBBC1fFCdc7C316aAAd72E807D9b0272BE8F84DA0",
+  verifyingContractAddressDecryption: "0x5D8BD78e2ea6bbE41f26dFe9fdaEAa349e077478",
+  verifyingContractAddressInputVerification: "0x483b9dE06E4E4C7D35CCf5837A1668487406D955",
+  apiKeyRequired: false,
+};
+
 export const createTicketRelayerInstance = async ({
   chainId,
   sdkConfig,
@@ -96,6 +110,17 @@ export const createTicketRelayerInstance = async ({
   } catch (error) {
     throw new Error(`failed to create relayer instance: ${toErrorMessage(error)}`);
   }
+};
+
+export const createSepoliaRelayerInstance = async ({ chainId }: { chainId: number }): Promise<FhevmInstance> => {
+  if (chainId !== 11155111) {
+    throw new Error("Zama balance decryption is currently configured for Sepolia only.");
+  }
+
+  return createTicketRelayerInstance({
+    chainId,
+    sdkConfig: ZAMA_SEPOLIA_SDK_CONFIG,
+  });
 };
 
 export const generateTicketKeypair = async (): Promise<TicketKeypair> => {

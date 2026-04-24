@@ -1,11 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
-import { useAccount } from "wagmi";
+import { getAddress } from "viem";
+import { useAccount, useWalletClient } from "wagmi";
 import { BanknotesIcon, LockClosedIcon, ShieldCheckIcon, SparklesIcon } from "@heroicons/react/24/outline";
 import { useDeployedContractInfo, useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
+import { useFhevmRuntime } from "~~/services/fhevm/FhevmRuntimeProvider";
+import { createSepoliaRelayerInstance, generateTicketKeypair } from "~~/services/fhevm/sdk";
 import { formatUsdcFromMicro, toMicroUsdc } from "~~/services/luckyScratch/poolMath";
 import { notification } from "~~/utils/scaffold-eth";
 
@@ -24,9 +27,24 @@ const toErrorMessage = (error: unknown) => {
   return "Transaction failed.";
 };
 
+const toBigIntBalance = (value: bigint | number | boolean | string) => {
+  if (typeof value === "bigint") {
+    return value;
+  }
+  if (typeof value === "number") {
+    return BigInt(value);
+  }
+  if (typeof value === "string") {
+    return BigInt(value);
+  }
+  throw new Error("Unexpected decrypted cUSDC balance type.");
+};
+
 export function CusdcFaucetPage() {
   const queryClient = useQueryClient();
   const { address, chainId } = useAccount();
+  const { data: walletClient } = useWalletClient();
+  const { ensureReady } = useFhevmRuntime();
   const { data: cusdcContract } = useDeployedContractInfo({ contractName: "CUSDCToken" });
   const { data: underlyingContract } = useDeployedContractInfo({ contractName: "CUSDCUnderlyingToken" });
   const { data: treasuryContract } = useDeployedContractInfo({ contractName: "LuckyScratchTreasury" });
@@ -39,6 +57,8 @@ export function CusdcFaucetPage() {
 
   const [amountUsdc, setAmountUsdc] = useState(DEFAULT_MINT_USDC);
   const [stage, setStage] = useState<string>("");
+  const [balanceStage, setBalanceStage] = useState<string>("");
+  const [decryptedCusdcBalance, setDecryptedCusdcBalance] = useState<bigint | null>(null);
 
   const amountMicro = useMemo(() => BigInt(toMicroUsdc(clampMintAmount(amountUsdc))), [amountUsdc]);
   const isSepolia = chainId === 11155111;
@@ -80,6 +100,19 @@ export function CusdcFaucetPage() {
 
   const allowanceReady = typeof wrapAllowance === "bigint" && wrapAllowance >= amountMicro;
   const isBusy = isUnderlyingMining || isCusdcMining || Boolean(stage);
+  const canDecryptBalance = Boolean(
+    address && walletClient && chainId === 11155111 && cusdcContract?.address && confidentialBalanceHandle,
+  );
+  const confidentialBalanceLabel =
+    confidentialBalanceHandle == null
+      ? "--"
+      : decryptedCusdcBalance == null
+        ? "Locked"
+        : `${formatUsdcFromMicro(decryptedCusdcBalance, 6)} cUSDC`;
+
+  useEffect(() => {
+    setDecryptedCusdcBalance(null);
+  }, [address, confidentialBalanceHandle]);
 
   const invalidateReads = async () => {
     await queryClient.invalidateQueries({ queryKey: ["readContract"] });
@@ -143,6 +176,7 @@ export function CusdcFaucetPage() {
         functionName: "wrap",
         args: [address, amountMicro],
       });
+      setDecryptedCusdcBalance(null);
       await invalidateReads();
       notification.success("Confidential cUSDC minted.");
     } catch (error) {
@@ -180,6 +214,7 @@ export function CusdcFaucetPage() {
         functionName: "wrap",
         args: [address, amountMicro],
       });
+      setDecryptedCusdcBalance(null);
       await invalidateReads();
       notification.success("cUSDC faucet flow completed.");
     } catch (error) {
@@ -207,6 +242,72 @@ export function CusdcFaucetPage() {
       notification.error(toErrorMessage(error));
     } finally {
       setStage("");
+    }
+  };
+
+  const handleDecryptBalance = async () => {
+    if (!address || !walletClient || chainId !== 11155111 || !cusdcContract?.address || !confidentialBalanceHandle) {
+      notification.error("Connect a Sepolia wallet with a cUSDC balance handle before decrypting.");
+      return;
+    }
+
+    try {
+      setBalanceStage("Preparing");
+      await ensureReady();
+
+      const userAddress = getAddress(address);
+      const tokenAddress = getAddress(cusdcContract.address);
+      const balanceHandle = String(confidentialBalanceHandle);
+      const instance = await createSepoliaRelayerInstance({ chainId });
+      const keypair = await generateTicketKeypair();
+      const startTimestamp = Math.floor(Date.now() / 1000);
+      const durationDays = 1;
+      const contractAddresses = [tokenAddress];
+      const eip712 = instance.createEIP712(keypair.publicKey, contractAddresses, startTimestamp, durationDays);
+
+      setBalanceStage("Sign request");
+      const signature = await walletClient.signTypedData({
+        account: userAddress,
+        domain: eip712.domain as any,
+        types: {
+          UserDecryptRequestVerification: eip712.types.UserDecryptRequestVerification,
+        } as any,
+        primaryType: "UserDecryptRequestVerification",
+        message: eip712.message as any,
+      });
+
+      setBalanceStage("Decrypting");
+      const result = await instance.userDecrypt(
+        [{ handle: balanceHandle, contractAddress: tokenAddress }],
+        keypair.privateKey,
+        keypair.publicKey,
+        signature,
+        contractAddresses,
+        userAddress,
+        startTimestamp,
+        durationDays,
+        {
+          onProgress: progress => {
+            if (progress.type === "queued") {
+              setBalanceStage("Queued");
+            }
+            if (progress.type === "throttled") {
+              setBalanceStage("Retrying");
+            }
+          },
+        },
+      );
+      const decryptedValue = result[balanceHandle] ?? Object.values(result)[0];
+      if (decryptedValue == null) {
+        throw new Error("Relayer did not return a decrypted cUSDC balance.");
+      }
+
+      setDecryptedCusdcBalance(toBigIntBalance(decryptedValue));
+      notification.success("cUSDC balance decrypted.");
+    } catch (error) {
+      notification.error(toErrorMessage(error));
+    } finally {
+      setBalanceStage("");
     }
   };
 
@@ -246,8 +347,18 @@ export function CusdcFaucetPage() {
             },
             {
               label: "cUSDC Balance",
-              value: confidentialBalanceHandle ? "Encrypted" : "--",
+              value: confidentialBalanceLabel,
               icon: LockClosedIcon,
+              action: confidentialBalanceHandle ? (
+                <button
+                  type="button"
+                  disabled={!canDecryptBalance || Boolean(balanceStage)}
+                  onClick={handleDecryptBalance}
+                  className="mt-4 inline-flex w-full items-center justify-center rounded-xl border border-[#00DAF3]/25 bg-[#0F2031] px-3 py-2 text-xs font-bold text-[#9CF0FF] transition disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {balanceStage || (decryptedCusdcBalance == null ? "Decrypt Balance" : "Refresh Balance")}
+                </button>
+              ) : null,
             },
             {
               label: "Treasury Operator",
@@ -263,6 +374,7 @@ export function CusdcFaucetPage() {
                   <Icon className="h-5 w-5 text-[#FFD700]" />
                 </div>
                 <div className="font-headline text-2xl font-bold text-white">{item.value}</div>
+                {"action" in item ? item.action : null}
               </div>
             );
           })}
