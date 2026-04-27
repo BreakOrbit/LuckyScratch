@@ -26,6 +26,13 @@ type APIErrorPayload = {
   message?: string;
 };
 
+export type ListUserTicketsParams = {
+  limit?: number;
+  offset?: number;
+  view?: "all" | "unrevealed" | "revealed" | "winning" | "to-claim";
+  poolId?: number;
+};
+
 const parseErrorMessage = async (response: Response) => {
   const contentType = response.headers.get("content-type") || "";
   if (contentType.includes("application/json")) {
@@ -105,8 +112,18 @@ const normalizePoolDraft = (draft: PoolDraft): PoolDraft => ({
 export const luckyScratchAPI = {
   getHealth: () => requestJSON<LuckyScratchHealth>(`/healthz`),
   getTicket: (ticketId: string) => requestJSON<LuckyScratchTicket>(`/api/v1/tickets/${ticketId}`),
-  listUserTickets: (address: string) =>
-    requestJSON<UserTicketsResponse>(`/api/v1/users/${address}/tickets?limit=50&offset=0`),
+  listUserTickets: (address: string, params?: ListUserTicketsParams) => {
+    const search = new URLSearchParams();
+    search.set("limit", String(params?.limit ?? 50));
+    search.set("offset", String(params?.offset ?? 0));
+    if (params?.view && params.view !== "all") {
+      search.set("view", params.view);
+    }
+    if (params?.poolId) {
+      search.set("poolId", String(params.poolId));
+    }
+    return requestJSON<UserTicketsResponse>(`/api/v1/users/${address}/tickets?${search.toString()}`);
+  },
   listUserWins: (address: string) => requestJSON<UserWinsResponse>(`/api/v1/users/${address}/wins?limit=50&offset=0`),
   listRecentWins: (limit = 20) => requestJSON<RecentWinsResponse>(`/api/v1/wins/recent?limit=${limit}&offset=0`),
   getPlatformOverview: () => requestJSON<LuckyScratchPlatformOverview>(`/api/v1/stats/overview`),

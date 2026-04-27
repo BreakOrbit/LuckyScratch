@@ -14,6 +14,21 @@ type Service struct {
 	queries db.Querier
 }
 
+type TicketListFilter struct {
+	Owner  string
+	View   string
+	PoolID uint64
+	Limit  int
+	Offset int
+}
+
+type TicketListPage struct {
+	Items      []db.Ticket
+	TotalCount int64
+	Limit      int
+	Offset     int
+}
+
 func NewService(cfg config.Config, queries db.Querier) Service {
 	return Service{
 		cfg:     cfg,
@@ -67,6 +82,36 @@ func (s Service) ListTicketsByOwner(ctx context.Context, owner string, limit int
 		Limit:   int32(limit),
 		Offset:  int32(offset),
 	})
+}
+
+func (s Service) ListTicketsByOwnerFiltered(ctx context.Context, filter TicketListFilter) (TicketListPage, error) {
+	params := db.ListTicketsByOwnerFilteredParams{
+		ChainID:     s.cfg.Chain.ID,
+		Owner:       filter.Owner,
+		PoolID:      int64(filter.PoolID),
+		ViewFilter:  filter.View,
+		LimitCount:  int32(filter.Limit),
+		OffsetCount: int32(filter.Offset),
+	}
+	rows, err := s.queries.ListTicketsByOwnerFiltered(ctx, params)
+	if err != nil {
+		return TicketListPage{}, err
+	}
+	totalCount, err := s.queries.CountTicketsByOwnerFiltered(ctx, db.CountTicketsByOwnerFilteredParams{
+		ChainID:    s.cfg.Chain.ID,
+		Owner:      filter.Owner,
+		PoolID:     int64(filter.PoolID),
+		ViewFilter: filter.View,
+	})
+	if err != nil {
+		return TicketListPage{}, err
+	}
+	return TicketListPage{
+		Items:      rows,
+		TotalCount: totalCount,
+		Limit:      filter.Limit,
+		Offset:     filter.Offset,
+	}, nil
 }
 
 func (s Service) ListTicketsByPool(ctx context.Context, poolID uint64, limit int, offset int) ([]db.Ticket, error) {

@@ -236,6 +236,36 @@ WHERE chain_id = $1
 ORDER BY ticket_id DESC
 LIMIT $3 OFFSET $4;
 
+-- name: ListTicketsByOwnerFiltered :many
+SELECT *
+FROM tickets
+WHERE chain_id = sqlc.arg(chain_id)
+  AND lower(owner) = lower(sqlc.arg(owner))
+  AND (sqlc.arg(pool_id)::BIGINT = 0 OR pool_id = sqlc.arg(pool_id)::BIGINT)
+  AND (
+    sqlc.arg(view_filter)::TEXT = ''
+    OR (sqlc.arg(view_filter)::TEXT = 'unrevealed' AND status = 'Unscratched')
+    OR (sqlc.arg(view_filter)::TEXT = 'revealed' AND status != 'Unscratched')
+    OR (sqlc.arg(view_filter)::TEXT = 'winning' AND claim_clear_reward_amount > 0)
+    OR (sqlc.arg(view_filter)::TEXT = 'to-claim' AND status = 'Scratched' AND reveal_authorized = TRUE)
+  )
+ORDER BY ticket_id DESC
+LIMIT sqlc.arg(limit_count) OFFSET sqlc.arg(offset_count);
+
+-- name: CountTicketsByOwnerFiltered :one
+SELECT COUNT(*)::BIGINT
+FROM tickets
+WHERE chain_id = sqlc.arg(chain_id)
+  AND lower(owner) = lower(sqlc.arg(owner))
+  AND (sqlc.arg(pool_id)::BIGINT = 0 OR pool_id = sqlc.arg(pool_id)::BIGINT)
+  AND (
+    sqlc.arg(view_filter)::TEXT = ''
+    OR (sqlc.arg(view_filter)::TEXT = 'unrevealed' AND status = 'Unscratched')
+    OR (sqlc.arg(view_filter)::TEXT = 'revealed' AND status != 'Unscratched')
+    OR (sqlc.arg(view_filter)::TEXT = 'winning' AND claim_clear_reward_amount > 0)
+    OR (sqlc.arg(view_filter)::TEXT = 'to-claim' AND status = 'Scratched' AND reveal_authorized = TRUE)
+  );
+
 -- name: ListTicketsByPool :many
 SELECT *
 FROM tickets

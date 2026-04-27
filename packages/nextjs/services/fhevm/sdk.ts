@@ -4,8 +4,10 @@ import type { FhevmInstance, FhevmInstanceConfig, RelayerSDKModule, TicketKeypai
 import scaffoldConfig from "~~/scaffold.config";
 import type { ZamaSDKConfig } from "~~/services/luckyScratch/types";
 
+const RELAYER_SDK_SCRIPT_SRC = "https://cdn.zama.org/relayer-sdk-js/0.4.1/relayer-sdk-js.umd.cjs";
 const RELAYER_SDK_LOAD_TIMEOUT_MS = 15_000;
 
+let relayerSDKScriptPromise: Promise<void> | null = null;
 let relayerSDKPromise: Promise<RelayerSDKModule> | null = null;
 let relayerSDKInitPromise: Promise<boolean> | null = null;
 
@@ -15,6 +17,43 @@ const toErrorMessage = (error: unknown) => {
   }
   return "unknown relayer SDK error";
 };
+
+const loadRelayerSDKScript = () =>
+  new Promise<void>((resolve, reject) => {
+    if (typeof window === "undefined") {
+      reject(new Error("relayer SDK is only available in the browser"));
+      return;
+    }
+    if (window.relayerSDK) {
+      resolve();
+      return;
+    }
+
+    const existingScript = document.querySelector<HTMLScriptElement>(`script[src="${RELAYER_SDK_SCRIPT_SRC}"]`);
+    const script = existingScript || document.createElement("script");
+
+    const cleanup = () => {
+      script.removeEventListener("load", handleLoad);
+      script.removeEventListener("error", handleError);
+    };
+    const handleLoad = () => {
+      cleanup();
+      resolve();
+    };
+    const handleError = () => {
+      cleanup();
+      reject(new Error("failed to load the relayer SDK script"));
+    };
+
+    script.addEventListener("load", handleLoad, { once: true });
+    script.addEventListener("error", handleError, { once: true });
+
+    if (!existingScript) {
+      script.src = RELAYER_SDK_SCRIPT_SRC;
+      script.async = true;
+      document.head.appendChild(script);
+    }
+  });
 
 const waitForRelayerSDK = (timeoutMs = RELAYER_SDK_LOAD_TIMEOUT_MS) =>
   new Promise<RelayerSDKModule>((resolve, reject) => {
@@ -40,7 +79,13 @@ const waitForRelayerSDK = (timeoutMs = RELAYER_SDK_LOAD_TIMEOUT_MS) =>
 
 export const loadRelayerSDK = async () => {
   if (!relayerSDKPromise) {
-    relayerSDKPromise = waitForRelayerSDK();
+    relayerSDKPromise = (async () => {
+      if (!relayerSDKScriptPromise) {
+        relayerSDKScriptPromise = loadRelayerSDKScript();
+      }
+      await relayerSDKScriptPromise;
+      return waitForRelayerSDK();
+    })();
   }
   const sdk = await relayerSDKPromise;
 

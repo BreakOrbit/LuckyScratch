@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import type { ListUserTicketsParams } from "~~/services/luckyScratch/api";
 import { luckyScratchAPI } from "~~/services/luckyScratch/api";
 
 export const useLuckyScratchHealth = () =>
@@ -10,10 +11,19 @@ export const useLuckyScratchHealth = () =>
     staleTime: 10_000,
   });
 
-export const useLuckyScratchUserTickets = (address?: string) =>
+export const useLuckyScratchUserTickets = (address?: string, params?: ListUserTicketsParams) =>
   useQuery({
-    queryKey: ["lucky-scratch", "users", address?.toLowerCase(), "tickets"],
-    queryFn: () => luckyScratchAPI.listUserTickets(address!),
+    queryKey: [
+      "lucky-scratch",
+      "users",
+      address?.toLowerCase(),
+      "tickets",
+      params?.limit ?? 50,
+      params?.offset ?? 0,
+      params?.view ?? "all",
+      params?.poolId ?? 0,
+    ],
+    queryFn: () => luckyScratchAPI.listUserTickets(address!, params),
     enabled: Boolean(address),
     staleTime: 10_000,
   });

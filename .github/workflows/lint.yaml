@@ -19,16 +19,26 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@master
+        uses: actions/checkout@v4
 
       - name: Setup node env
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
           cache: yarn
 
+      - name: Setup go env
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: packages/backend/go.mod
+          cache-dependency-path: packages/backend/go.sum
+
       - name: Install dependencies
         run: yarn install --immutable
+
+      - name: Run backend tests
+        working-directory: packages/backend
+        run: go test ./...
       
       - name: Run hardhat node, deploy contracts (& generate contracts typescript output)
         run: yarn chain & yarn deploy
@@ -36,8 +46,17 @@ jobs:
       - name: Run hardhat lint
         run: yarn hardhat:lint --max-warnings=0
 
+      - name: Check typings on hardhat
+        run: yarn hardhat:check-types
+
+      - name: Run hardhat tests
+        run: yarn hardhat:test
+
       - name: Run nextjs lint
         run: yarn next:lint --max-warnings=0
 
       - name: Check typings on nextjs
         run: yarn next:check-types
+
+      - name: Build nextjs
+        run: yarn next:build

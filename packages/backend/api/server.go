@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -28,6 +29,7 @@ type ReadService interface {
 	GetPool(ctx context.Context, poolID uint64) (db.Pool, error)
 	GetRound(ctx context.Context, poolID uint64, roundID uint64) (db.Round, error)
 	ListTicketsByOwner(ctx context.Context, owner string, limit int, offset int) ([]db.Ticket, error)
+	ListTicketsByOwnerFiltered(ctx context.Context, filter readmodel.TicketListFilter) (readmodel.TicketListPage, error)
 	ListTicketsByPool(ctx context.Context, poolID uint64, limit int, offset int) ([]db.Ticket, error)
 	ListTicketsByPoolAndRound(ctx context.Context, poolID uint64, roundID uint64, limit int, offset int) ([]db.Ticket, error)
 	ListWinsByUser(ctx context.Context, owner string, limit int, offset int) ([]db.Ticket, error)
@@ -322,18 +324,31 @@ func (s *Server) handleUserTickets(w http.ResponseWriter, r *http.Request, addre
 		return
 	}
 
-	limit, offset := listParams(r)
-	rows, err := s.readService.ListTicketsByOwner(r.Context(), strings.ToLower(address), limit, offset)
+	filter, parseErr := userTicketListFilter(r, address)
+	if parseErr != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": parseErr.Error()})
+		return
+	}
+	page, err := s.readService.ListTicketsByOwnerFiltered(r.Context(), filter)
 	if err != nil {
 		writeServiceError(w, err)
 		return
 	}
 
-	items := make([]map[string]any, 0, len(rows))
-	for _, row := range rows {
+	items := make([]map[string]any, 0, len(page.Items))
+	for _, row := range page.Items {
 		items = append(items, ticketResponse(row))
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+	nextOffset := page.Offset + len(page.Items)
+	hasMore := int64(nextOffset) < page.TotalCount
+	writeJSON(w, http.StatusOK, map[string]any{
+		"items":      items,
+		"limit":      page.Limit,
+		"offset":     page.Offset,
+		"nextOffset": nextOffset,
+		"totalCount": page.TotalCount,
+		"hasMore":    hasMore,
+	})
 }
 
 func (s *Server) handleUserWins(w http.ResponseWriter, r *http.Request, address string) {
@@ -801,6 +816,40 @@ func listParams(r *http.Request) (int, int) {
 		}
 	}
 	return limit, offset
+}
+
+func userTicketListFilter(r *http.Request, address string) (readmodel.TicketListFilter, error) {
+	limit, offset := listParams(r)
+	view := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("view")))
+	switch view {
+	case "", "all", "unrevealed", "revealed", "winning", "to-claim":
+	default:
+		return readmodel.TicketListFilter{}, fmt.Errorf("unsupported ticket view")
+	}
+	if view == "all" {
+		view = ""
+	}
+
+	var poolID uint64
+	rawPoolID := strings.TrimSpace(r.URL.Query().Get("poolId"))
+	if rawPoolID == "" {
+		rawPoolID = strings.TrimSpace(r.URL.Query().Get("pool_id"))
+	}
+	if rawPoolID != "" {
+		parsed, err := strconv.ParseUint(rawPoolID, 10, 64)
+		if err != nil || parsed == 0 {
+			return readmodel.TicketListFilter{}, fmt.Errorf("invalid pool id")
+		}
+		poolID = parsed
+	}
+
+	return readmodel.TicketListFilter{
+		Owner:  strings.ToLower(address),
+		View:   view,
+		PoolID: poolID,
+		Limit:  limit,
+		Offset: offset,
+	}, nil
 }
 
 func poolResponse(row db.Pool) map[string]any {

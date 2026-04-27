@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, startTransition, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { createContext, startTransition, useCallback, useContext, useRef, useState } from "react";
 import { generateTicketKeypair, loadRelayerSDK } from "./sdk";
 import type { TicketKeypair } from "./types";
 
@@ -9,7 +9,7 @@ type TicketSession = {
   createdAt: number;
 };
 
-type FhevmRuntimeStatus = "loading" | "ready" | "error";
+type FhevmRuntimeStatus = "idle" | "loading" | "ready" | "error";
 
 type FhevmRuntimeContextValue = {
   status: FhevmRuntimeStatus;
@@ -30,11 +30,15 @@ const toErrorMessage = (error: unknown) => {
 
 export const FhevmRuntimeProvider = ({ children }: { children: React.ReactNode }) => {
   const sessionsRef = useRef<Record<string, TicketSession>>({});
-  const [status, setStatus] = useState<FhevmRuntimeStatus>("loading");
+  const [status, setStatus] = useState<FhevmRuntimeStatus>("idle");
   const [error, setError] = useState<string | null>(null);
 
   const ensureReady = useCallback(async () => {
     try {
+      startTransition(() => {
+        setStatus(current => (current === "ready" ? current : "loading"));
+        setError(null);
+      });
       await loadRelayerSDK();
       startTransition(() => {
         setStatus("ready");
@@ -70,10 +74,6 @@ export const FhevmRuntimeProvider = ({ children }: { children: React.ReactNode }
   const clearTicketSession = useCallback((ticketId: string) => {
     delete sessionsRef.current[ticketId];
   }, []);
-
-  useEffect(() => {
-    void ensureReady();
-  }, [ensureReady]);
 
   return (
     <FhevmRuntimeContext.Provider value={{ status, error, ensureReady, getOrCreateTicketKeypair, clearTicketSession }}>

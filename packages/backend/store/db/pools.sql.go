@@ -11,6 +11,40 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countTicketsByOwnerFiltered = `-- name: CountTicketsByOwnerFiltered :one
+SELECT COUNT(*)::BIGINT
+FROM tickets
+WHERE chain_id = $1
+  AND lower(owner) = lower($2)
+  AND ($3::BIGINT = 0 OR pool_id = $3::BIGINT)
+  AND (
+    $4::TEXT = ''
+    OR ($4::TEXT = 'unrevealed' AND status = 'Unscratched')
+    OR ($4::TEXT = 'revealed' AND status != 'Unscratched')
+    OR ($4::TEXT = 'winning' AND claim_clear_reward_amount > 0)
+    OR ($4::TEXT = 'to-claim' AND status = 'Scratched' AND reveal_authorized = TRUE)
+  )
+`
+
+type CountTicketsByOwnerFilteredParams struct {
+	ChainID    int64  `json:"chain_id"`
+	Owner      string `json:"owner"`
+	PoolID     int64  `json:"pool_id"`
+	ViewFilter string `json:"view_filter"`
+}
+
+func (q *Queries) CountTicketsByOwnerFiltered(ctx context.Context, arg CountTicketsByOwnerFilteredParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countTicketsByOwnerFiltered,
+		arg.ChainID,
+		arg.Owner,
+		arg.PoolID,
+		arg.ViewFilter,
+	)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const deletePool = `-- name: DeletePool :exec
 DELETE FROM pools
 WHERE chain_id = $1
@@ -453,6 +487,79 @@ func (q *Queries) ListTicketsByOwner(ctx context.Context, arg ListTicketsByOwner
 		arg.Lower,
 		arg.Limit,
 		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Ticket{}
+	for rows.Next() {
+		var i Ticket
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChainID,
+			&i.TicketID,
+			&i.PoolID,
+			&i.RoundID,
+			&i.Owner,
+			&i.TicketIndex,
+			&i.Status,
+			&i.RevealAuthorized,
+			&i.TransferredBeforeScratch,
+			&i.MintTxHash,
+			&i.ClaimedBy,
+			&i.ClaimClearRewardAmount,
+			&i.LastEventBlock,
+			&i.LastEventTxHash,
+			&i.LastEventLogIndex,
+			&i.LastEventBlockHash,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTicketsByOwnerFiltered = `-- name: ListTicketsByOwnerFiltered :many
+SELECT id, chain_id, ticket_id, pool_id, round_id, owner, ticket_index, status, reveal_authorized, transferred_before_scratch, mint_tx_hash, claimed_by, claim_clear_reward_amount, last_event_block, last_event_tx_hash, last_event_log_index, last_event_block_hash, created_at, updated_at
+FROM tickets
+WHERE chain_id = $1
+  AND lower(owner) = lower($2)
+  AND ($3::BIGINT = 0 OR pool_id = $3::BIGINT)
+  AND (
+    $4::TEXT = ''
+    OR ($4::TEXT = 'unrevealed' AND status = 'Unscratched')
+    OR ($4::TEXT = 'revealed' AND status != 'Unscratched')
+    OR ($4::TEXT = 'winning' AND claim_clear_reward_amount > 0)
+    OR ($4::TEXT = 'to-claim' AND status = 'Scratched' AND reveal_authorized = TRUE)
+  )
+ORDER BY ticket_id DESC
+LIMIT $6 OFFSET $5
+`
+
+type ListTicketsByOwnerFilteredParams struct {
+	ChainID     int64  `json:"chain_id"`
+	Owner       string `json:"owner"`
+	PoolID      int64  `json:"pool_id"`
+	ViewFilter  string `json:"view_filter"`
+	OffsetCount int32  `json:"offset_count"`
+	LimitCount  int32  `json:"limit_count"`
+}
+
+func (q *Queries) ListTicketsByOwnerFiltered(ctx context.Context, arg ListTicketsByOwnerFilteredParams) ([]Ticket, error) {
+	rows, err := q.db.Query(ctx, listTicketsByOwnerFiltered,
+		arg.ChainID,
+		arg.Owner,
+		arg.PoolID,
+		arg.ViewFilter,
+		arg.OffsetCount,
+		arg.LimitCount,
 	)
 	if err != nil {
 		return nil, err

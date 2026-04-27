@@ -20,6 +20,11 @@ export type LuckyScratchTicket = {
 
 export type UserTicketsResponse = {
   items: LuckyScratchTicket[];
+  limit: number;
+  offset: number;
+  nextOffset: number;
+  totalCount: number;
+  hasMore: boolean;
 };
 
 export type UserWinsResponse = {

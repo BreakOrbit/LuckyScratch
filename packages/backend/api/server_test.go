@@ -15,6 +15,7 @@ import (
 	"lucky-scratch/apperrors"
 	"lucky-scratch/config"
 	"lucky-scratch/poolmeta"
+	"lucky-scratch/readmodel"
 	"lucky-scratch/reveal"
 	"lucky-scratch/store/db"
 	"lucky-scratch/zama"
@@ -69,6 +70,32 @@ func TestWriteServiceErrorMapsNoRowsToNotFound(t *testing.T) {
 	}
 }
 
+func TestUserTicketListFilterParsesViewPoolAndPagination(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/users/0xAbC/tickets?view=to-claim&poolId=12&limit=24&offset=48", nil)
+	filter, err := userTicketListFilter(req, "0xAbC")
+	if err != nil {
+		t.Fatalf("parse filter: %v", err)
+	}
+
+	if filter.Owner != "0xabc" {
+		t.Fatalf("expected normalized owner, got %q", filter.Owner)
+	}
+	if filter.View != "to-claim" || filter.PoolID != 12 || filter.Limit != 24 || filter.Offset != 48 {
+		t.Fatalf("unexpected filter: %#v", filter)
+	}
+}
+
+func TestUserTicketListFilterRejectsUnsupportedView(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/users/0xabc/tickets?view=expired", nil)
+	if _, err := userTicketListFilter(req, "0xabc"); err == nil {
+		t.Fatalf("expected unsupported view error")
+	}
+}
+
 type stubReadService struct{}
 
 func (stubReadService) ListPools(context.Context, int, int) ([]db.Pool, error) { return nil, nil }
@@ -86,6 +113,9 @@ func (stubReadService) GetRound(context.Context, uint64, uint64) (db.Round, erro
 }
 func (stubReadService) ListTicketsByOwner(context.Context, string, int, int) ([]db.Ticket, error) {
 	return nil, nil
+}
+func (stubReadService) ListTicketsByOwnerFiltered(context.Context, readmodel.TicketListFilter) (readmodel.TicketListPage, error) {
+	return readmodel.TicketListPage{}, nil
 }
 func (stubReadService) ListTicketsByPool(context.Context, uint64, int, int) ([]db.Ticket, error) {
 	return nil, nil

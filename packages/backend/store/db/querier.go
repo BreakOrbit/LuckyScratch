@@ -12,6 +12,7 @@ import (
 
 type Querier interface {
 	ClaimDueJobs(ctx context.Context, arg ClaimDueJobsParams) ([]Job, error)
+	CountTicketsByOwnerFiltered(ctx context.Context, arg CountTicketsByOwnerFilteredParams) (int64, error)
 	DeleteIndexedLogsFromBlock(ctx context.Context, arg DeleteIndexedLogsFromBlockParams) error
 	DeletePool(ctx context.Context, arg DeletePoolParams) error
 	DeleteRound(ctx context.Context, arg DeleteRoundParams) error
@@ -52,6 +53,7 @@ type Querier interface {
 	ListTicketIDsByPoolAndRoundFromIndexedLogs(ctx context.Context, arg ListTicketIDsByPoolAndRoundFromIndexedLogsParams) ([]pgtype.Int8, error)
 	ListTicketIDsByPoolFromIndexedLogs(ctx context.Context, arg ListTicketIDsByPoolFromIndexedLogsParams) ([]pgtype.Int8, error)
 	ListTicketsByOwner(ctx context.Context, arg ListTicketsByOwnerParams) ([]Ticket, error)
+	ListTicketsByOwnerFiltered(ctx context.Context, arg ListTicketsByOwnerFilteredParams) ([]Ticket, error)
 	ListTicketsByPool(ctx context.Context, arg ListTicketsByPoolParams) ([]Ticket, error)
 	ListTicketsByPoolAndRound(ctx context.Context, arg ListTicketsByPoolAndRoundParams) ([]Ticket, error)
 	ListTopPlayersAllTime(ctx context.Context, arg ListTopPlayersAllTimeParams) ([]ListTopPlayersAllTimeRow, error)
