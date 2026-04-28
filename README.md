@@ -1,83 +1,139 @@
-# 🏗 Scaffold-ETH 2
+# LuckyScratch
 
-<h4 align="center">
-  <a href="https://docs.scaffoldeth.io">Documentation</a> |
-  <a href="https://scaffoldeth.io">Website</a>
-</h4>
+LuckyScratch is a full-stack decentralized scratch-ticket application built from Scaffold-ETH 2. It combines Solidity contracts, a Next.js wallet frontend, and a Go/PostgreSQL backend that indexes chain events and coordinates pool metadata plus Zama reveal flows.
 
-🧪 An open-source, up-to-date toolkit for building decentralized applications (dapps) on the Ethereum blockchain. It's designed to make it easier for developers to create and deploy smart contracts and build user interfaces that interact with those contracts.
+The repository is currently a Hardhat-flavor SE-2 project. The old Scaffold-ETH demo contracts and frontend panels have been replaced by the LuckyScratch product surface.
 
-> [!NOTE]
-> 🤖 Scaffold-ETH 2 is AI-ready! It has everything agents need to build on Ethereum. Check `.agents/`, `.claude/`, `.opencode` or `.cursor/` for more info.
+## What Is In This Repo
 
-⚙️ Built using NextJS, RainbowKit, Hardhat, Wagmi, Viem, and Typescript.
+- `packages/hardhat`: Solidity contracts, Hardhat config, deployment scripts, TypeChain output, and LuckyScratch contract tests.
+- `packages/nextjs`: Next.js App Router frontend with RainbowKit, Wagmi, Viem, Tailwind CSS, DaisyUI, and the LuckyScratch product pages.
+- `packages/backend`: Go backend with PostgreSQL migrations, sqlc-generated repositories, chain/indexer services, REST API, IPFS upload support, and Zama reveal proxy orchestration.
+- `doc`: product, contract, backend, integration, and deployment notes.
+- `AGENTS.md`: repository-specific engineering guidance for coding agents.
 
-- ✅ **Contract Hot Reload**: Your frontend auto-adapts to your smart contract as you edit it.
-- 🪝 **[Custom hooks](https://docs.scaffoldeth.io/hooks/)**: Collection of React hooks wrapper around [wagmi](https://wagmi.sh/) to simplify interactions with smart contracts with typescript autocompletion.
-- 🧱 [**Components**](https://docs.scaffoldeth.io/components/): Collection of common web3 components to quickly build your frontend.
-- 🔥 **Burner Wallet & Local Faucet**: Quickly test your application with a burner wallet and local faucet.
-- 🔐 **Integration with Wallet Providers**: Connect to different wallet providers and interact with the Ethereum network.
+## Core Runtime Model
 
-![Debug Contracts tab](https://github.com/scaffold-eth/scaffold-eth-2/assets/55535804/b237af0c-5027-4849-a5c1-2e31495cccb1)
+The application keeps final user transactions wallet-driven:
 
-## Requirements
+- Pool creation, ticket purchase, scratch, reward claim, creator withdrawal, and bond refund are submitted by the user's wallet.
+- The backend does not relay user transactions. It builds read models from indexed events and serves data needed by the frontend.
+- Reward values are encrypted onchain with Zama fhEVM primitives. Claiming requires the frontend to obtain a public decryption proof through backend-authorized Zama proxy routes, then submit `claimReward` or `batchClaimRewards`.
+- Chainlink VRF v2.5 initializes live-network pool randomness. Local contract tests use the mock fulfillment path.
 
-Before you begin, you need to install the following tools:
+## Important Paths
 
-- [Node (>= v20.18.3)](https://nodejs.org/en/download/)
-- Yarn ([v1](https://classic.yarnpkg.com/en/docs/install/) or [v2+](https://yarnpkg.com/getting-started/install))
-- [Git](https://git-scm.com/downloads)
+- Contracts: `packages/hardhat/contracts/luckyScratch/`
+- Deploy script: `packages/hardhat/deploy/02_deploy_lucky_scratch.ts`
+- Contract tests: `packages/hardhat/test/luckyScratch/`
+- Frontend app routes: `packages/nextjs/app/`
+- Frontend LuckyScratch API client: `packages/nextjs/services/luckyScratch/`
+- Backend API entrypoint: `packages/backend/main.go`
+- Backend SQL migrations: `packages/backend/sql/migrations/`
+- Backend SQL queries: `packages/backend/sql/queries/`
+- Deployment runbook: `doc/deployment-runbook.md`
 
-## Quickstart
+## Prerequisites
 
-To get started with Scaffold-ETH 2, follow the steps below:
+- Node.js `>=20.18.3`
+- Yarn `3.2.3` through Corepack or an equivalent Yarn setup
+- Go `1.25`
+- PostgreSQL for backend API/worker runs
+- Docker and Docker Compose for backend container runs
+- A working EVM RPC URL for the target chain
 
-1. Install dependencies if it was skipped in CLI:
+## Quick Verification
 
-```
-cd my-dapp-example
+These commands validate the current codebase without requiring a live deployment:
+
+```bash
 yarn install
+yarn compile
+yarn hardhat:check-types
+yarn hardhat:test
+
+cd packages/backend
+go test ./...
+
+cd ../..
+yarn next:check-types
+yarn next:build
 ```
 
-2. Run a local network in the first terminal:
+## Local Development
 
-```
-yarn chain
-```
+For contract and frontend development, the most reliable local loop is currently:
 
-This command starts a local Ethereum network using Hardhat. The network runs on your local machine and can be used for testing and development. You can customize the network configuration in `packages/hardhat/hardhat.config.ts`.
-
-3. On a second terminal, deploy the test contract:
-
-```
-yarn deploy
+```bash
+yarn hardhat:test
+yarn next:check-types
+yarn next:build
 ```
 
-This command deploys a test smart contract to the local network. The contract is located in `packages/hardhat/contracts` and can be modified to suit your needs. The `yarn deploy` command uses the deploy script located in `packages/hardhat/deploy` to deploy the contract to the network. You can also customize the deploy script.
+The backend can run locally when PostgreSQL, an RPC endpoint, and LuckyScratch deployment artifacts for the configured `CHAIN_NAME` are present.
 
-4. On a third terminal, start your NextJS app:
+Current local deployment caveat: `packages/hardhat/deploy/02_deploy_lucky_scratch.ts` is configured for real `mainnet` and `sepolia` cUSDC plus Chainlink VRF settings. It does not currently provide a complete localhost deployment path with `TestConfidentialUSDC` and mock VRF. Do not assume plain `yarn deploy --network localhost` is a working full-stack local setup until that deploy path is added.
 
-```
+See `doc/deployment-runbook.md` for the local backend/frontend startup sequence and the exact production deployment flow.
+
+## Environment Files
+
+Templates live here:
+
+- `packages/hardhat/.env.example`
+- `packages/backend/.env.example`
+- `packages/backend/.env.docker.example`
+- `packages/nextjs/.env.example`
+
+Key runtime variables:
+
+- Backend: `DATABASE_URL`, `RPC_URL`, `CHAIN_ID`, `CHAIN_NAME`, `API_PUBLIC_BASE_URL`, `CORS_ALLOWED_ORIGINS`, `ADMIN_TOKEN`
+- Backend IPFS: `IPFS_PROVIDER`, `IPFS_PINATA_JWT`, `IPFS_GATEWAY_BASE_URL`
+- Backend Zama: Sepolia defaults are built in when `CHAIN_ID=11155111`; override only for non-default relayer/protocol settings.
+- Frontend: `NEXT_PUBLIC_BACKEND_URL`, `NEXT_PUBLIC_IPFS_GATEWAY_BASE_URL`, `NEXT_PUBLIC_SEPOLIA_RPC_URL`
+- Hardhat live deploy: `ALCHEMY_API_KEY`, `ETHERSCAN_V2_API_KEY`, `DEPLOYER_PRIVATE_KEY_ENCRYPTED`, `CHAINLINK_VRF_SUBSCRIPTION_ID_<NETWORK>`
+
+## Common Commands
+
+```bash
+# Contracts
+yarn compile
+yarn hardhat:check-types
+yarn hardhat:test
+yarn deploy --network sepolia
+LUCKY_SCRATCH_REUSE_EXISTING=true yarn deploy --network sepolia
+yarn verify --network sepolia
+
+# Frontend
 yarn start
+yarn next:check-types
+yarn next:build
+yarn vercel:yolo --prod
+
+# Backend
+cd packages/backend
+go test ./...
+go run .
+go run . api
+go run . worker
+docker compose up -d
+./update-containers.sh
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f sql/clean_database.sql
 ```
 
-Visit your app on: `http://localhost:3000`. You can interact with your smart contract using the `Debug Contracts` page. You can tweak the app config in `packages/nextjs/scaffold.config.ts`.
+## Production Notes
 
-Run smart contract test with `yarn hardhat:test`
+- LuckyScratch live deploys are fresh redeploys by default. Set `LUCKY_SCRATCH_REUSE_EXISTING=true` only when intentionally keeping the previous contract addresses.
+- Mainnet full redeploys require `LUCKY_SCRATCH_FORCE_MAINNET_REDEPLOY=true`.
+- After each fresh live deploy, add the new `LuckyScratchVRFAdapter` address as a Chainlink VRF subscription consumer before creating pools.
+- After a full live redeploy, stop backend API/worker and run `packages/backend/sql/clean_database.sql` if old indexed `pool_id` or `ticket_id` rows would collide with the new contract state.
+- Deploy the backend with a real PostgreSQL database and a public `API_PUBLIC_BASE_URL` when reveal-auth must emit externally reachable Zama proxy URLs.
 
-- Edit your smart contracts in `packages/hardhat/contracts`
-- Edit your frontend homepage at `packages/nextjs/app/page.tsx`. For guidance on [routing](https://nextjs.org/docs/app/building-your-application/routing/defining-routes) and configuring [pages/layouts](https://nextjs.org/docs/app/building-your-application/routing/pages-and-layouts) checkout the Next.js documentation.
-- Edit your deployment scripts in `packages/hardhat/deploy`
+## More Documentation
 
-
-## Documentation
-
-Visit our [docs](https://docs.scaffoldeth.io) to learn how to start building with Scaffold-ETH 2.
-
-To know more about its features, check out our [website](https://scaffoldeth.io).
-
-## Contributing to Scaffold-ETH 2
-
-We welcome contributions to Scaffold-ETH 2!
-
-Please see [CONTRIBUTING.MD](https://github.com/scaffold-eth/scaffold-eth-2/blob/main/CONTRIBUTING.md) for more information and guidelines for contributing to Scaffold-ETH 2.
+- `doc/deployment-runbook.md`: local and production deployment operations.
+- `doc/smart-contract-design.md`: contract design.
+- `doc/smart-contract-implementation-plan.md`: contract implementation plan.
+- `doc/backend-design.md`: backend architecture.
+- `doc/backend-codegen-plan.md`: backend code generation and SQL guidance.
+- `doc/frontend-backend-contract-integration-plan.md`: cross-layer integration plan.

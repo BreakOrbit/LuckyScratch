@@ -60,6 +60,7 @@ This repository is currently running in **Hardhat flavor**.
 - The pool-detail frontend under `packages/nextjs/app/pool-detail/[id]/page.tsx` / `packages/nextjs/components/pool-detail/PoolDetailPage.tsx` now uses backend-enriched pool detail responses and current round state, showing sold/total tickets, ticket price, RTP, hit rate, prize budget, creator accounting, and round telemetry instead of fake winner-count / winner-amount feeds
 - The frontend no longer exposes a standalone `/tickets` reveal workspace route; ticket inventory navigation goes through `/my-tickets`, and scratch operations route through `/scratch/[poolId]`
 - Product and contract design inputs live in `doc/`, especially `doc/smart-contract-design.md` and `doc/smart-contract-implementation-plan.md`
+- Local and production deployment operations now live in `doc/deployment-runbook.md`
 - Purchase/scratch UI design inputs currently live under `doc/scratch/`
 - Backend implementation planning and codegen guidance now live in `doc/backend-design.md` and `doc/backend-codegen-plan.md`
 - Cross-layer contract/backend/frontend rollout planning for realistic pool metrics, backend-uploaded IPFS pool assets, metadata draft/finalize flow, and page integration now lives in `doc/frontend-backend-contract-integration-plan.md`
@@ -135,7 +136,7 @@ Commands work the same for both flavors unless noted otherwise:
 ```bash
 # Development workflow (run each in separate terminal)
 yarn chain          # Start local blockchain (Hardhat or Anvil)
-yarn deploy         # Deploy contracts to local network
+yarn deploy         # Deploy contracts; current LuckyScratch deploy config is live-network oriented
 yarn start          # Start Next.js frontend at http://localhost:3000
 
 # Code quality
@@ -155,7 +156,7 @@ yarn account:import      # Import existing private key
 yarn account             # View current account info
 
 # Deploy to live network
-yarn deploy --network <network>   # e.g., sepolia, mainnet, base; LuckyScratch redeploys fresh by default
+yarn deploy --network <network>   # e.g., sepolia or mainnet where LuckyScratch deploy config exists; fresh redeploys by default
 LUCKY_SCRATCH_REUSE_EXISTING=true yarn deploy --network <network>   # reuse existing LuckyScratch deployments
 
 yarn vercel:yolo --prod # for deployment of frontend
