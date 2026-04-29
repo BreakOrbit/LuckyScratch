@@ -8,6 +8,7 @@ import {
   CircleStackIcon,
   TicketIcon,
 } from "@heroicons/react/24/outline";
+import { POOL_COVER_FRAME_CLASS, POOL_COVER_IMAGE_CLASS } from "~~/components/pool-cover/constants";
 import { useLuckyScratchPool } from "~~/hooks/luckyScratch/useLuckyScratchQueries";
 import { formatPercentFromBps, formatUsdcFromMicro } from "~~/services/luckyScratch/poolMath";
 
@@ -79,52 +80,52 @@ export function PoolDetailPage({ poolId }: { poolId: string }) {
 
       <main className="mx-auto max-w-7xl px-4 pb-16 pt-20 md:px-8">
         <section className="overflow-hidden rounded-[2rem] border border-white/10 bg-[#11192B] shadow-[0_36px_90px_rgba(0,0,0,0.3)]">
-          <div className="relative min-h-[360px] overflow-hidden">
+          <div className={POOL_COVER_FRAME_CLASS}>
             {pool.metadata?.coverImageUrl ? (
               <img
                 src={pool.metadata.coverImageUrl}
                 alt={title}
-                className="absolute inset-0 h-full w-full object-cover"
+                className={`absolute inset-0 ${POOL_COVER_IMAGE_CLASS}`}
               />
             ) : (
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,#ffd700_0%,#20304b_45%,#0c1323_100%)]" />
             )}
             <div className="absolute inset-0 bg-gradient-to-t from-[#0C1323] via-[#0C1323]/45 to-transparent" />
-            <div className="relative flex min-h-[360px] flex-col justify-end p-8 md:p-10">
-              <div className="flex flex-wrap gap-2">
-                <span
-                  className={`rounded-full px-3 py-1 text-[10px] font-bold tracking-[0.22em] ${statusClassName(pool.status)}`}
+            <div className="absolute left-5 top-5 flex flex-wrap gap-2">
+              <span
+                className={`rounded-full px-3 py-1 text-[10px] font-bold tracking-[0.22em] ${statusClassName(pool.status)}`}
+              >
+                {pool.status.toUpperCase()}
+              </span>
+              <span className="rounded-full border border-[#4A587B] bg-[#10192D]/80 px-3 py-1 text-[10px] font-bold tracking-[0.22em] text-[#9FB0D0]">
+                ROUND {pool.currentRound}
+              </span>
+            </div>
+          </div>
+          <div className="p-8 md:p-10">
+            <h1 className="max-w-4xl font-headline text-4xl font-bold tracking-tight text-white md:text-6xl">
+              {title}
+            </h1>
+            <p className="mt-4 max-w-2xl text-base leading-relaxed text-[#D0C6AB]">{description}</p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link
+                href={`/purchase/${pool.poolId}`}
+                className="inline-flex items-center gap-2 rounded-xl bg-[linear-gradient(135deg,#ffd700_0%,#e9c400_65%,#ffe16d_100%)] px-5 py-3 font-headline font-bold text-[#705E00]"
+              >
+                <TicketIcon className="h-5 w-5" />
+                Buy Tickets
+              </Link>
+              {pool.metadata?.metadataGatewayUrl ? (
+                <a
+                  href={pool.metadata.metadataGatewayUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-2 rounded-xl border border-white/12 bg-[#10192D]/85 px-5 py-3 font-bold text-[#DCE2F9]"
                 >
-                  {pool.status.toUpperCase()}
-                </span>
-                <span className="rounded-full border border-[#4A587B] bg-[#10192D]/80 px-3 py-1 text-[10px] font-bold tracking-[0.22em] text-[#9FB0D0]">
-                  ROUND {pool.currentRound}
-                </span>
-              </div>
-              <h1 className="mt-5 max-w-4xl font-headline text-4xl font-bold tracking-tight text-white md:text-6xl">
-                {title}
-              </h1>
-              <p className="mt-4 max-w-2xl text-base leading-relaxed text-[#D0C6AB]">{description}</p>
-              <div className="mt-6 flex flex-wrap gap-3">
-                <Link
-                  href={`/purchase/${pool.poolId}`}
-                  className="inline-flex items-center gap-2 rounded-xl bg-[linear-gradient(135deg,#ffd700_0%,#e9c400_65%,#ffe16d_100%)] px-5 py-3 font-headline font-bold text-[#705E00]"
-                >
-                  <TicketIcon className="h-5 w-5" />
-                  Buy Tickets
-                </Link>
-                {pool.metadata?.metadataGatewayUrl ? (
-                  <a
-                    href={pool.metadata.metadataGatewayUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-2 rounded-xl border border-white/12 bg-[#10192D]/85 px-5 py-3 font-bold text-[#DCE2F9]"
-                  >
-                    <ArrowTopRightOnSquareIcon className="h-5 w-5" />
-                    Metadata
-                  </a>
-                ) : null}
-              </div>
+                  <ArrowTopRightOnSquareIcon className="h-5 w-5" />
+                  Metadata
+                </a>
+              ) : null}
             </div>
           </div>
         </section>

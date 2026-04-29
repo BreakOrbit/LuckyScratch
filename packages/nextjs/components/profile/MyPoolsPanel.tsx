@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 import { BanknotesIcon, MagnifyingGlassIcon, PlusCircleIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import { POOL_COVER_FRAME_CLASS, POOL_COVER_IMAGE_CLASS } from "~~/components/pool-cover/constants";
 import { useLuckyScratchCreatorSummary, useLuckyScratchPools } from "~~/hooks/luckyScratch/useLuckyScratchQueries";
 import { useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 import { formatPercentFromBps, formatUsdcFromMicro, fromMicroUsdc } from "~~/services/luckyScratch/poolMath";
@@ -274,9 +275,9 @@ export function MyPoolsPanel() {
               key={pool.poolId}
               className="overflow-hidden rounded-3xl border border-white/10 bg-[#11192B] shadow-[0_28px_80px_rgba(0,0,0,0.24)]"
             >
-              <div className="relative h-52 overflow-hidden">
+              <div className={POOL_COVER_FRAME_CLASS}>
                 {pool.metadata?.coverImageUrl ? (
-                  <img src={pool.metadata.coverImageUrl} alt={poolTitle(pool)} className="h-full w-full object-cover" />
+                  <img src={pool.metadata.coverImageUrl} alt={poolTitle(pool)} className={POOL_COVER_IMAGE_CLASS} />
                 ) : (
                   <div className="h-full w-full bg-[radial-gradient(circle_at_top_left,#cabeff_0%,#1f2940_45%,#0c1323_100%)]" />
                 )}

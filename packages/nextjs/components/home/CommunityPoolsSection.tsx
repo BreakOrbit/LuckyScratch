@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { POOL_COVER_FRAME_CLASS, POOL_COVER_IMAGE_CLASS } from "~~/components/pool-cover/constants";
 import { useLuckyScratchPools } from "~~/hooks/luckyScratch/useLuckyScratchQueries";
 import {
   formatPoolMaxPrizeLabel,
@@ -22,10 +23,10 @@ type CommunityPoolData = {
 
 const CommunityPoolCard = ({ id, name, image, returnRate, maxPrize, price }: CommunityPoolData) => (
   <div className="bg-ns-surface-container-low group relative rounded-lg overflow-hidden border border-white/5 hover:border-ns-secondary/20 transition-all">
-    <div className="aspect-[3/4] overflow-hidden relative">
+    <div className={POOL_COVER_FRAME_CLASS}>
       <img
         alt={`Community Pool '${name}'`}
-        className="w-full h-full object-cover transition-all duration-500 group-hover:scale-110 saturate-50"
+        className={`${POOL_COVER_IMAGE_CLASS} transition-all duration-500 group-hover:scale-110 saturate-50`}
         src={image}
       />
       <div className="absolute inset-0 bg-gradient-to-t from-ns-surface-container-low via-transparent to-transparent" />

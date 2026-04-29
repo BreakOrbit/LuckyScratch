@@ -187,6 +187,7 @@ export type LuckyScratchPoolMetadata = {
   ticketArtAssetId?: number;
   coverImageUrl?: string;
   ticketArtUrl?: string;
+  prizeTiers?: PrizeTierPreview[];
 };
 
 export type LuckyScratchPool = {
@@ -263,6 +264,10 @@ export type PrizeTierPreview = {
   prizeAmount: number;
   count: number;
   prizeAmountUsdc?: number;
+};
+
+export type LuckyScratchPoolMetadataDocument = {
+  prizeTiers: PrizeTierPreview[];
 };
 
 export type PoolConfigPreview = {

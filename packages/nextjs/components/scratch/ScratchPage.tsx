@@ -1,264 +1,242 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
-import { ArrowLeftIcon, SparklesIcon, TicketIcon } from "@heroicons/react/24/outline";
+import { ArrowLeftIcon, TicketIcon } from "@heroicons/react/24/outline";
+import { BatchScratchView } from "~~/components/scratch/BatchScratchView";
+import { SingleScratchView } from "~~/components/scratch/SingleScratchView";
 import { useLuckyScratchPool } from "~~/hooks/luckyScratch/useLuckyScratchQueries";
 import { useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 import { luckyScratchAPI } from "~~/services/luckyScratch/api";
-import { formatPercentFromBps, formatUsdcFromMicro } from "~~/services/luckyScratch/poolMath";
-import type { LuckyScratchTicket } from "~~/services/luckyScratch/types";
-import { notification } from "~~/utils/scaffold-eth";
+import { buildTicketClaimProof } from "~~/services/luckyScratch/claim";
+import { fromMicroUsdc } from "~~/services/luckyScratch/poolMath";
+import { getParsedError, notification } from "~~/utils/scaffold-eth";
 
 type ScratchPageProps = {
   poolId: string;
 };
 
-const ticketStatusLabel = (status: string) => {
-  switch (status) {
-    case "Unscratched":
-      return "Ready To Scratch";
-    case "Scratched":
-      return "Revealed";
-    case "Claimed":
-      return "Claimed";
-    default:
-      return status;
-  }
+type TicketResult = {
+  ticketId: string;
+  isWin: boolean;
+  prize: number;
+  isKnown?: boolean;
 };
 
-const ticketStatusClassName = (status: string) => {
-  switch (status) {
-    case "Unscratched":
-      return "border-[#5E4E92] bg-[#2D2546] text-[#CABEFF]";
-    case "Scratched":
-      return "border-[#0F5B3A] bg-[#0A3322] text-[#8AF4C5]";
-    case "Claimed":
-      return "border-[#8D6C1D] bg-[#493916] text-[#FFD66D]";
-    default:
-      return "border-[#3B455B] bg-[#232A3B] text-[#DCE2F9]";
+const parseTicketIds = (raw: string) => [
+  ...new Set(
+    raw
+      .split(",")
+      .map(value => value.trim())
+      .filter(value => /^\d+$/.test(value)),
+  ),
+];
+
+const buildUnknownResult = (ticketId: string): TicketResult => ({
+  ticketId,
+  isWin: false,
+  prize: 0,
+  isKnown: false,
+});
+
+const toErrorMessage = (error: unknown) => {
+  if (error instanceof Error && error.message.trim() !== "") {
+    return error.message;
   }
+  return "Reward decryption failed.";
 };
 
 export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
   const searchParams = useSearchParams();
-  const { address } = useAccount();
+  const { address, chainId } = useAccount();
   const queryClient = useQueryClient();
-  const { writeContractAsync, isMining: isBatchScratchMining } = useScaffoldWriteContract({
+  const poolQuery = useLuckyScratchPool(poolId);
+  const { writeContractAsync } = useScaffoldWriteContract({
     contractName: "LuckyScratchCore",
   });
-  const ticketIds = useMemo(() => {
-    const raw = searchParams.get("tickets") || "";
-    return [
-      ...new Set(
-        raw
-          .split(",")
-          .map(value => value.trim())
-          .filter(Boolean),
-      ),
-    ];
-  }, [searchParams]);
-  const poolQuery = useLuckyScratchPool(poolId);
-  const ticketQueries = useQueries({
-    queries: ticketIds.map(ticketId => ({
-      queryKey: ["lucky-scratch", "tickets", ticketId],
-      queryFn: () => luckyScratchAPI.getTicket(ticketId),
-      staleTime: 10_000,
-      enabled: Boolean(ticketId),
-    })),
-  });
-  const ticketItems = ticketQueries
-    .map(query => query.data)
-    .filter((ticket): ticket is LuckyScratchTicket => Boolean(ticket));
-  const scratchableTicketIds = ticketItems
-    .filter(
-      ticket =>
-        ticket.status === "Unscratched" && Boolean(address && ticket.owner.toLowerCase() === address.toLowerCase()),
-    )
-    .map(ticket => String(ticket.ticketId));
-  const batchScratchMutation = useMutation({
-    mutationFn: async () => {
-      if (!address) {
-        throw new Error("Connect your wallet before scratching tickets.");
-      }
-      if (scratchableTicketIds.length === 0) {
-        throw new Error("No owned unscratched tickets are ready for batch scratch.");
+
+  const ticketIds = useMemo(() => parseTicketIds(searchParams.get("tickets") || ""), [searchParams]);
+  const ticketIdsKey = ticketIds.join(",");
+  const [resultsByTicketId, setResultsByTicketId] = useState<Record<string, TicketResult>>({});
+  const pool = poolQuery.data;
+  const poolName = pool?.metadata?.name || `Pool #${poolId}`;
+  const ticketPrice = fromMicroUsdc(pool?.ticketPrice);
+  const maxPrize = fromMicroUsdc(pool?.maxPrize);
+  const results = useMemo(
+    () => ticketIds.map(ticketId => resultsByTicketId[ticketId] ?? buildUnknownResult(ticketId)),
+    [resultsByTicketId, ticketIds],
+  );
+
+  useEffect(() => {
+    setResultsByTicketId({});
+  }, [ticketIdsKey]);
+
+  const decryptScratchResults = useCallback(async () => {
+    if (!address) {
+      return;
+    }
+    if (!chainId) {
+      notification.warning("Scratch confirmed, but no connected chain id is available for reward decryption.");
+      return;
+    }
+
+    const decryptToastId = notification.loading(
+      ticketIds.length === 1 ? "Decrypting scratch result..." : "Decrypting scratch results...",
+    );
+
+    try {
+      const settledResults = await Promise.allSettled(
+        ticketIds.map(async ticketId => {
+          const revealAuth = await luckyScratchAPI.buildRevealAuth(ticketId, address);
+          const claimProof = await buildTicketClaimProof({ chainId, revealAuth });
+          return {
+            ticketId,
+            isWin: claimProof.clearRewardAmount > 0n,
+            prize: fromMicroUsdc(claimProof.clearRewardAmount),
+            isKnown: true,
+          } satisfies TicketResult;
+        }),
+      );
+
+      const nextResults: Record<string, TicketResult> = {};
+      let failedCount = 0;
+      let firstFailure: unknown;
+
+      settledResults.forEach((settledResult, index) => {
+        const ticketId = ticketIds[index];
+        if (settledResult.status === "fulfilled") {
+          nextResults[ticketId] = settledResult.value;
+          return;
+        }
+
+        failedCount += 1;
+        firstFailure ??= settledResult.reason;
+        nextResults[ticketId] = buildUnknownResult(ticketId);
+      });
+
+      setResultsByTicketId(nextResults);
+
+      if (failedCount > 0) {
+        notification.warning(
+          `${failedCount} ticket result(s) could not be decrypted now. ${toErrorMessage(firstFailure)}`,
+        );
+        return;
       }
 
-      return writeContractAsync({
-        functionName: "batchScratch",
-        args: [scratchableTicketIds.map(ticketId => BigInt(ticketId))],
-      });
-    },
-    onSuccess: async () => {
+      notification.success(ticketIds.length === 1 ? "Scratch result decrypted." : "Scratch results decrypted.");
+    } finally {
+      notification.remove(decryptToastId);
+    }
+  }, [address, chainId, ticketIds]);
+
+  const submitScratch = useCallback(async () => {
+    if (!address) {
+      const error = new Error("Connect your wallet before scratching tickets.");
+      notification.error(error.message);
+      throw error;
+    }
+    if (ticketIds.length === 0) {
+      const error = new Error("No ticket ids were provided.");
+      notification.error(error.message);
+      throw error;
+    }
+
+    try {
+      let scratchTxHash: string | undefined;
+      if (ticketIds.length === 1) {
+        scratchTxHash = await writeContractAsync({
+          functionName: "scratchTicket",
+          args: [BigInt(ticketIds[0])],
+        });
+      } else {
+        scratchTxHash = await writeContractAsync({
+          functionName: "batchScratch",
+          args: [ticketIds.map(ticketId => BigInt(ticketId))],
+        });
+      }
+      if (!scratchTxHash) {
+        throw new Error("Scratch transaction was not submitted.");
+      }
+
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["readContract"] }),
         queryClient.invalidateQueries({ queryKey: ["lucky-scratch", "pools", poolId] }),
-        queryClient.invalidateQueries({ queryKey: ["lucky-scratch", "users", address?.toLowerCase(), "tickets"] }),
-        ...scratchableTicketIds.map(ticketId =>
+        queryClient.invalidateQueries({ queryKey: ["lucky-scratch", "users", address.toLowerCase(), "tickets"] }),
+        ...ticketIds.map(ticketId =>
           queryClient.invalidateQueries({ queryKey: ["lucky-scratch", "tickets", ticketId] }),
         ),
       ]);
-      notification.success("Batch scratch transaction submitted.");
-    },
-    onError: error => {
-      notification.error(error instanceof Error ? error.message : "Batch scratch failed.");
-    },
-  });
+      notification.success(
+        ticketIds.length === 1 ? "Scratch transaction confirmed." : "Batch scratch transaction confirmed.",
+      );
 
-  const pool = poolQuery.data;
-  const isLoadingTickets = ticketQueries.some(query => query.isLoading);
-  const hasTicketError = ticketQueries.find(query => query.isError);
-  const isBatchScratchPending = batchScratchMutation.isPending || isBatchScratchMining;
+      try {
+        await decryptScratchResults();
+      } catch (error) {
+        notification.warning(`Scratch confirmed, but reward decryption did not complete. ${toErrorMessage(error)}`);
+      }
+    } catch (error) {
+      const message = getParsedError(error) || "Scratch transaction failed.";
+      notification.error(message);
+      throw error;
+    }
+  }, [address, decryptScratchResults, poolId, queryClient, ticketIds, writeContractAsync]);
 
-  return (
-    <div className="min-h-screen bg-[#0C1323] font-body text-[#DCE2F9]">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 pb-16 pt-24 md:px-8">
-        <section className="overflow-hidden rounded-3xl border border-white/10 bg-[#11192B] shadow-[0_32px_80px_rgba(0,0,0,0.28)]">
-          <div className="border-b border-white/8 bg-[radial-gradient(circle_at_top_left,#cabeff22_0%,#11192B_40%,#0C1323_100%)] p-8">
+  if (ticketIds.length === 0) {
+    return (
+      <div className="min-h-screen bg-[#0C1323] px-4 pb-16 pt-24 font-body text-[#DCE2F9] md:px-8">
+        <div className="mx-auto max-w-3xl rounded-3xl border border-dashed border-white/15 bg-[#11192B] p-10 text-center">
+          <p className="font-headline text-2xl font-bold text-white">No ticket ids were provided</p>
+          <p className="mt-2 text-sm text-[#9FB0D0]">
+            Return to the purchase flow or open your wallet inventory to select tickets.
+          </p>
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
             <Link
               href={`/purchase/${poolId}`}
-              className="inline-flex items-center gap-2 text-sm text-[#D0C6AB] transition-colors hover:text-[#FFD66D]"
+              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white transition hover:border-[#FFD66D]/40 hover:text-[#FFD66D]"
             >
-              <ArrowLeftIcon className="h-4 w-4" />
+              <ArrowLeftIcon className="h-5 w-5" />
               Back to purchase
             </Link>
-            <div className="mt-5 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-[#D0C6AB]">Scratch Queue</p>
-                <h1 className="mt-2 font-headline text-4xl font-black tracking-tight text-white">
-                  {pool?.metadata?.name || `Pool #${poolId}`}
-                </h1>
-                <p className="mt-3 max-w-2xl text-sm leading-7 text-[#9FB0D0]">
-                  Review selected tickets, submit wallet-driven scratch transactions, and return to your ticket vault
-                  when finished.
-                </p>
-              </div>
-              <div className="grid grid-cols-2 gap-3 text-sm md:min-w-[320px]">
-                <div className="rounded-2xl border border-white/8 bg-[#0B1120] p-4">
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-[#8290AE]">Ticket Price</p>
-                  <p className="mt-2 font-headline text-2xl font-bold text-[#FFD66D]">
-                    {formatUsdcFromMicro(pool?.ticketPrice)} USDC
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-white/8 bg-[#0B1120] p-4">
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-[#8290AE]">Hit Rate</p>
-                  <p className="mt-2 font-headline text-2xl font-bold text-[#9CF0FF]">
-                    {formatPercentFromBps(pool?.hitRateBps)}%
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Link
-                href="/my-tickets"
-                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white transition hover:border-[#FFD66D]/40 hover:text-[#FFD66D]"
-              >
-                <TicketIcon className="h-5 w-5" />
-                Open inventory
-              </Link>
-              <Link
-                href={`/purchase/${poolId}`}
-                className="inline-flex items-center gap-2 rounded-xl bg-[linear-gradient(135deg,#ffd700_0%,#e9c400_60%,#ffe16d_100%)] px-4 py-3 text-sm font-bold text-[#705E00]"
-              >
-                <SparklesIcon className="h-5 w-5" />
-                Buy more tickets
-              </Link>
-              {ticketItems.length > 0 ? (
-                <button
-                  type="button"
-                  disabled={scratchableTicketIds.length === 0 || isBatchScratchPending}
-                  onClick={() => batchScratchMutation.mutate()}
-                  className="inline-flex items-center gap-2 rounded-xl border border-[#FFD66D]/35 bg-[#2A2312] px-4 py-3 text-sm font-bold text-[#FFD66D] transition disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <SparklesIcon className="h-5 w-5" />
-                  {isBatchScratchPending ? "Scratching..." : `Scratch Ready Tickets (${scratchableTicketIds.length})`}
-                </button>
-              ) : null}
-            </div>
+            <Link
+              href="/my-tickets"
+              className="inline-flex items-center gap-2 rounded-xl bg-[linear-gradient(135deg,#ffd700_0%,#e9c400_60%,#ffe16d_100%)] px-4 py-3 text-sm font-bold text-[#705E00]"
+            >
+              <TicketIcon className="h-5 w-5" />
+              Open inventory
+            </Link>
           </div>
-
-          <div className="p-8">
-            {ticketIds.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-white/15 bg-[#0B1120] p-10 text-center">
-                <p className="font-headline text-2xl font-bold text-white">No ticket ids were provided</p>
-                <p className="mt-2 text-sm text-[#9FB0D0]">
-                  Return to the purchase flow or open your wallet inventory to select a ticket.
-                </p>
-              </div>
-            ) : null}
-
-            {ticketIds.length > 0 && isLoadingTickets ? (
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                {ticketIds.map(ticketId => (
-                  <div key={ticketId} className="h-40 animate-pulse rounded-2xl border border-white/10 bg-[#0B1120]" />
-                ))}
-              </div>
-            ) : null}
-
-            {ticketIds.length > 0 && hasTicketError ? (
-              <div className="rounded-2xl border border-[#8E4A74] bg-[#2A1521] p-5 text-sm text-[#FFB4AB]">
-                {hasTicketError.error instanceof Error
-                  ? hasTicketError.error.message
-                  : "Failed to load ticket details."}
-              </div>
-            ) : null}
-
-            {ticketItems.length > 0 ? (
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                {ticketItems.map(ticket => (
-                  <article
-                    key={ticket.ticketId}
-                    className="rounded-2xl border border-white/10 bg-[#0B1120] p-5 shadow-[0_24px_60px_rgba(0,0,0,0.22)]"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-[#D0C6AB]">Ticket</p>
-                        <h2 className="mt-2 font-headline text-3xl font-bold text-white">#{ticket.ticketId}</h2>
-                        <p className="mt-2 text-sm text-[#9FB0D0]">
-                          Pool #{ticket.poolId} • Round {ticket.roundId} • Index {ticket.ticketIndex + 1}
-                        </p>
-                      </div>
-                      <span
-                        className={`rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] ${ticketStatusClassName(ticket.status)}`}
-                      >
-                        {ticketStatusLabel(ticket.status)}
-                      </span>
-                    </div>
-
-                    <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
-                      <div className="rounded-xl border border-white/8 bg-[#11192B] p-4">
-                        <p className="text-[11px] uppercase tracking-[0.2em] text-[#8290AE]">Owner</p>
-                        <p className="mt-2 truncate font-semibold text-[#DCE2F9]">{ticket.owner}</p>
-                      </div>
-                      <div className="rounded-xl border border-white/8 bg-[#11192B] p-4">
-                        <p className="text-[11px] uppercase tracking-[0.2em] text-[#8290AE]">Claimed Reward</p>
-                        <p className="mt-2 font-semibold text-[#FFD66D]">
-                          {formatUsdcFromMicro(ticket.claimClearRewardAmount)} USDC
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="mt-5 flex flex-wrap gap-3">
-                      <Link
-                        href="/my-tickets"
-                        className="inline-flex items-center gap-2 rounded-xl bg-[linear-gradient(135deg,#ffd700_0%,#e9c400_60%,#ffe16d_100%)] px-4 py-3 text-sm font-bold text-[#705E00]"
-                      >
-                        Back to ticket vault
-                        <TicketIcon className="h-4 w-4" />
-                      </Link>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        </section>
+        </div>
       </div>
-    </div>
+    );
+  }
+
+  if (ticketIds.length === 1) {
+    return (
+      <SingleScratchView
+        poolId={poolId}
+        poolName={poolName}
+        ticketPrice={ticketPrice}
+        maxPrize={maxPrize}
+        ticketId={ticketIds[0]}
+        ticketArtUrl={pool?.metadata?.ticketArtUrl}
+        result={results[0]}
+        onScratch={submitScratch}
+      />
+    );
+  }
+
+  return (
+    <BatchScratchView
+      poolName={poolName}
+      ticketPrice={ticketPrice}
+      ticketIds={ticketIds}
+      ticketArtUrl={pool?.metadata?.ticketArtUrl}
+      results={results}
+      onScratchAll={submitScratch}
+    />
   );
 };

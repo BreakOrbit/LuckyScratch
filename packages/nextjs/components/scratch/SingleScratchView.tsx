@@ -4,9 +4,11 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ScratchResultOverlay } from "./ScratchResultOverlay";
 import { ArrowLeftIcon, ChevronRightIcon, QrCodeIcon, StarIcon, WalletIcon } from "@heroicons/react/24/solid";
-
-const TICKET_ART =
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuCa81_llmwYhIHhOrGNhGlQmDeaH7Wiiz1lze6v73dEM3AjVEmNp3t7zTO6W1OHuosSPgaS-XPJDBj0Hi7Jy6T4hDmD7_-NnetVoWBGxyEEF6axbmQ5w_-YVbyLuKTLkQYhnyOniysfPtiFv_S70dnG8DxiPJHo5WwpM8vnkCUIkKqFz5QhDAW22MYPb0x6Vb7vXhTYxS9h56Og0sgl6zKEUKKUzdhUVUx8u6I838-qS4i5DRZMP0X2cArL-xpC5LhADStOmnfHBNEN";
+import {
+  TICKET_ART_FALLBACK_URL,
+  TICKET_ART_FRAME_CLASS,
+  TICKET_ART_IMAGE_CLASS,
+} from "~~/components/ticket-art/constants";
 
 type SingleScratchViewProps = {
   poolId: string;
@@ -14,10 +16,12 @@ type SingleScratchViewProps = {
   ticketPrice: number;
   maxPrize: number;
   ticketId: string;
-  result: { ticketId: string; isWin: boolean; prize: number };
+  ticketArtUrl?: string;
+  result: { ticketId: string; isWin: boolean; prize: number; isKnown?: boolean };
+  onScratch?: () => Promise<void>;
 };
 
-type ScratchPhase = "ready" | "scratching" | "revealed";
+type ScratchPhase = "ready" | "scratching" | "submitting" | "revealed";
 
 /**
  * Single ticket scratch view with interactive canvas-based scratch mechanic.
@@ -30,7 +34,9 @@ export const SingleScratchView: React.FC<SingleScratchViewProps> = ({
   ticketPrice,
   maxPrize,
   ticketId,
+  ticketArtUrl,
   result,
+  onScratch,
 }) => {
   const router = useRouter();
   const [phase, setPhase] = useState<ScratchPhase>("ready");
@@ -39,8 +45,8 @@ export const SingleScratchView: React.FC<SingleScratchViewProps> = ({
   const isDrawing = useRef(false);
   const hasTriggered = useRef(false);
 
-  const CANVAS_W = 260;
-  const CANVAS_H = 260;
+  const CANVAS_W = 180;
+  const CANVAS_H = 320;
   const THRESHOLD = 0.55;
 
   /* Initialize scratch coating */
@@ -145,15 +151,26 @@ export const SingleScratchView: React.FC<SingleScratchViewProps> = ({
     ctx.globalCompositeOperation = "source-over";
   }, []);
 
+  const completeScratch = useCallback(async () => {
+    setPhase("submitting");
+    try {
+      await onScratch?.();
+      setTimeout(() => setPhase("revealed"), 500);
+    } catch {
+      hasTriggered.current = false;
+      setPhase("ready");
+    }
+  }, [onScratch]);
+
   const checkProgress = useCallback(() => {
     if (hasTriggered.current) return;
     const p = calculateProgress();
     setProgress(p);
     if (p >= THRESHOLD) {
       hasTriggered.current = true;
-      setTimeout(() => setPhase("revealed"), 500);
+      void completeScratch();
     }
-  }, [calculateProgress]);
+  }, [calculateProgress, completeScratch]);
 
   /* Pointer events */
   const handlePointerDown = useCallback(
@@ -228,7 +245,7 @@ export const SingleScratchView: React.FC<SingleScratchViewProps> = ({
           <div className="absolute -inset-px border border-[#FFD700]/20 rounded-[2.2rem] pointer-events-none" />
 
           {/* Card Container */}
-          <div className="relative w-[340px] h-[520px] bg-[#232a3b]/90 backdrop-blur-xl rounded-[2rem] p-4 shadow-2xl border border-white/10 flex flex-col gap-3 overflow-hidden card-reveal-glow">
+          <div className="relative w-[340px] max-w-full bg-[#232a3b]/90 backdrop-blur-xl rounded-[2rem] p-4 shadow-2xl border border-white/10 flex flex-col gap-3 overflow-hidden card-reveal-glow">
             {/* Terminal UI Corner Accents */}
             <div className="absolute top-0 right-0 p-2 opacity-30">
               <svg className="text-[#FFD700]" fill="none" height="40" viewBox="0 0 40 40" width="40">
@@ -252,15 +269,34 @@ export const SingleScratchView: React.FC<SingleScratchViewProps> = ({
             </div>
 
             {/* Ticket Illustration Area */}
-            <div className="relative flex-grow rounded-xl overflow-hidden bg-black border border-white/10 shadow-inner">
-              <img alt="Ticket Background" className="w-full h-full object-cover opacity-60" src={TICKET_ART} />
+            <div className={`${TICKET_ART_FRAME_CLASS} rounded-xl bg-black border border-white/10 shadow-inner`}>
+              <img
+                alt="Ticket Background"
+                className={`absolute inset-0 ${TICKET_ART_IMAGE_CLASS} opacity-60`}
+                src={ticketArtUrl || TICKET_ART_FALLBACK_URL}
+              />
 
               {/* SCRATCH AREA OVERLAY */}
               <div className="absolute inset-4 rounded-xl border border-[#FFD700]/20 bg-black/40 backdrop-blur-sm flex items-center justify-center">
                 <div className="relative w-full h-full p-4 overflow-hidden rounded-lg">
                   {/* Revealed Content */}
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
-                    {result.isWin ? (
+                    {result.isKnown === false ? (
+                      <>
+                        <div className="relative">
+                          <div className="absolute inset-0 bg-[#00DAF3] blur-xl opacity-20" />
+                          <StarIcon className="w-16 h-16 text-[#00DAF3] relative" />
+                        </div>
+                        <div className="text-center">
+                          <span className="block text-[10px] uppercase tracking-[0.2em] text-[#D0C6AB] font-bold">
+                            SCRATCHED
+                          </span>
+                          <span className="block px-5 font-headline text-lg font-black text-[#FFE16D]">
+                            Open My Tickets to retry decrypt
+                          </span>
+                        </div>
+                      </>
+                    ) : result.isWin ? (
                       <>
                         <div className="relative">
                           <div className="absolute inset-0 bg-[#FFD700] blur-xl opacity-30" />
@@ -289,7 +325,9 @@ export const SingleScratchView: React.FC<SingleScratchViewProps> = ({
                   {phase !== "revealed" && (
                     <canvas
                       ref={canvasRef}
-                      className="absolute inset-0 rounded-lg cursor-crosshair touch-none z-10"
+                      className={`absolute inset-0 rounded-lg cursor-crosshair touch-none z-10 ${
+                        phase === "submitting" ? "pointer-events-none opacity-70" : ""
+                      }`}
                       style={{ width: "100%", height: "100%" }}
                       onPointerDown={handlePointerDown}
                       onPointerMove={handlePointerMove}
@@ -324,7 +362,9 @@ export const SingleScratchView: React.FC<SingleScratchViewProps> = ({
               <div className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 bg-[#00DAF3] rounded-full animate-pulse" />
                 <span className="text-[10px] font-black uppercase tracking-[0.25em] text-[#00DAF3] neon-text-cyan">
-                  Data Extraction: {phase === "revealed" ? 100 : progressPercent}%
+                  {phase === "submitting"
+                    ? "Scratch & Decrypt: Pending"
+                    : `Data Extraction: ${phase === "revealed" ? 100 : progressPercent}%`}
                 </span>
               </div>
               <QrCodeIcon className="w-4 h-4 text-[#00DAF3]" />
@@ -365,7 +405,7 @@ export const SingleScratchView: React.FC<SingleScratchViewProps> = ({
       </main>
 
       {/* Result Overlay */}
-      {phase === "revealed" && (
+      {phase === "revealed" && result.isKnown !== false && (
         <ScratchResultOverlay
           isWin={result.isWin}
           prize={result.prize}

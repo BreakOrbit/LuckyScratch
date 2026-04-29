@@ -9,17 +9,21 @@ import type {
   LuckyScratchPlayerLeaderboardResponse,
   LuckyScratchPool,
   LuckyScratchPoolMetadata,
+  LuckyScratchPoolMetadataDocument,
   LuckyScratchPoolRound,
   LuckyScratchPoolsResponse,
   LuckyScratchPurchaseContext,
   LuckyScratchTicket,
   PoolDraft,
+  PrizeTierPreview,
   RecentWinsResponse,
   RevealAuthResponse,
   UploadedImageAsset,
   UserTicketsResponse,
   UserWinsResponse,
 } from "./types";
+
+const MICRO_USDC = 1_000_000;
 
 type APIErrorPayload = {
   error?: string;
@@ -69,6 +73,48 @@ const requestJSON = async <T>(path: string, init?: RequestInit): Promise<T> => {
   return (await response.json()) as T;
 };
 
+const numberFromUnknown = (value: unknown): number | undefined => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+};
+
+const normalizePrizeTiers = (value: unknown): PrizeTierPreview[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map(tier => {
+      if (!tier || typeof tier !== "object") {
+        return null;
+      }
+
+      const record = tier as Record<string, unknown>;
+      const count = numberFromUnknown(record.count ?? record.quantity);
+      const prizeAmountUsdc = numberFromUnknown(record.prizeAmountUsdc ?? record.amountUsdc ?? record.amount);
+      const prizeAmount =
+        numberFromUnknown(record.prizeAmount) ??
+        (prizeAmountUsdc != null ? Math.round(prizeAmountUsdc * MICRO_USDC) : undefined);
+
+      if (count == null || prizeAmount == null || count <= 0 || prizeAmount < 0) {
+        return null;
+      }
+
+      return {
+        prizeAmount,
+        count,
+        ...(prizeAmountUsdc != null ? { prizeAmountUsdc } : {}),
+      };
+    })
+    .filter((tier): tier is PrizeTierPreview => tier != null);
+};
+
 const normalizePoolMetadata = (
   metadata?: LuckyScratchPoolMetadata | null,
 ): LuckyScratchPoolMetadata | null | undefined => {
@@ -81,6 +127,14 @@ const normalizePoolMetadata = (
     metadataGatewayUrl: resolveLuckyScratchIPFSURL(metadata.metadataGatewayUrl) || metadata.metadataGatewayUrl,
     coverImageUrl: resolveLuckyScratchIPFSURL(metadata.coverImageUrl) || metadata.coverImageUrl,
     ticketArtUrl: resolveLuckyScratchIPFSURL(metadata.ticketArtUrl) || metadata.ticketArtUrl,
+    prizeTiers: metadata.prizeTiers ? normalizePrizeTiers(metadata.prizeTiers) : undefined,
+  };
+};
+
+const normalizePoolMetadataDocument = (payload: unknown): LuckyScratchPoolMetadataDocument => {
+  const record = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
+  return {
+    prizeTiers: normalizePrizeTiers(record.prizeTiers),
   };
 };
 
@@ -152,6 +206,15 @@ export const luckyScratchAPI = {
     requestJSON<LuckyScratchPoolRound>(`/api/v1/pools/${poolId}/rounds/current`),
   getPurchaseContext: (poolId: string | number) =>
     requestJSON<LuckyScratchPurchaseContext>(`/api/v1/pools/${poolId}/purchase-context`).then(normalizePurchaseContext),
+  getPoolMetadataDocument: async (metadataGatewayUrl: string) => {
+    const response = await fetch(resolveLuckyScratchIPFSURL(metadataGatewayUrl) || metadataGatewayUrl, {
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      throw new Error(`Pool metadata request failed with ${response.status}`);
+    }
+    return normalizePoolMetadataDocument(await response.json());
+  },
   getCreatorSummary: (address: string) =>
     requestJSON<LuckyScratchCreatorSummary>(`/api/v1/users/${address}/created-pools/summary`),
   uploadImage: async (file: File, ownerAddress: string, kind: string) => {

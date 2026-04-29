@@ -2,11 +2,17 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import {
+  TICKET_ART_FALLBACK_URL,
+  TICKET_ART_FRAME_CLASS,
+  TICKET_ART_IMAGE_CLASS,
+} from "~~/components/ticket-art/constants";
 
 type PurchaseSuccessModalProps = {
   ticketIds: string[];
   poolName: string;
   poolEmoji: string;
+  ticketArtUrl?: string;
   onScratchNow: () => void;
   onBuyMore: () => void;
 };
@@ -20,6 +26,7 @@ export const PurchaseSuccessModal: React.FC<PurchaseSuccessModalProps> = ({
   ticketIds,
   poolName,
   poolEmoji,
+  ticketArtUrl,
   onScratchNow,
   onBuyMore,
 }) => {
@@ -110,11 +117,16 @@ export const PurchaseSuccessModal: React.FC<PurchaseSuccessModalProps> = ({
             >
               {/* Card top: themed cover */}
               <div
-                className="relative h-[80px] flex items-center justify-center"
+                className={`${TICKET_ART_FRAME_CLASS} flex items-center justify-center`}
                 style={{
                   background: "linear-gradient(135deg, #C62828 0%, #8B1A1A 50%, #5D0F0F 100%)",
                 }}
               >
+                <img
+                  alt={`${poolName} ticket art`}
+                  className={`absolute inset-0 ${TICKET_ART_IMAGE_CLASS} opacity-70`}
+                  src={ticketArtUrl || TICKET_ART_FALLBACK_URL}
+                />
                 {/* Decorative radial */}
                 <div
                   className="absolute inset-0 opacity-25"

@@ -10,6 +10,7 @@ import {
   SunIcon,
   TrophyIcon,
 } from "@heroicons/react/24/outline";
+import { POOL_COVER_FRAME_CLASS, POOL_COVER_IMAGE_CLASS } from "~~/components/pool-cover/constants";
 
 export type StorePoolTheme = "cosmic" | "sakura" | "diamond" | "dragon" | "lantern" | "star" | "crown" | "rainbow";
 
@@ -68,10 +69,10 @@ export const StorePoolCard = ({
   return (
     <div className="group relative glass-panel rounded-2xl overflow-hidden hover:border-ns-primary/30 transition-all duration-500 hover:scale-[1.02] hover:shadow-[0_0_40px_rgba(255,215,0,0.08)]">
       {/* Image Section */}
-      <div className="h-40 overflow-hidden relative">
+      <div className={POOL_COVER_FRAME_CLASS}>
         <img
           alt={name}
-          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+          className={`${POOL_COVER_IMAGE_CLASS} transition-transform duration-700 group-hover:scale-110`}
           src={image}
         />
         {/* Gradient overlay */}

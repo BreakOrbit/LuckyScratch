@@ -2,6 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
+import { POOL_COVER_FRAME_CLASS, POOL_COVER_IMAGE_CLASS } from "~~/components/pool-cover/constants";
 
 export type PoolRarity = "Common" | "Rare" | "Super Rare" | "Legendary";
 export type PoolAnimationType =
@@ -170,10 +171,10 @@ export const PoolCard = ({
     <div
       className={`bg-ns-surface-container-low group relative rounded-lg overflow-hidden transition-all ${cardClasses} ${hiddenOnMobile ? "lg:flex flex-col hidden" : ""}`}
     >
-      <div className="aspect-[3/4] overflow-hidden relative">
+      <div className={POOL_COVER_FRAME_CLASS}>
         <img
           alt={`Theme Pool '${name}'`}
-          className={`w-full h-full object-cover transition-all duration-500 ${rarity === "Common" ? "saturate-[0.8]" : ""}`}
+          className={`${POOL_COVER_IMAGE_CLASS} transition-all duration-500 ${rarity === "Common" ? "saturate-[0.8]" : ""}`}
           src={image}
           style={isDragon ? { animation: "dragon-breath 5s ease-in-out infinite" } : undefined}
         />

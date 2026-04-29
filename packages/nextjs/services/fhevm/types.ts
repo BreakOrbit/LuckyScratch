@@ -51,6 +51,7 @@ export type FhevmInstanceConfig = {
 };
 
 export type FhevmInstance = {
+  generateKeypair: () => TicketKeypair;
   createEIP712: (
     publicKey: string,
     contractAddresses: string[],
@@ -78,8 +79,14 @@ export type FhevmInstance = {
   publicDecrypt: (handles: (string | Uint8Array)[]) => Promise<PublicDecryptResults>;
 };
 
+export type TKMSPkeKeypairFactory = {
+  generate: () => {
+    toBytesHexNo0x: () => TicketKeypair;
+  };
+};
+
 export type RelayerSDKModule = {
   initSDK: () => Promise<boolean>;
   createInstance: (config: FhevmInstanceConfig) => Promise<FhevmInstance>;
-  generateKeypair: () => TicketKeypair;
+  TKMSPkeKeypair: TKMSPkeKeypairFactory;
 };

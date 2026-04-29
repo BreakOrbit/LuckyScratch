@@ -3,21 +3,29 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeftIcon, StarIcon, WalletIcon } from "@heroicons/react/24/solid";
+import {
+  TICKET_ART_FALLBACK_URL,
+  TICKET_ART_FRAME_CLASS,
+  TICKET_ART_IMAGE_CLASS,
+} from "~~/components/ticket-art/constants";
 
 type TicketResult = {
   ticketId: string;
   isWin: boolean;
   prize: number;
+  isKnown?: boolean;
 };
 
 type BatchScratchViewProps = {
   poolName: string;
   ticketPrice: number;
   ticketIds: string[];
+  ticketArtUrl?: string;
   results: TicketResult[];
+  onScratchAll?: () => Promise<void>;
 };
 
-type BatchPhase = "ready" | "animating" | "revealed";
+type BatchPhase = "ready" | "submitting" | "animating" | "revealed";
 
 /**
  * Individual Batch Scratch Card
@@ -31,6 +39,7 @@ const BatchScratchCard = ({
   poolName,
   ticketPrice,
   maxPrizeValue,
+  ticketArtUrl,
   onManualReveal,
 }: {
   id: string;
@@ -41,14 +50,15 @@ const BatchScratchCard = ({
   poolName: string;
   ticketPrice: number;
   maxPrizeValue: number;
-  onManualReveal: (index: number) => void;
+  ticketArtUrl?: string;
+  onManualReveal: (index: number) => void | Promise<void>;
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawing = useRef(false);
   const hasTriggered = useRef(false);
 
-  const CANVAS_W = 260;
-  const CANVAS_H = 260;
+  const CANVAS_W = 180;
+  const CANVAS_H = 320;
   const THRESHOLD = 0.55;
 
   useEffect(() => {
@@ -146,7 +156,7 @@ const BatchScratchCard = ({
     const p = calculateProgress();
     if (p >= THRESHOLD) {
       hasTriggered.current = true;
-      onManualReveal(index);
+      void onManualReveal(index);
     }
   }, [calculateProgress, index, onManualReveal]);
 
@@ -185,7 +195,7 @@ const BatchScratchCard = ({
       <div className="absolute -inset-px border border-[#FFD700]/10 rounded-[2.2rem] pointer-events-none" />
 
       <div
-        className={`relative w-[340px] h-[520px] bg-[#232a3b]/90 backdrop-blur-xl rounded-[2rem] p-4 shadow-2xl border transition-all duration-700 flex flex-col gap-3 overflow-hidden ${
+        className={`relative w-[340px] max-w-full bg-[#232a3b]/90 backdrop-blur-xl rounded-[2rem] p-4 shadow-2xl border transition-all duration-700 flex flex-col gap-3 overflow-hidden ${
           isRevealed
             ? res.isWin
               ? "border-[#FFD700]/50 card-reveal-glow"
@@ -217,11 +227,11 @@ const BatchScratchCard = ({
           </div>
         </div>
 
-        <div className="relative flex-grow rounded-xl overflow-hidden bg-black border border-white/10 shadow-inner">
+        <div className={`${TICKET_ART_FRAME_CLASS} rounded-xl bg-black border border-white/10 shadow-inner`}>
           <img
             alt="Ticket Background"
-            className="absolute inset-0 w-full h-full object-cover opacity-60"
-            src="https://lh3.googleusercontent.com/aida-public/AB6AXuCa81_llmwYhIHhOrGNhGlQmDeaH7Wiiz1lze6v73dEM3AjVEmNp3t7zTO6W1OHuosSPgaS-XPJDBj0Hi7Jy6T4hDmD7_-NnetVoWBGxyEEF6axbmQ5w_-YVbyLuKTLkQYhnyOniysfPtiFv_S70dnG8DxiPJHo5WwpM8vnkCUIkKqFz5QhDAW22MYPb0x6Vb7vXhTYxS9h56Og0sgl6zKEUKKUzdhUVUx8u6I838-qS4i5DRZMP0X2cArL-xpC5LhADStOmnfHBNEN"
+            className={`absolute inset-0 ${TICKET_ART_IMAGE_CLASS} opacity-60`}
+            src={ticketArtUrl || TICKET_ART_FALLBACK_URL}
           />
 
           <div className="absolute inset-4 rounded-xl border border-[#FFD700]/20 bg-black/40 backdrop-blur-sm flex items-center justify-center">
@@ -250,7 +260,22 @@ const BatchScratchCard = ({
                 </div>
               ) : (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
-                  {res.isWin ? (
+                  {res.isKnown === false ? (
+                    <>
+                      <div className="relative">
+                        <div className="absolute inset-0 bg-[#00DAF3] blur-xl opacity-20" />
+                        <StarIcon className="w-16 h-16 text-[#00DAF3] relative" />
+                      </div>
+                      <div className="text-center">
+                        <span className="block text-[10px] uppercase tracking-[0.2em] text-[#D0C6AB] font-bold">
+                          SCRATCHED
+                        </span>
+                        <span className="block px-5 font-headline text-lg font-black text-[#FFE16D]">
+                          Retry decrypt in My Tickets
+                        </span>
+                      </div>
+                    </>
+                  ) : res.isWin ? (
                     <>
                       <div className="relative">
                         <div className="absolute inset-0 bg-[#FFD700] blur-xl opacity-30" />
@@ -300,7 +325,14 @@ const BatchScratchCard = ({
  * Batch scratch view for multiple tickets.
  * Shows card grid → one-click magic reveal animation OR manual scratch → results summary.
  */
-export const BatchScratchView: React.FC<BatchScratchViewProps> = ({ poolName, ticketPrice, ticketIds, results }) => {
+export const BatchScratchView: React.FC<BatchScratchViewProps> = ({
+  poolName,
+  ticketPrice,
+  ticketIds,
+  ticketArtUrl,
+  results,
+  onScratchAll,
+}) => {
   const router = useRouter();
   const [phase, setPhase] = useState<BatchPhase>("ready");
   const [revealedIndices, setRevealedIndices] = useState<Set<number>>(new Set());
@@ -308,18 +340,48 @@ export const BatchScratchView: React.FC<BatchScratchViewProps> = ({ poolName, ti
   const [showSummary, setShowSummary] = useState(false);
   const particleCanvasRef = useRef<HTMLCanvasElement>(null);
   const animFrameRef = useRef<number>(0);
+  const scratchPromiseRef = useRef<Promise<boolean> | null>(null);
 
   const totalTickets = ticketIds.length;
-  const winCount = results.filter(r => r.isWin).length;
-  const totalPrize = results.reduce((sum, r) => sum + r.prize, 0);
+  const hasKnownResults = results.some(r => r.isKnown !== false);
+  const winCount = hasKnownResults ? results.filter(r => r.isWin).length : 0;
+  const totalPrize = hasKnownResults ? results.reduce((sum, r) => sum + r.prize, 0) : 0;
 
-  const handleManualReveal = useCallback((index: number) => {
-    setRevealedIndices(prev => {
-      const next = new Set(prev);
-      next.add(index);
-      return next;
-    });
-  }, []);
+  const submitScratchAllOnce = useCallback(async () => {
+    if (!onScratchAll) {
+      return true;
+    }
+    if (!scratchPromiseRef.current) {
+      scratchPromiseRef.current = (async () => {
+        setPhase("submitting");
+        try {
+          await onScratchAll();
+          return true;
+        } catch {
+          setPhase("ready");
+          scratchPromiseRef.current = null;
+          return false;
+        }
+      })();
+    }
+    return scratchPromiseRef.current;
+  }, [onScratchAll]);
+
+  const handleManualReveal = useCallback(
+    async (index: number) => {
+      const didScratch = await submitScratchAllOnce();
+      if (!didScratch) {
+        return;
+      }
+      setPhase(current => (current === "submitting" ? "ready" : current));
+      setRevealedIndices(prev => {
+        const next = new Set(prev);
+        next.add(index);
+        return next;
+      });
+    },
+    [submitScratchAllOnce],
+  );
 
   useEffect(() => {
     if (ticketIds.length > 0 && revealedIndices.size === ticketIds.length && !allRevealed) {
@@ -329,7 +391,11 @@ export const BatchScratchView: React.FC<BatchScratchViewProps> = ({ poolName, ti
   }, [revealedIndices.size, ticketIds.length, allRevealed]);
 
   /* Handle the "Scratch All" button click */
-  const handleScratchAll = useCallback(() => {
+  const handleScratchAll = useCallback(async () => {
+    const didScratch = await submitScratchAllOnce();
+    if (!didScratch) {
+      return;
+    }
     setPhase("animating");
 
     ticketIds.forEach((_, index) => {
@@ -346,7 +412,7 @@ export const BatchScratchView: React.FC<BatchScratchViewProps> = ({ poolName, ti
         400 + index * 350,
       );
     });
-  }, [ticketIds, revealedIndices]);
+  }, [ticketIds, revealedIndices, submitScratchAllOnce]);
 
   /* Win celebration particles */
   useEffect(() => {
@@ -487,32 +553,47 @@ export const BatchScratchView: React.FC<BatchScratchViewProps> = ({ poolName, ti
                   className="glass-panel px-5 py-3 rounded-xl flex items-center gap-3"
                   style={{ animation: "result-fade-in 0.5s ease-out forwards" }}
                 >
-                  <span className="text-[#D0C6AB]/60 text-sm font-bold uppercase tracking-widest">Won</span>
-                  <span className="font-headline font-black text-2xl text-[#00DAF3]">{winCount}</span>
+                  <span className="text-[#D0C6AB]/60 text-sm font-bold uppercase tracking-widest">
+                    {hasKnownResults ? "Won" : "Scratched"}
+                  </span>
+                  <span className="font-headline font-black text-2xl text-[#00DAF3]">
+                    {hasKnownResults ? winCount : totalTickets}
+                  </span>
                 </div>
-                <div
-                  className="glass-panel px-5 py-3 rounded-xl flex items-center gap-3"
-                  style={{ animation: "result-fade-in 0.5s ease-out 0.2s forwards", opacity: 0 }}
-                >
-                  <span className="text-[#D0C6AB]/60 text-sm font-bold uppercase tracking-widest">Total Prize</span>
-                  <span className="font-headline font-black text-2xl text-[#FFD700]">{totalPrize}</span>
-                  <span className="text-[#D0C6AB]/60 text-sm font-bold">U</span>
-                </div>
+                {hasKnownResults ? (
+                  <div
+                    className="glass-panel px-5 py-3 rounded-xl flex items-center gap-3"
+                    style={{ animation: "result-fade-in 0.5s ease-out 0.2s forwards", opacity: 0 }}
+                  >
+                    <span className="text-[#D0C6AB]/60 text-sm font-bold uppercase tracking-widest">Total Prize</span>
+                    <span className="font-headline font-black text-2xl text-[#FFD700]">{totalPrize}</span>
+                    <span className="text-[#D0C6AB]/60 text-sm font-bold">U</span>
+                  </div>
+                ) : (
+                  <div
+                    className="glass-panel px-5 py-3 rounded-xl flex items-center gap-3"
+                    style={{ animation: "result-fade-in 0.5s ease-out 0.2s forwards", opacity: 0 }}
+                  >
+                    <span className="text-[#D0C6AB]/60 text-sm font-bold uppercase tracking-widest">Next</span>
+                    <span className="font-headline font-black text-sm text-[#FFD700]">Retry decrypt in My Tickets</span>
+                  </div>
+                )}
               </>
             )}
           </div>
 
-          {phase === "ready" && !allRevealed && (
+          {(phase === "ready" || phase === "submitting") && !allRevealed && (
             <div className="relative group">
               <div className="absolute -inset-1 bg-[#FFD700]/30 blur opacity-0 group-hover:opacity-100 transition duration-500" />
               <button
                 onClick={handleScratchAll}
+                disabled={phase === "submitting"}
                 className="relative px-8 py-4 bg-gradient-to-r from-[#FFD700] to-[#FFE16D] text-[#3a3000] rounded-2xl font-headline font-black text-lg tracking-[0.15em] uppercase transition-all active:scale-95 border-b-4 border-[#3a3000]/30"
                 style={{ animation: "breathe-glow 3s ease-in-out infinite" }}
               >
                 <div className="flex items-center gap-3">
                   <StarIcon className="w-5 h-5" />
-                  <span>Reveal All</span>
+                  <span>{phase === "submitting" ? "Decrypting..." : "Reveal All"}</span>
                   <StarIcon className="w-5 h-5" />
                 </div>
               </button>
@@ -550,6 +631,7 @@ export const BatchScratchView: React.FC<BatchScratchViewProps> = ({ poolName, ti
                   poolName={poolName}
                   ticketPrice={ticketPrice}
                   maxPrizeValue={maxPrizeValue}
+                  ticketArtUrl={ticketArtUrl}
                   onManualReveal={handleManualReveal}
                 />
               );
@@ -563,7 +645,7 @@ export const BatchScratchView: React.FC<BatchScratchViewProps> = ({ poolName, ti
             className="w-full max-w-sm mx-auto px-8 z-20"
             style={{ animation: "result-fade-in 0.5s ease-out 0.4s forwards", opacity: 0 }}
           >
-            {totalPrize > 0 && (
+            {hasKnownResults && totalPrize > 0 && (
               <div className="relative group mb-4">
                 <div className="absolute -inset-1 bg-[#FFD700]/20 blur opacity-0 group-hover:opacity-100 transition duration-500" />
                 <button

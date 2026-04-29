@@ -11,7 +11,6 @@ import {
   Squares2X2Icon,
   StarIcon,
   SunIcon,
-  XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { BanknotesIcon, ClockIcon, SparklesIcon, TicketIcon } from "@heroicons/react/24/solid";
 
@@ -32,8 +31,7 @@ export type MyTicketsIconName =
   | "diamond"
   | "stars"
   | "light"
-  | "star"
-  | "close";
+  | "star";
 
 export type PoolIconName = Extract<MyTicketsIconName, "diamond" | "stars" | "auto_awesome" | "light" | "star">;
 
@@ -53,7 +51,6 @@ const ICON_MAP: Record<MyTicketsIconName, HeroIcon> = {
   stars: CubeTransparentIcon,
   light: SunIcon,
   star: StarIcon,
-  close: XMarkIcon,
 };
 
 type MyTicketsIconProps = {

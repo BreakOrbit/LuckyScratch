@@ -1,14 +1,21 @@
 "use client";
 
-import React from "react";
+import type { ReactNode } from "react";
 import { MyTicketsIcon, type MyTicketsIconName } from "~~/components/my-tickets/icons";
 
-type StatCardProps = {
+export type VaultStat = {
   label: string;
   value: string;
   icon: MyTicketsIconName;
   valueColor: string;
 };
+
+type VaultStatsBarProps = {
+  stats: VaultStat[];
+  wallet?: ReactNode;
+};
+
+type StatCardProps = VaultStat;
 
 const StatCard = ({ label, value, icon, valueColor }: StatCardProps) => (
   <div className="bg-[#181f30]/70 backdrop-blur-xl p-6 rounded-xl border border-[#4d4732]/20 flex flex-col gap-1 relative overflow-hidden group">
@@ -20,16 +27,24 @@ const StatCard = ({ label, value, icon, valueColor }: StatCardProps) => (
   </div>
 );
 
-export const VaultStatsBar = () => {
+export const VaultStatsBar = ({ stats, wallet }: VaultStatsBarProps) => {
   return (
     <section className="mb-12">
-      <h1 className="text-5xl md:text-6xl font-headline font-black text-[#ffd700] tracking-tighter mb-8 drop-shadow-[0_0_15px_rgba(255,215,0,0.3)] uppercase">
-        MY TICKET VAULT
-      </h1>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <StatCard label="TOTAL WINNINGS" value="156.00 USDC" icon="payments" valueColor="text-[#ffe16d]" />
-        <StatCard label="PENDING REWARDS" value="25.00 USDC" icon="pending" valueColor="text-[#00DAF3]" />
-        <StatCard label="TOTAL TICKETS" value="42" icon="confirmation_number" valueColor="text-[#cabeff]" />
+      <div className="mb-8 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+        <div>
+          <p className="mb-3 text-[11px] font-label font-bold uppercase tracking-[0.28em] text-[#d0c6ab]">
+            Wallet Ticket Vault
+          </p>
+          <h1 className="text-5xl md:text-6xl font-headline font-black text-[#ffd700] tracking-tighter drop-shadow-[0_0_15px_rgba(255,215,0,0.3)] uppercase">
+            MY TICKET VAULT
+          </h1>
+        </div>
+        {wallet}
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+        {stats.map(stat => (
+          <StatCard key={stat.label} {...stat} />
+        ))}
       </div>
     </section>
   );

@@ -8,12 +8,14 @@ import { ManualPickGallery } from "./ManualPickGallery";
 import { ModeToggle } from "./ModeToggle";
 import { PoolInfoPanel } from "./PoolInfoPanel";
 import { PurchaseSuccessModal } from "./PurchaseSuccessModal";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { parseEventLogs } from "viem";
 import { useAccount } from "wagmi";
 import { useLuckyScratchPurchaseContext } from "~~/hooks/luckyScratch/useLuckyScratchQueries";
 import { useDeployedContractInfo, useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
+import { luckyScratchAPI } from "~~/services/luckyScratch/api";
 import { formatPercentFromBps, fromMicroUsdc } from "~~/services/luckyScratch/poolMath";
+import type { PrizeTierPreview } from "~~/services/luckyScratch/types";
 import { getParsedError, notification } from "~~/utils/scaffold-eth";
 
 type GamePhase = "selecting" | "authorizing" | "purchasing" | "purchased";
@@ -48,6 +50,24 @@ const poolEmojiFromMetadata = (name?: string) => {
   return "🎟️";
 };
 
+const prizeTierIcons = ["🥇", "🥈", "🏅", "💰", "🎫"];
+
+const formatPrizeAmountLabel = (prizeAmount: number) =>
+  `${fromMicroUsdc(prizeAmount).toLocaleString("en-US", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })}U`;
+
+const buildPrizeStructure = (tiers?: PrizeTierPreview[]) =>
+  [...(tiers || [])]
+    .filter(tier => tier.prizeAmount > 0 && tier.count > 0)
+    .sort((left, right) => right.prizeAmount - left.prizeAmount || right.count - left.count)
+    .map((tier, index) => ({
+      amountLabel: formatPrizeAmountLabel(tier.prizeAmount),
+      count: tier.count,
+      icon: prizeTierIcons[index] || "🎟️",
+    }));
+
 const CUSDC_OPERATOR_VALIDITY_SECONDS = 60 * 60 * 24 * 365;
 
 const getOperatorExpiry = () => Math.floor(Date.now() / 1000) + CUSDC_OPERATOR_VALIDITY_SECONDS;
@@ -75,6 +95,19 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
   const purchaseContext = purchaseContextQuery.data;
   const pool = purchaseContext?.pool;
   const currentRound = purchaseContext?.currentRound || pool?.currentRoundState;
+  const metadataGatewayUrl = pool?.metadata?.metadataGatewayUrl;
+  const inlinePrizeTiers = pool?.metadata?.prizeTiers;
+  const metadataDocumentQuery = useQuery({
+    queryKey: ["lucky-scratch", "pools", poolId, "metadata-document", metadataGatewayUrl],
+    queryFn: () => luckyScratchAPI.getPoolMetadataDocument(metadataGatewayUrl!),
+    enabled: Boolean(metadataGatewayUrl && !inlinePrizeTiers?.length),
+    retry: 1,
+    staleTime: 60_000,
+  });
+  const prizeStructure = useMemo(
+    () => buildPrizeStructure(inlinePrizeTiers?.length ? inlinePrizeTiers : metadataDocumentQuery.data?.prizeTiers),
+    [inlinePrizeTiers, metadataDocumentQuery.data?.prizeTiers],
+  );
   const roundReady = Boolean(pool?.status === "Active" && pool?.initialized && currentRound?.status === "Ready");
   const totalAvailableTickets = purchaseContext?.availableTicketIndexes.length || 0;
   const availableIds = useMemo(
@@ -324,6 +357,8 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
           }
           totalTickets={currentRound?.totalTickets || pool.totalTicketsPerRound}
           soldTickets={currentRound?.soldCount || 0}
+          prizes={prizeStructure}
+          isPrizeStructureLoading={metadataDocumentQuery.isLoading}
           coverImage={pool.metadata?.coverImageUrl}
           onGoBack={handleGoBack}
         />
@@ -361,6 +396,7 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
                 onDeselect={handleDeselect}
                 onReadyStateChange={setIsGalleryReady}
                 themeColor={poolThemeColor(poolId)}
+                ticketArtUrl={pool.metadata?.ticketArtUrl}
               />
             ) : (
               <BatchPickGallery
@@ -371,6 +407,7 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
                 onChangeQuantity={setQuickQuantity}
                 onReadyStateChange={setIsGalleryReady}
                 themeColor={poolThemeColor(poolId)}
+                ticketArtUrl={pool.metadata?.ticketArtUrl}
               />
             )}
           </div>
@@ -414,6 +451,7 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
             ticketIds={mintedTicketIds}
             poolName={pool.metadata?.name || `Pool #${pool.poolId}`}
             poolEmoji={poolEmojiFromMetadata(pool.metadata?.name)}
+            ticketArtUrl={pool.metadata?.ticketArtUrl}
             onScratchNow={handleScratchNow}
             onBuyMore={handleBuyMore}
           />

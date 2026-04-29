@@ -6,6 +6,8 @@ import type { ZamaSDKConfig } from "~~/services/luckyScratch/types";
 
 const RELAYER_SDK_SCRIPT_SRC = "https://cdn.zama.org/relayer-sdk-js/0.4.1/relayer-sdk-js.umd.cjs";
 const RELAYER_SDK_LOAD_TIMEOUT_MS = 15_000;
+const DEFAULT_ZAMA_SEPOLIA_RELAYER_URL = "https://relayer.testnet.zama.org/v2";
+const CREATE_INSTANCE_MAX_ATTEMPTS = 3;
 
 let relayerSDKScriptPromise: Promise<void> | null = null;
 let relayerSDKPromise: Promise<RelayerSDKModule> | null = null;
@@ -16,6 +18,61 @@ const toErrorMessage = (error: unknown) => {
     return error.message;
   }
   return "unknown relayer SDK error";
+};
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const normalizeRelayerUrl = (relayerUrl: string, routeVersion = 2) => {
+  const trimmed = relayerUrl.trim().replace(/\/+$/, "");
+  if (/\/v[12]$/.test(trimmed)) {
+    return trimmed;
+  }
+  return `${trimmed}/v${routeVersion}`;
+};
+
+type RelayerSDKErrorCause = {
+  code?: string;
+  operation?: string;
+  error?: unknown;
+};
+
+const getRelayerSDKErrorCause = (error: unknown): RelayerSDKErrorCause | undefined => {
+  if (!error || typeof error !== "object" || !("cause" in error)) {
+    return undefined;
+  }
+  const cause = (error as { cause?: unknown }).cause;
+  if (!cause || typeof cause !== "object") {
+    return undefined;
+  }
+  return cause as RelayerSDKErrorCause;
+};
+
+const isRetriableRelayerCreateError = (error: unknown) => {
+  const message = toErrorMessage(error);
+  const cause = getRelayerSDKErrorCause(error);
+  return (
+    message.includes("Bad JSON") ||
+    message.includes("didn't return a JSON") ||
+    cause?.code === "RELAYER_UNKNOWN_ERROR" ||
+    cause?.code === "RELAYER_NO_JSON_ERROR"
+  );
+};
+
+const formatCreateInstanceError = (error: unknown, relayerUrl: string) => {
+  const message = toErrorMessage(error);
+  const cause = getRelayerSDKErrorCause(error);
+  const operation = cause?.operation ? ` during ${cause.operation}` : "";
+  const nestedMessage = cause?.error instanceof Error ? ` ${cause.error.message}` : "";
+
+  if (isRetriableRelayerCreateError(error)) {
+    return [
+      `failed to create relayer instance: unable to reach Zama relayer${operation} at ${relayerUrl}.`,
+      "Check the browser/network path to the relayer and S3 public-key assets, or set NEXT_PUBLIC_ZAMA_RELAYER_URL to a reachable relayer/proxy.",
+      `Original SDK error: ${message}.${nestedMessage}`,
+    ].join(" ");
+  }
+
+  return `failed to create relayer instance: ${message}`;
 };
 
 const loadRelayerSDKScript = () =>
@@ -108,7 +165,7 @@ const resolveRPCURL = (chainId: number) => {
 };
 
 export const ZAMA_SEPOLIA_SDK_CONFIG: ZamaSDKConfig = {
-  relayerUrl: "https://relayer.testnet.zama.org",
+  relayerUrl: process.env.NEXT_PUBLIC_ZAMA_RELAYER_URL?.trim() || DEFAULT_ZAMA_SEPOLIA_RELAYER_URL,
   usesBackendProxy: false,
   gatewayChainId: 10901,
   fhevmExecutorContractAddress: "0x92C920834Ec8941d2C77D188936E1f7A6f49c127",
@@ -130,6 +187,7 @@ export const createTicketRelayerInstance = async ({
 }): Promise<FhevmInstance> => {
   const sdk = await loadRelayerSDK();
   const network = resolveRPCURL(chainId);
+  const relayerUrl = normalizeRelayerUrl(sdkConfig.relayerUrl);
 
   if (!network) {
     throw new Error(
@@ -144,17 +202,26 @@ export const createTicketRelayerInstance = async ({
     inputVerifierContractAddress: sdkConfig.inputVerifierContractAddress,
     aclContractAddress: sdkConfig.aclContractAddress,
     gatewayChainId: sdkConfig.gatewayChainId,
-    relayerUrl: sdkConfig.relayerUrl,
+    relayerUrl,
     network,
     chainId,
     relayerRouteVersion: 2,
   };
 
-  try {
-    return await sdk.createInstance(config);
-  } catch (error) {
-    throw new Error(`failed to create relayer instance: ${toErrorMessage(error)}`);
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= CREATE_INSTANCE_MAX_ATTEMPTS; attempt++) {
+    try {
+      return await sdk.createInstance(config);
+    } catch (error) {
+      lastError = error;
+      if (!isRetriableRelayerCreateError(error) || attempt === CREATE_INSTANCE_MAX_ATTEMPTS) {
+        break;
+      }
+      await sleep(400 * attempt);
+    }
   }
+
+  throw new Error(formatCreateInstanceError(lastError, relayerUrl));
 };
 
 export const createSepoliaRelayerInstance = async ({ chainId }: { chainId: number }): Promise<FhevmInstance> => {
@@ -170,5 +237,5 @@ export const createSepoliaRelayerInstance = async ({ chainId }: { chainId: numbe
 
 export const generateTicketKeypair = async (): Promise<TicketKeypair> => {
   const sdk = await loadRelayerSDK();
-  return sdk.generateKeypair();
+  return sdk.TKMSPkeKeypair.generate().toBytesHexNo0x();
 };

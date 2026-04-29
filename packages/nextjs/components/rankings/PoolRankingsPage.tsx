@@ -9,6 +9,7 @@ import {
   SparklesIcon,
   TrophyIcon,
 } from "@heroicons/react/24/outline";
+import { POOL_COVER_FRAME_CLASS, POOL_COVER_IMAGE_CLASS } from "~~/components/pool-cover/constants";
 import { useLuckyScratchPools } from "~~/hooks/luckyScratch/useLuckyScratchQueries";
 import {
   formatCompactMicroUsdc,
@@ -150,10 +151,10 @@ export function PoolRankingsPage() {
                     className={`group flex flex-col items-center ${isChampion ? "mb-8 scale-110" : ""}`}
                   >
                     <div
-                      className={`relative aspect-[3/4] transition-transform duration-500 group-hover:-translate-y-4 ${isChampion ? "w-48 md:w-72" : "w-40 md:w-56"}`}
+                      className={`${POOL_COVER_FRAME_CLASS} transition-transform duration-500 group-hover:-translate-y-4 ${isChampion ? "w-48 md:w-72" : "w-40 md:w-56"}`}
                     >
                       <div className={`absolute inset-0 overflow-hidden rounded-xl bg-[#161E31] ${frameClass}`}>
-                        <img alt={pool.name} className="h-full w-full object-cover" src={pool.image} />
+                        <img alt={pool.name} className={POOL_COVER_IMAGE_CLASS} src={pool.image} />
                         <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0)_0%,rgba(255,255,255,0.18)_50%,rgba(255,255,255,0)_100%)] bg-[length:200%_200%] animate-[pool-rank-shimmer_3s_infinite]" />
                         <div
                           className="absolute left-3 top-3 rounded-sm px-3 py-1 font-headline font-black"

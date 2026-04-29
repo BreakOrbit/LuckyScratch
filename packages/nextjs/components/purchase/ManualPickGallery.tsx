@@ -4,6 +4,11 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { TicketCard3D } from "./TicketCard3D";
 import gsap from "gsap";
 import { ArrowPathIcon } from "@heroicons/react/24/outline";
+import {
+  TICKET_ART_FALLBACK_URL,
+  TICKET_ART_FRAME_CLASS,
+  TICKET_ART_IMAGE_CLASS,
+} from "~~/components/ticket-art/constants";
 
 type ManualPickGalleryProps = {
   availableIds: string[];
@@ -12,6 +17,7 @@ type ManualPickGalleryProps = {
   onDeselect: (id: string) => void;
   onReadyStateChange: (isReady: boolean) => void;
   themeColor?: string;
+  ticketArtUrl?: string;
 };
 
 const DISPLAY_COUNT = 8;
@@ -28,6 +34,7 @@ export const ManualPickGallery: React.FC<ManualPickGalleryProps> = ({
   onDeselect,
   onReadyStateChange,
   themeColor = "#C62828",
+  ticketArtUrl,
 }) => {
   const [offset, setOffset] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -261,7 +268,7 @@ export const ManualPickGallery: React.FC<ManualPickGalleryProps> = ({
           {selectedIds.map((id, i) => (
             <div
               key={id}
-              className="relative w-[110px] h-[160px] rounded-2xl overflow-hidden shadow-2xl border border-[#FFD700]/30 transition-transform duration-300 hover:scale-105 hover:-translate-y-2"
+              className={`${TICKET_ART_FRAME_CLASS} w-[110px] rounded-2xl border border-[#FFD700]/30 shadow-2xl transition-transform duration-300 hover:scale-105 hover:-translate-y-2`}
               style={{
                 animation: `batch-card-entrance 0.5s ease-out ${i * 0.08}s forwards`,
                 opacity: 0,
@@ -270,8 +277,8 @@ export const ManualPickGallery: React.FC<ManualPickGalleryProps> = ({
             >
               {/* Background Art */}
               <img
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuCa81_llmwYhIHhOrGNhGlQmDeaH7Wiiz1lze6v73dEM3AjVEmNp3t7zTO6W1OHuosSPgaS-XPJDBj0Hi7Jy6T4hDmD7_-NnetVoWBGxyEEF6axbmQ5w_-YVbyLuKTLkQYhnyOniysfPtiFv_S70dnG8DxiPJHo5WwpM8vnkCUIkKqFz5QhDAW22MYPb0x6Vb7vXhTYxS9h56Og0sgl6zKEUKKUzdhUVUx8u6I838-qS4i5DRZMP0X2cArL-xpC5LhADStOmnfHBNEN"
-                className="absolute inset-0 w-full h-full object-cover opacity-80"
+                src={ticketArtUrl || TICKET_ART_FALLBACK_URL}
+                className={`absolute inset-0 ${TICKET_ART_IMAGE_CLASS} opacity-80`}
                 alt="Ticket BG"
               />
               <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/40 to-black/90" />
