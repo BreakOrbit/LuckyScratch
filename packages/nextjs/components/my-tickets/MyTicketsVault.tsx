@@ -4,15 +4,15 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Address } from "@scaffold-ui/components";
 import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
-import { useAccount } from "wagmi";
+import { useAccount, usePublicClient } from "wagmi";
 import { TicketCard, type TicketStatus } from "~~/components/my-tickets/TicketCard";
 import { TicketFilterBar } from "~~/components/my-tickets/TicketFilterBar";
 import { type VaultStat, VaultStatsBar } from "~~/components/my-tickets/VaultStatsBar";
 import { MyTicketsIcon, type PoolIconName } from "~~/components/my-tickets/icons";
 import { useLuckyScratchUserTickets } from "~~/hooks/luckyScratch/useLuckyScratchQueries";
-import { useScaffoldWriteContract, useTargetNetwork } from "~~/hooks/scaffold-eth";
+import { useDeployedContractInfo, useScaffoldWriteContract, useTargetNetwork } from "~~/hooks/scaffold-eth";
 import { luckyScratchAPI } from "~~/services/luckyScratch/api";
-import { buildTicketClaimProof } from "~~/services/luckyScratch/claim";
+import { buildTicketClaimProofDirect } from "~~/services/luckyScratch/claim";
 import { formatUsdcFromMicro } from "~~/services/luckyScratch/poolMath";
 import type { LuckyScratchPool, LuckyScratchTicket } from "~~/services/luckyScratch/types";
 import { notification } from "~~/utils/scaffold-eth";
@@ -111,8 +111,10 @@ type ClaimMutationResult = {
 
 export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
   const { address, chainId } = useAccount();
+  const publicClient = usePublicClient();
   const queryClient = useQueryClient();
   const { targetNetwork } = useTargetNetwork();
+  const { data: coreContract } = useDeployedContractInfo({ contractName: "LuckyScratchCore" });
   const { writeContractAsync, isMining: isClaimMining } = useScaffoldWriteContract({
     contractName: "LuckyScratchCore",
   });
@@ -270,11 +272,16 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
       let skippedZeroCount = 0;
       for (const [idx, ticket] of claimableTickets.entries()) {
         const suffix = claimableTickets.length > 1 ? ` ${idx + 1}/${claimableTickets.length}` : "";
-        setClaimStage(`Authorizing${suffix}`);
-        const revealAuth = await luckyScratchAPI.buildRevealAuth(String(ticket.ticketId), address);
+        setClaimStage(`Reading handle${suffix}`);
+        const handle = await publicClient!.readContract({
+          address: coreContract!.address,
+          abi: coreContract!.abi,
+          functionName: "getTicketPrizeHandle",
+          args: [BigInt(ticket.ticketId)],
+        });
 
         setClaimStage(`Decrypting${suffix}`);
-        const claimProof = await buildTicketClaimProof({ chainId, revealAuth });
+        const claimProof = await buildTicketClaimProofDirect({ chainId: chainId!, handle });
         if (claimProof.clearRewardAmount === 0n) {
           skippedZeroCount += 1;
           continue;

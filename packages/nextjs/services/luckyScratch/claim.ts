@@ -1,4 +1,4 @@
-import { createTicketRelayerInstance } from "~~/services/fhevm/sdk";
+import { createSepoliaRelayerInstance, createTicketRelayerInstance } from "~~/services/fhevm/sdk";
 import type { PublicDecryptResults } from "~~/services/fhevm/types";
 import type { RevealAuthResponse } from "~~/services/luckyScratch/types";
 
@@ -73,6 +73,35 @@ export const buildTicketClaimProof = async ({
     chainId,
     sdkConfig: zama.sdkConfig,
   });
+  const result = await instance.publicDecrypt([handle]);
+  const clearRewardAmount = getClearRewardAmount(result, handle);
+
+  if (clearRewardAmount < 0n || clearRewardAmount > MAX_UINT64) {
+    throw new Error("Decrypted reward amount is outside the uint64 claim range.");
+  }
+  if (!result.decryptionProof) {
+    throw new Error("Relayer did not return a reward decryption proof.");
+  }
+
+  return {
+    clearRewardAmount,
+    decryptionProof: result.decryptionProof,
+    handle,
+  };
+};
+
+export const buildTicketClaimProofDirect = async ({
+  chainId,
+  handle,
+}: {
+  chainId: number;
+  handle: string;
+}): Promise<TicketClaimProof> => {
+  if (!handle || handle === "0x" + "0".repeat(64)) {
+    throw new Error("Ticket does not have a valid encrypted prize handle.");
+  }
+
+  const instance = await createSepoliaRelayerInstance({ chainId });
   const result = await instance.publicDecrypt([handle]);
   const clearRewardAmount = getClearRewardAmount(result, handle);
 

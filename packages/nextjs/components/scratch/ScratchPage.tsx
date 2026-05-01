@@ -4,14 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { useAccount } from "wagmi";
+import { useAccount, usePublicClient } from "wagmi";
 import { ArrowLeftIcon, TicketIcon } from "@heroicons/react/24/outline";
 import { BatchScratchView } from "~~/components/scratch/BatchScratchView";
 import { SingleScratchView } from "~~/components/scratch/SingleScratchView";
 import { useLuckyScratchPool } from "~~/hooks/luckyScratch/useLuckyScratchQueries";
-import { useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
+import { useDeployedContractInfo, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 import { luckyScratchAPI } from "~~/services/luckyScratch/api";
-import { buildTicketClaimProof } from "~~/services/luckyScratch/claim";
+import { buildTicketClaimProofDirect } from "~~/services/luckyScratch/claim";
 import { fromMicroUsdc } from "~~/services/luckyScratch/poolMath";
 import type { LuckyScratchTicket } from "~~/services/luckyScratch/types";
 import { getParsedError, notification } from "~~/utils/scaffold-eth";
@@ -53,8 +53,10 @@ const toErrorMessage = (error: unknown) => {
 export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
   const searchParams = useSearchParams();
   const { address, chainId } = useAccount();
+  const publicClient = usePublicClient();
   const queryClient = useQueryClient();
   const poolQuery = useLuckyScratchPool(poolId);
+  const { data: coreContract } = useDeployedContractInfo({ contractName: "LuckyScratchCore" });
   const { writeContractAsync } = useScaffoldWriteContract({
     contractName: "LuckyScratchCore",
   });
@@ -83,6 +85,10 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
       notification.warning("Scratch confirmed, but no connected chain id is available for reward decryption.");
       return;
     }
+    if (!publicClient || !coreContract) {
+      notification.warning("Scratch confirmed, but contract info is not available for reward decryption.");
+      return;
+    }
 
     const decryptToastId = notification.loading(
       ticketIds.length === 1 ? "Decrypting scratch result..." : "Decrypting scratch results...",
@@ -91,8 +97,13 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
     try {
       const settledResults = await Promise.allSettled(
         ticketIds.map(async ticketId => {
-          const revealAuth = await luckyScratchAPI.buildRevealAuth(ticketId, address);
-          const claimProof = await buildTicketClaimProof({ chainId, revealAuth });
+          const handle = await publicClient.readContract({
+            address: coreContract.address,
+            abi: coreContract.abi,
+            functionName: "getTicketPrizeHandle",
+            args: [BigInt(ticketId)],
+          });
+          const claimProof = await buildTicketClaimProofDirect({ chainId, handle });
           return {
             ticketId,
             isWin: claimProof.clearRewardAmount > 0n,
@@ -131,7 +142,7 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
     } finally {
       notification.remove(decryptToastId);
     }
-  }, [address, chainId, ticketIds]);
+  }, [address, chainId, coreContract, publicClient, ticketIds]);
 
   const submitScratch = useCallback(async () => {
     if (!address) {
