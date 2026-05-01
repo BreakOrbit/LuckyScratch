@@ -216,7 +216,10 @@ export const ManualPickGallery: React.FC<ManualPickGalleryProps> = ({
               left: `${15 + i * 18}%`,
               top: `${20 + (i % 3) * 25}%`,
               background: i % 2 === 0 ? "#FFD700" : "#C62828",
-              animation: `ticket-float ${5 + i}s ease-in-out infinite`,
+              animationName: "ticket-float",
+              animationDuration: `${5 + i}s`,
+              animationTimingFunction: "ease-in-out",
+              animationIterationCount: "infinite",
               animationDelay: `${i * 0.7}s`,
             }}
           />

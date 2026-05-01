@@ -22,10 +22,54 @@ type BatchScratchViewProps = {
   ticketIds: string[];
   ticketArtUrl?: string;
   results: TicketResult[];
+  isReadyToScratch?: boolean;
+  preparationStage?: string;
+  preparationError?: string | null;
+  onRetryPrepare?: () => void;
   onScratchAll?: () => Promise<void>;
 };
 
 type BatchPhase = "ready" | "submitting" | "animating" | "revealed";
+
+const ScratchPrizeContent = ({ res }: { res: TicketResult }) => (
+  <div className="absolute inset-0 z-0 flex flex-col items-center justify-center gap-4 pointer-events-none">
+    {res.isKnown === false ? (
+      <>
+        <div className="relative">
+          <div className="absolute inset-0 bg-[#00DAF3] blur-xl opacity-20" />
+          <StarIcon className="w-16 h-16 text-[#00DAF3] relative" />
+        </div>
+        <div className="text-center">
+          <span className="block text-[10px] uppercase tracking-[0.2em] text-[#D0C6AB] font-bold">SCRATCHED</span>
+          <span className="block px-5 font-headline text-lg font-black text-[#FFE16D]">
+            Retry decrypt in My Tickets
+          </span>
+        </div>
+      </>
+    ) : res.isWin ? (
+      <>
+        <div className="relative">
+          <div className="absolute inset-0 bg-[#FFD700] blur-xl opacity-30" />
+          <StarIcon className="w-16 h-16 text-[#FFD700] relative" />
+        </div>
+        <div className="text-center">
+          <span className="block text-[10px] uppercase tracking-[0.2em] text-[#D0C6AB] font-bold">ESTIMATED VALUE</span>
+          <span className="block font-headline font-black text-5xl text-[#FFE16D] drop-shadow-[0_0_10px_rgba(255,215,0,0.5)]">
+            {res.prize}.00<span className="text-xl ml-1">U</span>
+          </span>
+        </div>
+      </>
+    ) : (
+      <>
+        <span className="text-4xl opacity-50">😔</span>
+        <div className="text-center">
+          <span className="block text-white/40 text-sm">No Prize</span>
+          <span className="block text-white/20 text-xs mt-1">Better Luck Next Time</span>
+        </div>
+      </>
+    )}
+  </div>
+);
 
 /**
  * Individual Batch Scratch Card
@@ -40,6 +84,10 @@ const BatchScratchCard = ({
   ticketPrice,
   maxPrizeValue,
   ticketArtUrl,
+  canScratch,
+  preparationStage,
+  preparationError,
+  onRetryPrepare,
   onManualReveal,
 }: {
   id: string;
@@ -51,6 +99,10 @@ const BatchScratchCard = ({
   ticketPrice: number;
   maxPrizeValue: number;
   ticketArtUrl?: string;
+  canScratch: boolean;
+  preparationStage: string;
+  preparationError?: string | null;
+  onRetryPrepare?: () => void;
   onManualReveal: (index: number) => void | Promise<void>;
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -62,7 +114,7 @@ const BatchScratchCard = ({
   const THRESHOLD = 0.55;
 
   useEffect(() => {
-    if (isRevealed || globalPhase === "animating") return;
+    if (isRevealed || globalPhase === "animating" || globalPhase === "submitting") return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -162,11 +214,12 @@ const BatchScratchCard = ({
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
+      if (!canScratch) return;
       e.preventDefault();
       isDrawing.current = true;
       scratch(e.clientX, e.clientY);
     },
-    [scratch],
+    [canScratch, scratch],
   );
 
   const handlePointerMove = useCallback(
@@ -236,8 +289,10 @@ const BatchScratchCard = ({
 
           <div className="absolute inset-4 rounded-xl border border-[#FFD700]/20 bg-black/40 backdrop-blur-sm flex items-center justify-center">
             <div className="relative w-full h-full p-4 overflow-hidden rounded-lg">
-              {!isRevealed ? (
-                <div className="absolute inset-0 flex items-center justify-center">
+              <ScratchPrizeContent res={res} />
+
+              {!isRevealed && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center">
                   {globalPhase === "animating" ? (
                     <div
                       className="absolute inset-0 metallic-shimmer opacity-90 mix-blend-screen"
@@ -249,7 +304,9 @@ const BatchScratchCard = ({
                   ) : (
                     <canvas
                       ref={canvasRef}
-                      className="absolute inset-0 rounded-lg cursor-crosshair touch-none z-10"
+                      className={`absolute inset-0 rounded-lg touch-none z-10 ${
+                        canScratch ? "cursor-crosshair" : "pointer-events-none cursor-not-allowed"
+                      }`}
                       style={{ width: "100%", height: "100%" }}
                       onPointerDown={handlePointerDown}
                       onPointerMove={handlePointerMove}
@@ -257,47 +314,35 @@ const BatchScratchCard = ({
                       onPointerLeave={handlePointerUp}
                     />
                   )}
-                </div>
-              ) : (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
-                  {res.isKnown === false ? (
-                    <>
-                      <div className="relative">
-                        <div className="absolute inset-0 bg-[#00DAF3] blur-xl opacity-20" />
-                        <StarIcon className="w-16 h-16 text-[#00DAF3] relative" />
-                      </div>
-                      <div className="text-center">
-                        <span className="block text-[10px] uppercase tracking-[0.2em] text-[#D0C6AB] font-bold">
-                          SCRATCHED
-                        </span>
-                        <span className="block px-5 font-headline text-lg font-black text-[#FFE16D]">
-                          Retry decrypt in My Tickets
-                        </span>
-                      </div>
-                    </>
-                  ) : res.isWin ? (
-                    <>
-                      <div className="relative">
-                        <div className="absolute inset-0 bg-[#FFD700] blur-xl opacity-30" />
-                        <StarIcon className="w-16 h-16 text-[#FFD700] relative" />
-                      </div>
-                      <div className="text-center">
-                        <span className="block text-[10px] uppercase tracking-[0.2em] text-[#D0C6AB] font-bold">
-                          ESTIMATED VALUE
-                        </span>
-                        <span className="block font-headline font-black text-5xl text-[#FFE16D] drop-shadow-[0_0_10px_rgba(255,215,0,0.5)]">
-                          {res.prize}.00<span className="text-xl ml-1">U</span>
-                        </span>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <span className="text-4xl opacity-50">😔</span>
-                      <div className="text-center">
-                        <span className="block text-white/40 text-sm">No Prize</span>
-                        <span className="block text-white/20 text-xs mt-1">Better Luck Next Time</span>
-                      </div>
-                    </>
+                  {!canScratch && globalPhase !== "animating" && (
+                    <div
+                      className={`absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 rounded-lg border px-5 text-center backdrop-blur-sm ${
+                        preparationError ? "border-[#FFB4AB]/30 bg-[#2A1521]/90" : "border-[#FFD700]/20 bg-black/75"
+                      }`}
+                    >
+                      <span
+                        className={`text-[10px] font-black uppercase tracking-[0.22em] ${
+                          preparationError ? "text-[#FFB4AB]" : "text-[#00DAF3]"
+                        }`}
+                      >
+                        {preparationError ? "Preparation Failed" : "Preparing Reveal"}
+                      </span>
+                      <span className="font-headline text-lg font-black text-[#FFE16D]">{preparationStage}</span>
+                      {preparationError ? (
+                        <button
+                          type="button"
+                          onClick={onRetryPrepare}
+                          className="rounded-lg bg-[#FFD700] px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-[#3a3000] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={!onRetryPrepare}
+                        >
+                          Retry
+                        </button>
+                      ) : (
+                        <div className="h-1.5 w-24 overflow-hidden rounded-full bg-white/10">
+                          <div className="h-full w-1/2 animate-pulse rounded-full bg-[#00DAF3]" />
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               )}
@@ -331,6 +376,10 @@ export const BatchScratchView: React.FC<BatchScratchViewProps> = ({
   ticketIds,
   ticketArtUrl,
   results,
+  isReadyToScratch = true,
+  preparationStage = "Preparing result",
+  preparationError,
+  onRetryPrepare,
   onScratchAll,
 }) => {
   const router = useRouter();
@@ -341,6 +390,7 @@ export const BatchScratchView: React.FC<BatchScratchViewProps> = ({
   const particleCanvasRef = useRef<HTMLCanvasElement>(null);
   const animFrameRef = useRef<number>(0);
   const scratchPromiseRef = useRef<Promise<boolean> | null>(null);
+  const canScratch = isReadyToScratch && !preparationError;
 
   const totalTickets = ticketIds.length;
   const hasKnownResults = results.some(r => r.isKnown !== false);
@@ -369,6 +419,9 @@ export const BatchScratchView: React.FC<BatchScratchViewProps> = ({
 
   const handleManualReveal = useCallback(
     async (index: number) => {
+      if (!canScratch) {
+        return;
+      }
       const didScratch = await submitScratchAllOnce();
       if (!didScratch) {
         return;
@@ -380,7 +433,7 @@ export const BatchScratchView: React.FC<BatchScratchViewProps> = ({
         return next;
       });
     },
-    [submitScratchAllOnce],
+    [canScratch, submitScratchAllOnce],
   );
 
   useEffect(() => {
@@ -392,6 +445,9 @@ export const BatchScratchView: React.FC<BatchScratchViewProps> = ({
 
   /* Handle the "Scratch All" button click */
   const handleScratchAll = useCallback(async () => {
+    if (!canScratch) {
+      return;
+    }
     const didScratch = await submitScratchAllOnce();
     if (!didScratch) {
       return;
@@ -412,7 +468,7 @@ export const BatchScratchView: React.FC<BatchScratchViewProps> = ({
         400 + index * 350,
       );
     });
-  }, [ticketIds, revealedIndices, submitScratchAllOnce]);
+  }, [canScratch, ticketIds, revealedIndices, submitScratchAllOnce]);
 
   /* Win celebration particles */
   useEffect(() => {
@@ -587,13 +643,21 @@ export const BatchScratchView: React.FC<BatchScratchViewProps> = ({
               <div className="absolute -inset-1 bg-[#FFD700]/30 blur opacity-0 group-hover:opacity-100 transition duration-500" />
               <button
                 onClick={handleScratchAll}
-                disabled={phase === "submitting"}
+                disabled={phase === "submitting" || !canScratch}
                 className="relative px-8 py-4 bg-gradient-to-r from-[#FFD700] to-[#FFE16D] text-[#3a3000] rounded-2xl font-headline font-black text-lg tracking-[0.15em] uppercase transition-all active:scale-95 border-b-4 border-[#3a3000]/30"
                 style={{ animation: "breathe-glow 3s ease-in-out infinite" }}
               >
                 <div className="flex items-center gap-3">
                   <StarIcon className="w-5 h-5" />
-                  <span>{phase === "submitting" ? "Decrypting..." : "Reveal All"}</span>
+                  <span>
+                    {phase === "submitting"
+                      ? "Revealing..."
+                      : canScratch
+                        ? "Reveal All"
+                        : preparationError
+                          ? "Preparation Failed"
+                          : preparationStage}
+                  </span>
                   <StarIcon className="w-5 h-5" />
                 </div>
               </button>
@@ -632,6 +696,10 @@ export const BatchScratchView: React.FC<BatchScratchViewProps> = ({
                   ticketPrice={ticketPrice}
                   maxPrizeValue={maxPrizeValue}
                   ticketArtUrl={ticketArtUrl}
+                  canScratch={canScratch}
+                  preparationStage={preparationStage}
+                  preparationError={preparationError}
+                  onRetryPrepare={onRetryPrepare}
                   onManualReveal={handleManualReveal}
                 />
               );

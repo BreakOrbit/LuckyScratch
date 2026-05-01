@@ -52,7 +52,10 @@ export const TicketCard3D: React.FC<TicketCard3DProps> = ({
         ${isSelected ? "z-20" : "z-10"}
       `}
       style={{
-        animation: isAvailable || isSelected ? `${floatAnim} ${3 + floatDelay}s ease-in-out infinite` : undefined,
+        animationName: isAvailable || isSelected ? floatAnim : undefined,
+        animationDuration: `${3 + floatDelay}s`,
+        animationTimingFunction: "ease-in-out",
+        animationIterationCount: "infinite",
         animationDelay: `${floatDelay}s`,
         transformStyle: "preserve-3d",
         ...style,
@@ -165,7 +168,10 @@ export const TicketCard3D: React.FC<TicketCard3DProps> = ({
               className="font-headline font-black text-2xl tracking-tighter"
               style={{
                 color: "#FFD700",
-                animation: "neon-pulse 3s ease-in-out infinite",
+                animationName: "neon-pulse",
+                animationDuration: "3s",
+                animationTimingFunction: "ease-in-out",
+                animationIterationCount: "infinite",
                 animationDelay: `${floatDelay * 0.5}s`,
               }}
             >

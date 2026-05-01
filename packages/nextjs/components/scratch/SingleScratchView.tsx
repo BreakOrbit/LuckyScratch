@@ -18,6 +18,10 @@ type SingleScratchViewProps = {
   ticketId: string;
   ticketArtUrl?: string;
   result: { ticketId: string; isWin: boolean; prize: number; isKnown?: boolean };
+  isReadyToScratch?: boolean;
+  preparationStage?: string;
+  preparationError?: string | null;
+  onRetryPrepare?: () => void;
   onScratch?: () => Promise<void>;
 };
 
@@ -36,6 +40,10 @@ export const SingleScratchView: React.FC<SingleScratchViewProps> = ({
   ticketId,
   ticketArtUrl,
   result,
+  isReadyToScratch = true,
+  preparationStage = "Preparing result",
+  preparationError,
+  onRetryPrepare,
   onScratch,
 }) => {
   const router = useRouter();
@@ -48,6 +56,7 @@ export const SingleScratchView: React.FC<SingleScratchViewProps> = ({
   const CANVAS_W = 180;
   const CANVAS_H = 320;
   const THRESHOLD = 0.55;
+  const canScratch = isReadyToScratch && !preparationError;
 
   /* Initialize scratch coating */
   useEffect(() => {
@@ -175,12 +184,13 @@ export const SingleScratchView: React.FC<SingleScratchViewProps> = ({
   /* Pointer events */
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
+      if (!canScratch) return;
       e.preventDefault();
       isDrawing.current = true;
       setPhase("scratching");
       scratch(e.clientX, e.clientY);
     },
-    [scratch],
+    [canScratch, scratch],
   );
 
   const handlePointerMove = useCallback(
@@ -280,7 +290,7 @@ export const SingleScratchView: React.FC<SingleScratchViewProps> = ({
               <div className="absolute inset-4 rounded-xl border border-[#FFD700]/20 bg-black/40 backdrop-blur-sm flex items-center justify-center">
                 <div className="relative w-full h-full p-4 overflow-hidden rounded-lg">
                   {/* Revealed Content */}
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
+                  <div className="absolute inset-0 z-0 flex flex-col items-center justify-center gap-4 pointer-events-none">
                     {result.isKnown === false ? (
                       <>
                         <div className="relative">
@@ -325,15 +335,46 @@ export const SingleScratchView: React.FC<SingleScratchViewProps> = ({
                   {phase !== "revealed" && (
                     <canvas
                       ref={canvasRef}
-                      className={`absolute inset-0 rounded-lg cursor-crosshair touch-none z-10 ${
-                        phase === "submitting" ? "pointer-events-none opacity-70" : ""
-                      }`}
+                      className={`absolute inset-0 rounded-lg touch-none z-10 ${
+                        canScratch ? "cursor-crosshair" : "pointer-events-none cursor-not-allowed"
+                      } ${phase === "submitting" ? "pointer-events-none opacity-70" : ""}`}
                       style={{ width: "100%", height: "100%" }}
                       onPointerDown={handlePointerDown}
                       onPointerMove={handlePointerMove}
                       onPointerUp={handlePointerUp}
                       onPointerLeave={handlePointerUp}
                     />
+                  )}
+
+                  {!canScratch && phase !== "revealed" && (
+                    <div
+                      className={`absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 rounded-lg border px-5 text-center backdrop-blur-sm ${
+                        preparationError ? "border-[#FFB4AB]/30 bg-[#2A1521]/90" : "border-[#FFD700]/20 bg-black/75"
+                      }`}
+                    >
+                      <span
+                        className={`text-[10px] font-black uppercase tracking-[0.22em] ${
+                          preparationError ? "text-[#FFB4AB]" : "text-[#00DAF3]"
+                        }`}
+                      >
+                        {preparationError ? "Preparation Failed" : "Preparing Reveal"}
+                      </span>
+                      <span className="font-headline text-lg font-black text-[#FFE16D]">{preparationStage}</span>
+                      {preparationError ? (
+                        <button
+                          type="button"
+                          onClick={onRetryPrepare}
+                          className="rounded-lg bg-[#FFD700] px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-[#3a3000] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={!onRetryPrepare}
+                        >
+                          Retry
+                        </button>
+                      ) : (
+                        <div className="h-1.5 w-24 overflow-hidden rounded-full bg-white/10">
+                          <div className="h-full w-1/2 animate-pulse rounded-full bg-[#00DAF3]" />
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
@@ -364,7 +405,11 @@ export const SingleScratchView: React.FC<SingleScratchViewProps> = ({
                 <span className="text-[10px] font-black uppercase tracking-[0.25em] text-[#00DAF3] neon-text-cyan">
                   {phase === "submitting"
                     ? "Scratch & Decrypt: Pending"
-                    : `Data Extraction: ${phase === "revealed" ? 100 : progressPercent}%`}
+                    : !canScratch
+                      ? preparationError
+                        ? "Reveal Preparation Failed"
+                        : preparationStage
+                      : `Data Extraction: ${phase === "revealed" ? 100 : progressPercent}%`}
                 </span>
               </div>
               <QrCodeIcon className="w-4 h-4 text-[#00DAF3]" />

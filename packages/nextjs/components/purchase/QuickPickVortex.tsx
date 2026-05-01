@@ -130,7 +130,10 @@ export const QuickPickVortex: React.FC<QuickPickVortexProps> = ({
             style={{
               top: "50%",
               left: "50%",
-              animation: `cta-particle-orbit ${3 + i * 0.5}s linear infinite`,
+              animationName: "cta-particle-orbit",
+              animationDuration: `${3 + i * 0.5}s`,
+              animationTimingFunction: "linear",
+              animationIterationCount: "infinite",
               animationDelay: `${i * 0.4}s`,
               opacity: 0.4 + (i % 3) * 0.2,
             }}

@@ -141,7 +141,10 @@ export const PurchaseSuccessModal: React.FC<PurchaseSuccessModalProps> = ({
                   className="absolute inset-0 pointer-events-none"
                   style={{
                     background: "linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.08) 50%, transparent 70%)",
-                    animation: cardsReady ? "scratch-shimmer 4s linear infinite" : "none",
+                    animationName: cardsReady ? "scratch-shimmer" : "none",
+                    animationDuration: "4s",
+                    animationTimingFunction: "linear",
+                    animationIterationCount: "infinite",
                     animationDelay: `${i * 0.5}s`,
                     backgroundSize: "200% 100%",
                   }}

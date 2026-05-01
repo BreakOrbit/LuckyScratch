@@ -203,7 +203,10 @@ export const PurchaseRevealAnimation: React.FC<PurchaseRevealAnimationProps> = (
               style={{
                 width: `${200 + i * 120}px`,
                 height: `${200 + i * 120}px`,
-                animation: `vortex-pulse ${2 + i * 0.5}s ease-in-out infinite`,
+                animationName: "vortex-pulse",
+                animationDuration: `${2 + i * 0.5}s`,
+                animationTimingFunction: "ease-in-out",
+                animationIterationCount: "infinite",
                 animationDelay: `${i * 0.3}s`,
               }}
             />

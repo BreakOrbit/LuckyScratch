@@ -146,7 +146,10 @@ export const CheckoutPanel: React.FC<CheckoutPanelProps> = ({
                       style={{
                         top: "50%",
                         left: "50%",
-                        animation: `cta-particle-orbit ${4 + i}s linear infinite`,
+                        animationName: "cta-particle-orbit",
+                        animationDuration: `${4 + i}s`,
+                        animationTimingFunction: "linear",
+                        animationIterationCount: "infinite",
                         animationDelay: `${i * 1.3}s`,
                         opacity: 0.6,
                       }}

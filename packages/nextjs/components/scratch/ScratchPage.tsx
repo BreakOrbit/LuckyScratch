@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
+import { isAddressEqual } from "viem";
 import { useAccount, usePublicClient } from "wagmi";
 import { ArrowLeftIcon, TicketIcon } from "@heroicons/react/24/outline";
 import { BatchScratchView } from "~~/components/scratch/BatchScratchView";
@@ -14,7 +15,7 @@ import { luckyScratchAPI } from "~~/services/luckyScratch/api";
 import { buildTicketClaimProofDirect } from "~~/services/luckyScratch/claim";
 import { fromMicroUsdc } from "~~/services/luckyScratch/poolMath";
 import type { LuckyScratchTicket } from "~~/services/luckyScratch/types";
-import { getParsedError, notification } from "~~/utils/scaffold-eth";
+import { AllowedChainIds, getParsedError, notification } from "~~/utils/scaffold-eth";
 
 type ScratchPageProps = {
   poolId: string;
@@ -26,6 +27,11 @@ type TicketResult = {
   prize: number;
   isKnown?: boolean;
 };
+
+const TICKET_STATUS_UNSCRATCHED = 0;
+const TICKET_STATUS_SCRATCHED = 1;
+const TICKET_STATUS_CLAIMED = 2;
+const SUPPORTED_SCRATCH_CHAIN_IDS = [11155111, 31337] as const satisfies readonly AllowedChainIds[];
 
 const parseTicketIds = (raw: string) => [
   ...new Set(
@@ -53,17 +59,31 @@ const toErrorMessage = (error: unknown) => {
 export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
   const searchParams = useSearchParams();
   const { address, chainId } = useAccount();
-  const publicClient = usePublicClient();
+  const scratchChainId = SUPPORTED_SCRATCH_CHAIN_IDS.find(supportedChainId => supportedChainId === chainId);
+  const publicClient = usePublicClient({ chainId: scratchChainId });
   const queryClient = useQueryClient();
   const poolQuery = useLuckyScratchPool(poolId);
-  const { data: coreContract } = useDeployedContractInfo({ contractName: "LuckyScratchCore" });
+  const { data: coreContract, isLoading: isCoreContractLoading } = useDeployedContractInfo({
+    contractName: "LuckyScratchCore",
+    chainId: scratchChainId,
+  });
+  const { data: ticketContract, isLoading: isTicketContractLoading } = useDeployedContractInfo({
+    contractName: "LuckyScratchTicket",
+    chainId: scratchChainId,
+  });
   const { writeContractAsync } = useScaffoldWriteContract({
     contractName: "LuckyScratchCore",
+    chainId: scratchChainId,
   });
 
   const ticketIds = useMemo(() => parseTicketIds(searchParams.get("tickets") || ""), [searchParams]);
   const ticketIdsKey = ticketIds.join(",");
   const [resultsByTicketId, setResultsByTicketId] = useState<Record<string, TicketResult>>({});
+  const [prepareStage, setPrepareStage] = useState("");
+  const [prepareError, setPrepareError] = useState<string | null>(null);
+  const [isPreparingResults, setIsPreparingResults] = useState(false);
+  const [areResultsReady, setAreResultsReady] = useState(false);
+  const preparationRunKeyRef = useRef("");
   const pool = poolQuery.data;
   const poolName = pool?.metadata?.name || `Pool #${poolId}`;
   const ticketPrice = fromMicroUsdc(pool?.ticketPrice);
@@ -75,26 +95,125 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
 
   useEffect(() => {
     setResultsByTicketId({});
+    setPrepareStage("");
+    setPrepareError(null);
+    setIsPreparingResults(false);
+    setAreResultsReady(false);
+    preparationRunKeyRef.current = "";
   }, [ticketIdsKey]);
 
-  const decryptScratchResults = useCallback(async () => {
+  const prepareScratchResults = useCallback(async () => {
     if (!address) {
       return;
     }
     if (!chainId) {
-      notification.warning("Scratch confirmed, but no connected chain id is available for reward decryption.");
+      setPrepareError("Connect to a supported network before opening tickets.");
       return;
     }
-    if (!publicClient || !coreContract) {
-      notification.warning("Scratch confirmed, but contract info is not available for reward decryption.");
+    if (!scratchChainId) {
+      setPrepareError("Switch to Sepolia before opening tickets.");
+      return;
+    }
+    if (!publicClient || !coreContract || !ticketContract) {
+      setPrepareError("Contract info is not available yet.");
+      return;
+    }
+    if (ticketIds.length === 0) {
       return;
     }
 
-    const decryptToastId = notification.loading(
-      ticketIds.length === 1 ? "Decrypting scratch result..." : "Decrypting scratch results...",
+    setIsPreparingResults(true);
+    setAreResultsReady(false);
+    setPrepareError(null);
+    const prepareToastId = notification.loading(
+      ticketIds.length === 1 ? "Preparing ticket result..." : "Preparing ticket results...",
     );
 
     try {
+      setPrepareStage("Checking ticket state");
+      const revealStates = await Promise.all(
+        ticketIds.map(async ticketId => {
+          const state = await publicClient.readContract({
+            address: coreContract.address,
+            abi: coreContract.abi,
+            functionName: "getTicketRevealState",
+            args: [BigInt(ticketId)],
+          });
+          const [status, revealAuthorized] = state as readonly [number, boolean];
+          return { ticketId, status: Number(status), revealAuthorized };
+        }),
+      );
+
+      const invalidTicket = revealStates.find(
+        state =>
+          state.status !== TICKET_STATUS_UNSCRATCHED &&
+          state.status !== TICKET_STATUS_SCRATCHED &&
+          state.status !== TICKET_STATUS_CLAIMED,
+      );
+      if (invalidTicket) {
+        throw new Error(`Ticket #${invalidTicket.ticketId} is not ready to reveal.`);
+      }
+
+      setPrepareStage("Checking ticket owner");
+      const ticketOwners = await Promise.all(
+        ticketIds.map(async ticketId => {
+          const owner = await publicClient.readContract({
+            address: ticketContract.address,
+            abi: ticketContract.abi,
+            functionName: "ownerOf",
+            args: [BigInt(ticketId)],
+          });
+          return { ticketId, owner: owner as `0x${string}` };
+        }),
+      );
+      const ticketNotOwned = ticketOwners.find(ownerInfo => !isAddressEqual(ownerInfo.owner, address));
+      if (ticketNotOwned) {
+        throw new Error(`Ticket #${ticketNotOwned.ticketId} is owned by another wallet.`);
+      }
+
+      const scratchableTicketIds = revealStates
+        .filter(state => state.status === TICKET_STATUS_UNSCRATCHED)
+        .map(state => state.ticketId);
+      if (scratchableTicketIds.length > 0) {
+        setPrepareStage("Confirming scratch transaction");
+        let scratchTxHash: string | undefined;
+        if (scratchableTicketIds.length === 1) {
+          scratchTxHash = await writeContractAsync({
+            functionName: "scratchTicket",
+            args: [BigInt(scratchableTicketIds[0])],
+          });
+        } else {
+          scratchTxHash = await writeContractAsync({
+            functionName: "batchScratch",
+            args: [scratchableTicketIds.map(ticketId => BigInt(ticketId))],
+          });
+        }
+        if (!scratchTxHash) {
+          throw new Error("Scratch transaction was not submitted.");
+        }
+
+        for (const ticketId of scratchableTicketIds) {
+          queryClient.setQueryData<LuckyScratchTicket>(["lucky-scratch", "tickets", ticketId], old => {
+            if (!old) return old;
+            return { ...old, status: "Scratched", revealAuthorized: true };
+          });
+        }
+
+        try {
+          await luckyScratchAPI.syncTransaction(scratchTxHash);
+        } catch {
+          console.warn("Backend tx sync failed; cache will update on next poll");
+        }
+      }
+
+      const unauthorizedTicket = revealStates.find(
+        state => state.status !== TICKET_STATUS_UNSCRATCHED && !state.revealAuthorized,
+      );
+      if (unauthorizedTicket) {
+        throw new Error(`Ticket #${unauthorizedTicket.ticketId} is not authorized for reveal yet.`);
+      }
+
+      setPrepareStage("Decrypting result");
       const settledResults = await Promise.allSettled(
         ticketIds.map(async ticketId => {
           const handle = await publicClient.readContract({
@@ -103,7 +222,7 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
             functionName: "getTicketPrizeHandle",
             args: [BigInt(ticketId)],
           });
-          const claimProof = await buildTicketClaimProofDirect({ chainId, handle });
+          const claimProof = await buildTicketClaimProofDirect({ chainId: scratchChainId, handle: handle as string });
           return {
             ticketId,
             isWin: claimProof.clearRewardAmount > 0n,
@@ -132,59 +251,7 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
       setResultsByTicketId(nextResults);
 
       if (failedCount > 0) {
-        notification.warning(
-          `${failedCount} ticket result(s) could not be decrypted now. ${toErrorMessage(firstFailure)}`,
-        );
-        return;
-      }
-
-      notification.success(ticketIds.length === 1 ? "Scratch result decrypted." : "Scratch results decrypted.");
-    } finally {
-      notification.remove(decryptToastId);
-    }
-  }, [address, chainId, coreContract, publicClient, ticketIds]);
-
-  const submitScratch = useCallback(async () => {
-    if (!address) {
-      const error = new Error("Connect your wallet before scratching tickets.");
-      notification.error(error.message);
-      throw error;
-    }
-    if (ticketIds.length === 0) {
-      const error = new Error("No ticket ids were provided.");
-      notification.error(error.message);
-      throw error;
-    }
-
-    try {
-      let scratchTxHash: string | undefined;
-      if (ticketIds.length === 1) {
-        scratchTxHash = await writeContractAsync({
-          functionName: "scratchTicket",
-          args: [BigInt(ticketIds[0])],
-        });
-      } else {
-        scratchTxHash = await writeContractAsync({
-          functionName: "batchScratch",
-          args: [ticketIds.map(ticketId => BigInt(ticketId))],
-        });
-      }
-      if (!scratchTxHash) {
-        throw new Error("Scratch transaction was not submitted.");
-      }
-
-      // Optimistic update: mark tickets as Scratched in cache
-      for (const ticketId of ticketIds) {
-        queryClient.setQueryData<LuckyScratchTicket>(["lucky-scratch", "tickets", ticketId], old => {
-          if (!old) return old;
-          return { ...old, status: "Scratched" };
-        });
-      }
-      // Sync this tx to backend before invalidating so the refetch gets authoritative data
-      try {
-        await luckyScratchAPI.syncTransaction(scratchTxHash);
-      } catch {
-        console.warn("Backend tx sync failed; cache will update on next poll");
+        throw new Error(`${failedCount} ticket result(s) could not be decrypted now. ${toErrorMessage(firstFailure)}`);
       }
 
       await Promise.all([
@@ -195,21 +262,87 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
           queryClient.invalidateQueries({ queryKey: ["lucky-scratch", "tickets", ticketId] }),
         ),
       ]);
-      notification.success(
-        ticketIds.length === 1 ? "Scratch transaction confirmed." : "Batch scratch transaction confirmed.",
-      );
 
-      try {
-        await decryptScratchResults();
-      } catch (error) {
-        notification.warning(`Scratch confirmed, but reward decryption did not complete. ${toErrorMessage(error)}`);
-      }
+      setAreResultsReady(true);
+      setPrepareStage("Ready");
+      notification.success(ticketIds.length === 1 ? "Ticket result is ready to reveal." : "Ticket results are ready.");
     } catch (error) {
-      const message = getParsedError(error) || "Scratch transaction failed.";
-      notification.error(message);
+      const message = getParsedError(error) || toErrorMessage(error);
+      setPrepareError(message);
+      setPrepareStage("");
       throw error;
+    } finally {
+      setIsPreparingResults(false);
+      notification.remove(prepareToastId);
     }
-  }, [address, decryptScratchResults, poolId, queryClient, ticketIds, writeContractAsync]);
+  }, [
+    address,
+    chainId,
+    coreContract,
+    poolId,
+    publicClient,
+    queryClient,
+    scratchChainId,
+    ticketContract,
+    ticketIds,
+    writeContractAsync,
+  ]);
+
+  useEffect(() => {
+    if (!address || !chainId || ticketIds.length === 0) {
+      return;
+    }
+    if (!scratchChainId) {
+      setPrepareError("Switch to Sepolia before opening tickets.");
+      return;
+    }
+    if (!publicClient) {
+      return;
+    }
+    if (!coreContract || !ticketContract) {
+      if (!isCoreContractLoading && !isTicketContractLoading) {
+        setPrepareError("LuckyScratch contracts are not deployed on the connected network. Switch to Sepolia.");
+      }
+      return;
+    }
+    const runKey = `${address.toLowerCase()}:${scratchChainId}:${coreContract.address}:${ticketIdsKey}`;
+    if (preparationRunKeyRef.current === runKey) {
+      return;
+    }
+    preparationRunKeyRef.current = runKey;
+    prepareScratchResults().catch(error => {
+      console.warn("Scratch result preparation failed", error);
+    });
+  }, [
+    address,
+    chainId,
+    coreContract,
+    isCoreContractLoading,
+    isTicketContractLoading,
+    prepareScratchResults,
+    publicClient,
+    scratchChainId,
+    ticketContract,
+    ticketIds.length,
+    ticketIdsKey,
+  ]);
+
+  const retryPrepareScratchResults = useCallback(() => {
+    preparationRunKeyRef.current = "";
+    prepareScratchResults().catch(error => {
+      console.warn("Scratch result preparation failed", error);
+    });
+  }, [prepareScratchResults]);
+
+  const revealPreparedScratch = useCallback(async () => {
+    if (!areResultsReady) {
+      throw new Error("Ticket result is still being prepared.");
+    }
+  }, [areResultsReady]);
+
+  const preparationStageLabel =
+    prepareError ||
+    (isPreparingResults ? prepareStage || "Preparing result" : areResultsReady ? "Result ready" : "Preparing result");
 
   if (ticketIds.length === 0) {
     return (
@@ -250,7 +383,11 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
         ticketId={ticketIds[0]}
         ticketArtUrl={pool?.metadata?.ticketArtUrl}
         result={results[0]}
-        onScratch={submitScratch}
+        isReadyToScratch={areResultsReady}
+        preparationStage={preparationStageLabel}
+        preparationError={prepareError}
+        onRetryPrepare={retryPrepareScratchResults}
+        onScratch={revealPreparedScratch}
       />
     );
   }
@@ -262,7 +399,11 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
       ticketIds={ticketIds}
       ticketArtUrl={pool?.metadata?.ticketArtUrl}
       results={results}
-      onScratchAll={submitScratch}
+      isReadyToScratch={areResultsReady}
+      preparationStage={preparationStageLabel}
+      preparationError={prepareError}
+      onRetryPrepare={retryPrepareScratchResults}
+      onScratchAll={revealPreparedScratch}
     />
   );
 };
