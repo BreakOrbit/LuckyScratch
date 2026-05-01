@@ -69,6 +69,7 @@ const buildPrizeStructure = (tiers?: PrizeTierPreview[]) =>
     }));
 
 const CUSDC_OPERATOR_VALIDITY_SECONDS = 60 * 60 * 24 * 365;
+const ZERO_CIPHERTEXT_HANDLE = `0x${"0".repeat(64)}`;
 
 const getOperatorExpiry = () => Math.floor(Date.now() / 1000) + CUSDC_OPERATOR_VALIDITY_SECONDS;
 
@@ -143,6 +144,19 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
       enabled: operatorCheckAvailable,
     },
   });
+  const {
+    data: confidentialBalanceHandle,
+    isError: isConfidentialBalanceReadError,
+    isLoading: isConfidentialBalanceLoading,
+  } = useScaffoldReadContract({
+    contractName: "CUSDCToken",
+    functionName: "confidentialBalanceOf",
+    args: [address],
+    query: {
+      enabled: Boolean(address && paymentTokenContract?.address),
+      retry: false,
+    },
+  });
 
   useEffect(() => {
     if (pool && !pool.selectable && mode === "manual") {
@@ -164,6 +178,8 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
     maximumFractionDigits: 2,
   });
   const operatorReady = treasuryIsOperator === true;
+  const hasCusdcBalanceHandle =
+    typeof confidentialBalanceHandle === "string" && confidentialBalanceHandle !== ZERO_CIPHERTEXT_HANDLE;
   const canSubmitPurchase =
     Boolean(address) &&
     Boolean(coreContract) &&
@@ -171,6 +187,7 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
     activeCount > 0 &&
     isGalleryReady &&
     operatorCheckAvailable &&
+    hasCusdcBalanceHandle &&
     (pool?.selectable ? activeTicketIndexes.length === activeCount : true);
 
   const handleSelect = useCallback((id: string) => {
@@ -195,6 +212,10 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
     }
     if (!operatorCheckAvailable) {
       notification.error("cUSDC contract or treasury metadata is unavailable on the current network.");
+      return;
+    }
+    if (!hasCusdcBalanceHandle) {
+      notification.error("Mint and wrap Sepolia cUSDC from the faucet before purchasing tickets.");
       return;
     }
     if (!roundReady) {
@@ -286,6 +307,7 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
     address,
     canSubmitPurchase,
     coreContract,
+    hasCusdcBalanceHandle,
     operatorCheckAvailable,
     operatorReady,
     pool,
@@ -335,11 +357,15 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
       ? "This round is waiting for VRF initialization before ticket purchases can open."
       : !operatorCheckAvailable
         ? "The current network does not expose cUSDC / treasury metadata to the frontend, so purchase is disabled."
-        : !operatorReady
-          ? "This action will authorize LuckyScratchTreasury as your cUSDC operator before purchasing."
-          : pool.selectable
-            ? "Manual and quick pick both submit the exact ticket indexes selected below. Payment uses confidential cUSDC."
-            : "This pool is not selectable, so the final on-chain ticket indexes are assigned automatically.";
+        : isConfidentialBalanceLoading
+          ? "Checking your confidential cUSDC balance handle before purchase."
+          : isConfidentialBalanceReadError || !hasCusdcBalanceHandle
+            ? "Mint and wrap Sepolia cUSDC from the faucet before purchasing tickets."
+            : !operatorReady
+              ? "This action will authorize LuckyScratchTreasury as your cUSDC operator before purchasing."
+              : pool.selectable
+                ? "Manual and quick pick both submit the exact ticket indexes selected below. Payment uses confidential cUSDC."
+                : "This pool is not selectable, so the final on-chain ticket indexes are assigned automatically.";
 
   return (
     <div className="relative min-h-screen bg-ns-background text-ns-on-surface font-body">

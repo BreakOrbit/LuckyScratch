@@ -40,6 +40,7 @@ Shared: `interfaces/`, `libraries/`, `types/` under `contracts/luckyScratch/`
 
 - Reward values are encrypted on-chain with fhEVM; payout requires `claimReward(ticketId, clearRewardAmount, decryptionProof)`
 - `scratchTicket` makes encrypted reward handle publicly decryptable; frontend obtains KMS `decryptionProof` via backend reveal-auth + Zama `publicDecrypt`
+- Scratch UI prepares results before the user scratches: `/scratch/[poolId]` submits `scratchTicket`/`batchScratch`, decrypts prize handles, then unlocks the scratch animation so revealed cards show ticket-specific amounts immediately
 - All state-changing transactions are wallet-driven; no backend transaction relay
 - `tickets(ticketId)` returns compact `uint64` pool/round ids — keep backend/client bindings in sync with ABI
 - `createPool` enforces budget bands, ticket-price presets, 6-decimal cUSDC bond schedule, 256 ticket ceiling, and prize-tier consistency
@@ -142,7 +143,7 @@ Other hooks: `useScaffoldWatchContractEvent`, `useScaffoldEventHistory`, `useDep
 
 Contract data: `packages/nextjs/contracts/deployedContracts.ts` (auto-generated) + `externalContracts.ts` (manual)
 
-Confidential cUSDC payment: wallet must call `CUSDCToken.setOperator(LuckyScratchTreasury, validUntil)` first.
+Confidential cUSDC payment: the purchase UI checks for a non-zero `CUSDCToken.confidentialBalanceOf(wallet)` handle before submitting, and the wallet must call `CUSDCToken.setOperator(LuckyScratchTreasury, validUntil)` before Treasury can collect ticket payments.
 
 **Always use hooks from `packages/nextjs/hooks/scaffold-eth`.**
 

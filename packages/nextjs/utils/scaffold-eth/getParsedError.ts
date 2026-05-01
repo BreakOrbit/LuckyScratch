@@ -1,6 +1,8 @@
 import { BaseError as BaseViemError, ContractFunctionRevertedError } from "viem";
 
 const KNOWN_EXTERNAL_ERROR_MESSAGES: Record<string, string> = {
+  "0x5ff91cdc":
+    "cUSDC rejected the transfer with ERC7984ZeroBalance(address). Mint and wrap Sepolia cUSDC from the faucet, then authorize LuckyScratchTreasury before purchasing tickets.",
   "0x79bfd401":
     "Chainlink VRF rejected the request with InvalidConsumer(uint256,address). Add the deployed LuckyScratchVRFAdapter address as a consumer on the configured VRF subscription, make sure the subscription is funded, then retry creating the pool.",
 };
