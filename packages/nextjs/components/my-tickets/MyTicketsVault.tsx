@@ -295,9 +295,10 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
       }
 
       setClaimStage("Submitting");
+      let claimTxHash: string | undefined;
       if (claimInputs.length === 1) {
         const claimInput = claimInputs[0];
-        await writeContractAsync(
+        claimTxHash = await writeContractAsync(
           {
             functionName: "claimReward",
             args: [BigInt(claimInput.ticket.ticketId), claimInput.clearRewardAmount, claimInput.decryptionProof],
@@ -307,7 +308,7 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
           },
         );
       } else {
-        await writeContractAsync(
+        claimTxHash = await writeContractAsync(
           {
             functionName: "batchClaimRewards",
             args: [
@@ -322,12 +323,29 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
         );
       }
 
+      // Sync this tx to backend before returning so onSuccess refetch gets authoritative data
+      if (claimTxHash) {
+        try {
+          await luckyScratchAPI.syncTransaction(claimTxHash);
+        } catch {
+          console.warn("Backend tx sync failed; cache will update on next poll");
+        }
+      }
+
       return {
         claimedTickets: claimInputs.map(claimInput => claimInput.ticket),
         skippedZeroCount,
       };
     },
     onSuccess: async (result: ClaimMutationResult) => {
+      // Optimistic update: mark claimed tickets as Claimed in cache
+      for (const ticket of result.claimedTickets) {
+        queryClient.setQueryData<LuckyScratchTicket>(["lucky-scratch", "tickets", String(ticket.ticketId)], old => {
+          if (!old) return old;
+          return { ...old, status: "Claimed" };
+        });
+      }
+
       const lowerAddress = address?.toLowerCase();
       const poolIds = [...new Set(result.claimedTickets.map(ticket => ticket.poolId))];
       await Promise.all([

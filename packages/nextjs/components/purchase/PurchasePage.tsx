@@ -15,7 +15,7 @@ import { useLuckyScratchPurchaseContext } from "~~/hooks/luckyScratch/useLuckySc
 import { useDeployedContractInfo, useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 import { luckyScratchAPI } from "~~/services/luckyScratch/api";
 import { formatPercentFromBps, fromMicroUsdc } from "~~/services/luckyScratch/poolMath";
-import type { PrizeTierPreview } from "~~/services/luckyScratch/types";
+import type { LuckyScratchPurchaseContext, PrizeTierPreview } from "~~/services/luckyScratch/types";
 import { getParsedError, notification } from "~~/utils/scaffold-eth";
 
 type GamePhase = "selecting" | "authorizing" | "purchasing" | "purchased";
@@ -239,6 +239,19 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
               .filter(event => event.args.poolId?.toString() === poolId)
               .map(event => event.args.ticketId?.toString())
               .filter((value): value is string => Boolean(value));
+
+            // Optimistic update: immediately mark purchased tickets as sold in cache
+            queryClient.setQueryData<LuckyScratchPurchaseContext>(
+              ["lucky-scratch", "pools", poolId, "purchase-context"],
+              old => {
+                if (!old) return old;
+                return {
+                  ...old,
+                  soldTicketIndexes: [...old.soldTicketIndexes, ...activeTicketIndexes],
+                  availableTicketIndexes: old.availableTicketIndexes.filter(idx => !activeTicketIndexes.includes(idx)),
+                };
+              },
+            );
           },
         },
       );
@@ -252,6 +265,12 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
 
       setMintedTicketIds(purchasedTicketIds);
       setPhase("purchased");
+      // Sync this tx to backend before invalidating so the refetch gets authoritative data
+      try {
+        await luckyScratchAPI.syncTransaction(txHash);
+      } catch {
+        console.warn("Backend tx sync failed; cache will update on next poll");
+      }
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["lucky-scratch", "pools", poolId, "purchase-context"] }),
         queryClient.invalidateQueries({ queryKey: ["lucky-scratch", "users", address.toLowerCase(), "tickets"] }),

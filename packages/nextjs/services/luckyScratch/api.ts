@@ -240,4 +240,9 @@ export const luckyScratchAPI = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+  syncTransaction: (txHash: string) =>
+    requestJSON<{ txHash: string; status: string }>(`/api/v1/sync/tx`, {
+      method: "POST",
+      body: JSON.stringify({ txHash }),
+    }),
 };

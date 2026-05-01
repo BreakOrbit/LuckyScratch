@@ -56,6 +56,61 @@ func (s Service) Sync(ctx context.Context) error {
 	return nil
 }
 
+// SyncTransaction fetches the receipt for a specific transaction and indexes all
+// LuckyScratch events found in it, bypassing the normal periodic polling delay.
+func (s Service) SyncTransaction(ctx context.Context, txHash common.Hash) error {
+	receipt, err := s.chain.TransactionReceipt(ctx, txHash)
+	if err != nil {
+		return fmt.Errorf("fetch receipt for %s: %w", txHash.Hex(), err)
+	}
+
+	blockTimeCache := make(map[uint64]time.Time)
+	for _, contractName := range []string{contracts.CoreContractName, contracts.TicketContractName} {
+		deployment, err := s.chain.Registry().Must(contractName)
+		if err != nil {
+			return err
+		}
+		topics := supportedEventTopics(deployment)
+		topicSet := make(map[common.Hash]struct{}, len(topics))
+		for _, t := range topics {
+			topicSet[t] = struct{}{}
+		}
+
+		for _, logEntry := range receipt.Logs {
+			if logEntry.Address != deployment.Address {
+				continue
+			}
+			if len(logEntry.Topics) == 0 {
+				continue
+			}
+			if _, ok := topicSet[logEntry.Topics[0]]; !ok {
+				continue
+			}
+
+			decoded, decodeErr := s.decodeLog(deployment, *logEntry)
+			if decodeErr != nil {
+				if errors.Is(decodeErr, errUnsupportedEvent) {
+					continue
+				}
+				return decodeErr
+			}
+
+			blockTime, timeErr := s.blockTime(ctx, logEntry.BlockNumber, blockTimeCache)
+			if timeErr != nil {
+				return timeErr
+			}
+			decoded.Event.BlockTime = blockTime
+
+			if err := s.applyEvent(ctx, decoded); err != nil {
+				return err
+			}
+		}
+	}
+
+	log.Printf("indexer synced tx %s (%d logs)", txHash.Hex(), len(receipt.Logs))
+	return nil
+}
+
 func (s Service) Reconcile(ctx context.Context) error {
 	startedAt := time.Now()
 	var poolCount int
@@ -909,15 +964,19 @@ func (s Service) reconcileImpacts(ctx context.Context, impacts impactSet) error 
 }
 
 func (s Service) blockTime(ctx context.Context, blockNumber uint64, cache map[uint64]time.Time) (time.Time, error) {
-	if value, ok := cache[blockNumber]; ok {
-		return value, nil
+	if cache != nil {
+		if value, ok := cache[blockNumber]; ok {
+			return value, nil
+		}
 	}
 	header, err := s.chain.HeaderByNumber(ctx, new(big.Int).SetUint64(blockNumber))
 	if err != nil {
 		return time.Time{}, err
 	}
 	value := time.Unix(int64(header.Time), 0).UTC()
-	cache[blockNumber] = value
+	if cache != nil {
+		cache[blockNumber] = value
+	}
 	return value, nil
 }
 

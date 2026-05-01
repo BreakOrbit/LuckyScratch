@@ -411,6 +411,12 @@ export function CreatePoolPage() {
         createTxHash: txHash,
       });
 
+      // Sync this tx to backend before invalidating so the refetch gets authoritative data
+      try {
+        await luckyScratchAPI.syncTransaction(txHash);
+      } catch {
+        console.warn("Backend tx sync failed; cache will update on next poll");
+      }
       await queryClient.invalidateQueries({ queryKey: ["lucky-scratch"] });
       notification.success("Pool created and metadata finalized.");
       router.push(`/pool-detail/${createdPoolId}`);

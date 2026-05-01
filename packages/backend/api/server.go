@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/jackc/pgx/v5"
 
 	"lucky-scratch/apperrors"
@@ -58,12 +59,17 @@ type AdminService interface {
 	RebuildTicket(ctx context.Context, ticketID uint64, actor string) error
 }
 
+type ChainSyncer interface {
+	SyncTransaction(ctx context.Context, txHash common.Hash) error
+}
+
 type Dependencies struct {
 	Config        config.Config
 	ReadService   ReadService
 	PoolMeta      PoolMetaService
 	RevealService RevealService
 	AdminService  AdminService
+	ChainSyncer   ChainSyncer
 }
 
 type Server struct {
@@ -72,6 +78,7 @@ type Server struct {
 	poolMeta      PoolMetaService
 	revealService RevealService
 	adminService  AdminService
+	chainSyncer   ChainSyncer
 }
 
 func NewServer(deps Dependencies) *Server {
@@ -81,6 +88,7 @@ func NewServer(deps Dependencies) *Server {
 		poolMeta:      deps.PoolMeta,
 		revealService: deps.RevealService,
 		adminService:  deps.AdminService,
+		chainSyncer:   deps.ChainSyncer,
 	}
 }
 
@@ -97,6 +105,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/api/v1/leaderboards/players", s.handlePlayerLeaderboard)
 	mux.HandleFunc("/api/v1/users/", s.handleUserRoutes)
 	mux.HandleFunc("/api/v1/tickets/", s.handleTickets)
+	mux.HandleFunc("/api/v1/sync/tx", s.handleSyncTransaction)
 	mux.HandleFunc("/api/v1/admin/jobs", s.requireAdmin(s.handleAdminJobs))
 	mux.HandleFunc("/api/v1/admin/jobs/", s.requireAdmin(s.handleAdminJobRoutes))
 	mux.HandleFunc("/api/v1/admin/pools/", s.requireAdmin(s.handleAdminPoolRoutes))
@@ -774,6 +783,41 @@ func (s *Server) handleAdminTicketRoutes(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, map[string]any{"ticketId": ticketID, "status": "reindexed"})
 }
 
+func (s *Server) handleSyncTransaction(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeMethodNotAllowed(w)
+		return
+	}
+	if s.chainSyncer == nil {
+		writeError(w, http.StatusNotImplemented, errors.New("chain syncer is not configured"))
+		return
+	}
+
+	var req struct {
+		TxHash string `json:"txHash"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	txHash := strings.TrimSpace(req.TxHash)
+	if len(txHash) != 66 || !strings.HasPrefix(txHash, "0x") || !isHexString(txHash[2:]) {
+		writeError(w, http.StatusBadRequest, errors.New("txHash must be a 0x-prefixed 32-byte hex string"))
+		return
+	}
+
+	logAPIEvent("sync_tx_received", "tx_hash", txHash)
+	if err := s.chainSyncer.SyncTransaction(r.Context(), common.HexToHash(txHash)); err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	logAPIEvent("sync_tx_completed", "tx_hash", txHash)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"txHash": txHash,
+		"status": "synced",
+	})
+}
+
 func (s *Server) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if s.cfg.Admin.Token != "" {
@@ -1011,6 +1055,15 @@ func int64FromAny(value any) int64 {
 		}
 	}
 	return 0
+}
+
+func isHexString(s string) bool {
+	for _, c := range s {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+			return false
+		}
+	}
+	return len(s) > 0
 }
 
 func writeError(w http.ResponseWriter, status int, err error) {

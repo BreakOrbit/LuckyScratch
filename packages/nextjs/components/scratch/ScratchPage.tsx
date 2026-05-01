@@ -13,6 +13,7 @@ import { useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 import { luckyScratchAPI } from "~~/services/luckyScratch/api";
 import { buildTicketClaimProof } from "~~/services/luckyScratch/claim";
 import { fromMicroUsdc } from "~~/services/luckyScratch/poolMath";
+import type { LuckyScratchTicket } from "~~/services/luckyScratch/types";
 import { getParsedError, notification } from "~~/utils/scaffold-eth";
 
 type ScratchPageProps = {
@@ -159,6 +160,20 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
       }
       if (!scratchTxHash) {
         throw new Error("Scratch transaction was not submitted.");
+      }
+
+      // Optimistic update: mark tickets as Scratched in cache
+      for (const ticketId of ticketIds) {
+        queryClient.setQueryData<LuckyScratchTicket>(["lucky-scratch", "tickets", ticketId], old => {
+          if (!old) return old;
+          return { ...old, status: "Scratched" };
+        });
+      }
+      // Sync this tx to backend before invalidating so the refetch gets authoritative data
+      try {
+        await luckyScratchAPI.syncTransaction(scratchTxHash);
+      } catch {
+        console.warn("Backend tx sync failed; cache will update on next poll");
       }
 
       await Promise.all([

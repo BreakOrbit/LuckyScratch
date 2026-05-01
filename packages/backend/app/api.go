@@ -16,6 +16,7 @@ func RunAPI(ctx context.Context, cfg config.Config, runtime *Runtime) error {
 		PoolMeta:      runtime.PoolMeta,
 		RevealService: runtime.RevealService,
 		AdminService:  runtime.AdminService,
+		ChainSyncer:   runtime.Indexer,
 	}).Routes()
 
 	srv := &http.Server{
