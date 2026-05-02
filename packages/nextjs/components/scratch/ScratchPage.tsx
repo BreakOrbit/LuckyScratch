@@ -71,7 +71,7 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
     contractName: "LuckyScratchTicket",
     chainId: scratchChainId,
   });
-  const { writeContractAsync } = useScaffoldWriteContract({
+  const { writeContractAsync, isDeployed: isWriteContractReady } = useScaffoldWriteContract({
     contractName: "LuckyScratchCore",
     chainId: scratchChainId,
   });
@@ -115,6 +115,10 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
       return;
     }
     if (!publicClient || !coreContract || !ticketContract) {
+      setPrepareError("Contract info is not available yet.");
+      return;
+    }
+    if (!isWriteContractReady) {
       setPrepareError("Contract info is not available yet.");
       return;
     }
@@ -279,6 +283,7 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
     address,
     chainId,
     coreContract,
+    isWriteContractReady,
     poolId,
     publicClient,
     queryClient,
@@ -305,6 +310,9 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
       }
       return;
     }
+    if (!isWriteContractReady) {
+      return;
+    }
     const runKey = `${address.toLowerCase()}:${scratchChainId}:${coreContract.address}:${ticketIdsKey}`;
     if (preparationRunKeyRef.current === runKey) {
       return;
@@ -319,6 +327,7 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
     coreContract,
     isCoreContractLoading,
     isTicketContractLoading,
+    isWriteContractReady,
     prepareScratchResults,
     publicClient,
     scratchChainId,

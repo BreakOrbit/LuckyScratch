@@ -21,6 +21,7 @@ type ScaffoldWriteContractReturnType<TContractName extends ContractName> = Omit<
   "writeContract" | "writeContractAsync"
 > & {
   isMining: boolean;
+  isDeployed: boolean;
   writeContractAsync: <
     TFunctionName extends ExtractAbiFunctionNames<ContractAbi<TContractName>, "nonpayable" | "payable">,
   >(
@@ -91,18 +92,15 @@ export function useScaffoldWriteContract<TContractName extends ContractName>(
     options?: ScaffoldWriteContractOptions,
   ) => {
     if (!deployedContractData) {
-      notification.error("Target Contract is not deployed, did you forget to run `yarn deploy`?");
-      return;
+      throw new Error("Target contract is not deployed. Did you forget to run `yarn deploy`?");
     }
 
     if (!accountChain?.id) {
-      notification.error("Please connect your wallet");
-      return;
+      throw new Error("Wallet is not connected. Please connect your wallet and try again.");
     }
 
     if (accountChain?.id !== selectedNetwork.id) {
-      notification.error(`Wallet is connected to the wrong network. Please switch to ${selectedNetwork.name}`);
-      return;
+      throw new Error(`Wallet is on the wrong network. Please switch to ${selectedNetwork.name}.`);
     }
 
     try {
@@ -186,6 +184,7 @@ export function useScaffoldWriteContract<TContractName extends ContractName>(
   return {
     ...wagmiContractWrite,
     isMining,
+    isDeployed: !!deployedContractData,
     // Overwrite wagmi's writeContactAsync
     writeContractAsync: sendContractWriteAsyncTx,
     // Overwrite wagmi's writeContract
