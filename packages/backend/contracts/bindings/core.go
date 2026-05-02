@@ -108,7 +108,7 @@ func (c *Core) TicketPrizeHandle(ctx context.Context, ticketID uint64) ([32]byte
 }
 
 func (c *Core) EncryptPrizes(opts *bind.TransactOpts, poolID uint64, roundID uint32, startIndex uint32, endIndex uint32) (*types.Transaction, error) {
-	return c.contract.Transact(opts, "encryptPrizes", newBig(poolID), roundID, startIndex, endIndex)
+	return c.contract.Transact(opts, "encryptPrizes", poolID, roundID, startIndex, endIndex)
 }
 
 func newBig(value uint64) *big.Int {
