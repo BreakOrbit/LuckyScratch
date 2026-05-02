@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-eth/contract";
 const deployedContracts = {
   11155111: {
     LuckyScratchCore: {
-      address: "0x56C746118D249B78bA1C44B59184638910a60E3D",
+      address: "0x9Da0D136b93237229DCE4E03aad9D1Ca8F56045C",
       abi: [
         {
           inputs: [
@@ -1748,10 +1748,10 @@ const deployedContracts = {
         setTreasury: "contracts/luckyScratch/interfaces/ILuckyScratchCore.sol",
         setVrfAdapter: "contracts/luckyScratch/interfaces/ILuckyScratchCore.sol",
       },
-      deployedOnBlock: 10720389,
+      deployedOnBlock: 10773368,
     },
     LuckyScratchTicket: {
-      address: "0x32d51Ca8170dBdaD98EaC92a6F53B3191FEFF20e",
+      address: "0x82Cf2bEEe89E6F259696b8E0133744e38279FCEe",
       abi: [
         {
           inputs: [
@@ -2396,10 +2396,10 @@ const deployedContracts = {
         setCore: "contracts/luckyScratch/interfaces/ILuckyScratchTicket.sol",
         setTransferLocked: "contracts/luckyScratch/interfaces/ILuckyScratchTicket.sol",
       },
-      deployedOnBlock: 10720383,
+      deployedOnBlock: 10773365,
     },
     LuckyScratchTreasury: {
-      address: "0x2bA719ED38F4c6248ea92e85df707cC8E27949b9",
+      address: "0x21774d259ba98a19051c8F714cf6207cEF513a43",
       abi: [
         {
           inputs: [
@@ -2711,10 +2711,10 @@ const deployedContracts = {
         token: "contracts/luckyScratch/interfaces/ILuckyScratchTreasury.sol",
         withdrawCreatorProfit: "contracts/luckyScratch/interfaces/ILuckyScratchTreasury.sol",
       },
-      deployedOnBlock: 10720386,
+      deployedOnBlock: 10773366,
     },
     LuckyScratchVRFAdapter: {
-      address: "0x1B24788d3354F2989bAe9aCc5E08655F1F9B829c",
+      address: "0xf3E80ff70F367E166e7e39c8fDc49bfa8960119F",
       abi: [
         {
           inputs: [
@@ -3091,7 +3091,7 @@ const deployedContracts = {
         requestRandomness: "contracts/luckyScratch/interfaces/ILuckyScratchVRFAdapter.sol",
         setCore: "contracts/luckyScratch/interfaces/ILuckyScratchVRFAdapter.sol",
       },
-      deployedOnBlock: 10720387,
+      deployedOnBlock: 10773367,
     },
   },
 } as const;

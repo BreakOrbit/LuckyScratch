@@ -22,15 +22,7 @@ contract LuckyScratchCore is AccessControl, ReentrancyGuard, Pausable, ZamaEther
 
     uint32 internal constant MAX_BATCH_SIZE = 64;
     uint32 internal constant MAX_TICKETS_PER_ROUND = 256;
-    uint16 internal constant MAX_BPS = 10_000;
     uint16 internal constant PLATFORM_FEE_BPS = 800;
-    uint16 internal constant MIN_HIT_RATE_BPS = 2_000;
-    uint16 internal constant MAX_HIT_RATE_BPS = 7_000;
-    uint16 internal constant MIN_RTP_BPS = 5_000;
-    uint16 internal constant MAX_RTP_BPS = 9_500;
-    uint16 internal constant MAX_PRIZE_SHARE_BPS = 3_000;
-    uint64 internal constant MIN_TOTAL_PRIZE_BUDGET = 50_000_000;
-    uint64 internal constant MAX_TOTAL_PRIZE_BUDGET = 2_000_000_000;
     uint64 internal constant PRICE_TIER_1 = 1_000_000;
     uint64 internal constant PRICE_TIER_2 = 2_000_000;
     uint64 internal constant PRICE_TIER_5 = 5_000_000;
@@ -539,17 +531,9 @@ contract LuckyScratchCore is AccessControl, ReentrancyGuard, Pausable, ZamaEther
         }
         if (config.totalTicketsPerRound > MAX_TICKETS_PER_ROUND) revert InvalidPoolConfig();
         if (config.poolInstanceGroupSize == 0) revert InvalidPoolConfig();
-        if (config.totalPrizeBudget < MIN_TOTAL_PRIZE_BUDGET || config.totalPrizeBudget > MAX_TOTAL_PRIZE_BUDGET) {
-            revert InvalidPoolConfig();
-        }
         if (config.maxPrize == 0 || config.maxPrize > config.totalPrizeBudget) revert InvalidPoolConfig();
         if (!_isSupportedTicketPrice(config.ticketPrice)) revert InvalidPoolConfig();
         if (config.feeBps != PLATFORM_FEE_BPS) revert InvalidPoolConfig();
-        if (config.hitRateBps < MIN_HIT_RATE_BPS || config.hitRateBps > MAX_HIT_RATE_BPS) revert InvalidPoolConfig();
-        if (config.targetRtpBps < MIN_RTP_BPS || config.targetRtpBps > MAX_RTP_BPS) revert InvalidPoolConfig();
-        if (uint256(config.maxPrize) * MAX_BPS > uint256(config.totalPrizeBudget) * MAX_PRIZE_SHARE_BPS) {
-            revert InvalidPoolConfig();
-        }
 
         address creator = config.creator == address(0) ? msg.sender : config.creator;
         if (creator == address(0)) revert InvalidPoolConfig();
