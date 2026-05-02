@@ -246,6 +246,10 @@ func (s Service) encryptRounds(ctx context.Context, filterPoolID uint64) error {
 
 		txHash, txErr := s.chain.EncryptPrizes(ctx, s.encryptorAuth, uint64(pool.PoolID), uint32(pool.CurrentRound), 0, roundState.TotalTickets)
 		if txErr != nil {
+			if strings.Contains(txErr.Error(), "already known") {
+				log.Printf("encryptPrizes already pending: pool=%d round=%d", pool.PoolID, pool.CurrentRound)
+				return nil
+			}
 			return fmt.Errorf("encryptPrizes pool=%d round=%d: %w", pool.PoolID, pool.CurrentRound, txErr)
 		}
 		log.Printf("encryptPrizes tx sent: pool=%d round=%d tickets=%d tx=%s", pool.PoolID, pool.CurrentRound, roundState.TotalTickets, txHash.Hex())
