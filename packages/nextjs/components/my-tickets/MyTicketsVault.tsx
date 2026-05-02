@@ -35,7 +35,7 @@ const matchesTab = (ticket: LuckyScratchTicket, tab: TicketTab) => {
     case "winning":
       return ticket.claimClearRewardAmount > 0;
     case "to-claim":
-      return ticket.status === "Scratched" && ticket.revealAuthorized;
+      return ticket.status === "Scratched" && ticket.revealAuthorized && ticket.claimClearRewardAmount > 0;
     default:
       return true;
   }
@@ -49,6 +49,7 @@ const isTicketReadyForClaim = (ticket: LuckyScratchTicket, address?: string) =>
     address &&
       ticket.status === "Scratched" &&
       ticket.revealAuthorized &&
+      ticket.claimClearRewardAmount > 0 &&
       ticket.owner.toLowerCase() === address.toLowerCase(),
   );
 

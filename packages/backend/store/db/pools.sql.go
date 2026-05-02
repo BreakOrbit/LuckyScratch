@@ -22,7 +22,7 @@ WHERE chain_id = $1
     OR ($4::TEXT = 'unrevealed' AND status = 'Unscratched')
     OR ($4::TEXT = 'revealed' AND status != 'Unscratched')
     OR ($4::TEXT = 'winning' AND claim_clear_reward_amount > 0)
-    OR ($4::TEXT = 'to-claim' AND status = 'Scratched' AND reveal_authorized = TRUE)
+    OR ($4::TEXT = 'to-claim' AND status = 'Scratched' AND reveal_authorized = TRUE AND claim_clear_reward_amount > 0)
   )
 `
 
@@ -537,7 +537,7 @@ WHERE chain_id = $1
     OR ($4::TEXT = 'unrevealed' AND status = 'Unscratched')
     OR ($4::TEXT = 'revealed' AND status != 'Unscratched')
     OR ($4::TEXT = 'winning' AND claim_clear_reward_amount > 0)
-    OR ($4::TEXT = 'to-claim' AND status = 'Scratched' AND reveal_authorized = TRUE)
+    OR ($4::TEXT = 'to-claim' AND status = 'Scratched' AND reveal_authorized = TRUE AND claim_clear_reward_amount > 0)
   )
 ORDER BY ticket_id DESC
 LIMIT $6 OFFSET $5

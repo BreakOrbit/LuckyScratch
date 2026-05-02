@@ -247,7 +247,7 @@ WHERE chain_id = sqlc.arg(chain_id)
     OR (sqlc.arg(view_filter)::TEXT = 'unrevealed' AND status = 'Unscratched')
     OR (sqlc.arg(view_filter)::TEXT = 'revealed' AND status != 'Unscratched')
     OR (sqlc.arg(view_filter)::TEXT = 'winning' AND claim_clear_reward_amount > 0)
-    OR (sqlc.arg(view_filter)::TEXT = 'to-claim' AND status = 'Scratched' AND reveal_authorized = TRUE)
+    OR (sqlc.arg(view_filter)::TEXT = 'to-claim' AND status = 'Scratched' AND reveal_authorized = TRUE AND claim_clear_reward_amount > 0)
   )
 ORDER BY ticket_id DESC
 LIMIT sqlc.arg(limit_count) OFFSET sqlc.arg(offset_count);
@@ -263,7 +263,7 @@ WHERE chain_id = sqlc.arg(chain_id)
     OR (sqlc.arg(view_filter)::TEXT = 'unrevealed' AND status = 'Unscratched')
     OR (sqlc.arg(view_filter)::TEXT = 'revealed' AND status != 'Unscratched')
     OR (sqlc.arg(view_filter)::TEXT = 'winning' AND claim_clear_reward_amount > 0)
-    OR (sqlc.arg(view_filter)::TEXT = 'to-claim' AND status = 'Scratched' AND reveal_authorized = TRUE)
+    OR (sqlc.arg(view_filter)::TEXT = 'to-claim' AND status = 'Scratched' AND reveal_authorized = TRUE AND claim_clear_reward_amount > 0)
   );
 
 -- name: ListTicketsByPool :many
