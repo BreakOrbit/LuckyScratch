@@ -111,3 +111,11 @@ export const useLuckyScratchCreatorSummary = (address?: string) =>
     enabled: Boolean(address),
     staleTime: 10_000,
   });
+
+export const useLuckyScratchUserSettings = (address?: string) =>
+  useQuery({
+    queryKey: ["lucky-scratch", "users", address?.toLowerCase(), "settings"],
+    queryFn: () => luckyScratchAPI.getUserSettings(address!),
+    enabled: Boolean(address),
+    staleTime: 10_000,
+  });

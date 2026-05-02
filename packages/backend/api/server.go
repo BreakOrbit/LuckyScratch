@@ -39,6 +39,8 @@ type ReadService interface {
 	ListRecentWins(ctx context.Context, limit int, offset int) ([]db.Ticket, error)
 	ListTopPlayersAllTime(ctx context.Context, limit int) ([]db.ListTopPlayersAllTimeRow, error)
 	ListTopPlayersSince(ctx context.Context, since time.Time, limit int) ([]db.ListTopPlayersSinceRow, error)
+	GetUserSettings(ctx context.Context, walletAddress string) (db.UserSetting, error)
+	UpsertUserSettings(ctx context.Context, arg db.UpsertUserSettingsParams) (db.UserSetting, error)
 }
 
 type RevealService interface {
@@ -323,6 +325,8 @@ func (s *Server) handleUserRoutes(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeError(w, http.StatusNotFound, errors.New("route not found"))
+	case "settings":
+		s.handleUserSettings(w, r, address)
 	default:
 		writeError(w, http.StatusNotFound, errors.New("route not found"))
 	}
@@ -379,6 +383,70 @@ func (s *Server) handleUserWins(w http.ResponseWriter, r *http.Request, address 
 		items = append(items, ticketResponse(row))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+func userSettingsResponse(row db.UserSetting) map[string]any {
+	return map[string]any{
+		"nickname":       row.Nickname,
+		"broadcastWins":  row.BroadcastWins,
+		"securityAlerts": row.SecurityAlerts,
+		"terminalHints":  row.TerminalHints,
+		"autoLock":       row.AutoLock,
+		"updatedAt":      row.UpdatedAt.Time,
+	}
+}
+
+func (s *Server) handleUserSettings(w http.ResponseWriter, r *http.Request, address string) {
+	switch r.Method {
+	case http.MethodGet:
+		row, err := s.readService.GetUserSettings(r.Context(), address)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				writeJSON(w, http.StatusOK, map[string]any{
+					"nickname":       "",
+					"broadcastWins":  true,
+					"securityAlerts": true,
+					"terminalHints":  false,
+					"autoLock":       true,
+				})
+				return
+			}
+			writeServiceError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, userSettingsResponse(row))
+
+	case http.MethodPost:
+		var req struct {
+			Nickname       string `json:"nickname"`
+			BroadcastWins  bool   `json:"broadcastWins"`
+			SecurityAlerts bool   `json:"securityAlerts"`
+			TerminalHints  bool   `json:"terminalHints"`
+			AutoLock       bool   `json:"autoLock"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+
+		logAPIEvent("user_settings_upsert", "address", address, "nickname", req.Nickname)
+		row, err := s.readService.UpsertUserSettings(r.Context(), db.UpsertUserSettingsParams{
+			WalletAddress:  address,
+			Nickname:       req.Nickname,
+			BroadcastWins:  req.BroadcastWins,
+			SecurityAlerts: req.SecurityAlerts,
+			TerminalHints:  req.TerminalHints,
+			AutoLock:       req.AutoLock,
+		})
+		if err != nil {
+			writeServiceError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, userSettingsResponse(row))
+
+	default:
+		writeMethodNotAllowed(w)
+	}
 }
 
 func (s *Server) handlePlatformOverview(w http.ResponseWriter, r *http.Request) {

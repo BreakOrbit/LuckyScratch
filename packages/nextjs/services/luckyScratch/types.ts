@@ -324,3 +324,20 @@ export type LuckyScratchPurchaseContext = {
   soldTicketIndexes: number[];
   availableTicketIndexes: number[];
 };
+
+export type LuckyScratchUserSettings = {
+  nickname: string;
+  broadcastWins: boolean;
+  securityAlerts: boolean;
+  terminalHints: boolean;
+  autoLock: boolean;
+  updatedAt?: string;
+};
+
+export type UpdateUserSettingsPayload = {
+  nickname: string;
+  broadcastWins: boolean;
+  securityAlerts: boolean;
+  terminalHints: boolean;
+  autoLock: boolean;
+};

@@ -14,10 +14,12 @@ import type {
   LuckyScratchPoolsResponse,
   LuckyScratchPurchaseContext,
   LuckyScratchTicket,
+  LuckyScratchUserSettings,
   PoolDraft,
   PrizeTierPreview,
   RecentWinsResponse,
   RevealAuthResponse,
+  UpdateUserSettingsPayload,
   UploadedImageAsset,
   UserTicketsResponse,
   UserWinsResponse,
@@ -244,5 +246,11 @@ export const luckyScratchAPI = {
     requestJSON<{ txHash: string; status: string }>(`/api/v1/sync/tx`, {
       method: "POST",
       body: JSON.stringify({ txHash }),
+    }),
+  getUserSettings: (address: string) => requestJSON<LuckyScratchUserSettings>(`/api/v1/users/${address}/settings`),
+  updateUserSettings: (address: string, payload: UpdateUserSettingsPayload) =>
+    requestJSON<LuckyScratchUserSettings>(`/api/v1/users/${address}/settings`, {
+      method: "POST",
+      body: JSON.stringify(payload),
     }),
 };

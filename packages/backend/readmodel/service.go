@@ -175,3 +175,11 @@ func (s Service) ListTopPlayersSince(ctx context.Context, since time.Time, limit
 		Limit:     int32(limit),
 	})
 }
+
+func (s Service) GetUserSettings(ctx context.Context, walletAddress string) (db.UserSetting, error) {
+	return s.queries.GetUserSettings(ctx, walletAddress)
+}
+
+func (s Service) UpsertUserSettings(ctx context.Context, arg db.UpsertUserSettingsParams) (db.UserSetting, error) {
+	return s.queries.UpsertUserSettings(ctx, arg)
+}

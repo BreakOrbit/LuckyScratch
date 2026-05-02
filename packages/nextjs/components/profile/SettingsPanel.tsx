@@ -1,7 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAccount } from "wagmi";
 import { BoltIcon, CheckCircleIcon, FingerPrintIcon, PhotoIcon, UserCircleIcon } from "@heroicons/react/24/outline";
+import { useLuckyScratchUserSettings } from "~~/hooks/luckyScratch/useLuckyScratchQueries";
+import { luckyScratchAPI } from "~~/services/luckyScratch/api";
+import type { UpdateUserSettingsPayload } from "~~/services/luckyScratch/types";
 import { notification } from "~~/utils/scaffold-eth";
 
 type SettingsState = {
@@ -12,13 +17,6 @@ type SettingsState = {
   autoLock: boolean;
 };
 
-const defaultSettings: SettingsState = {
-  nickname: "0x71C...4f92",
-  broadcastWins: true,
-  securityAlerts: true,
-  terminalHints: false,
-  autoLock: true,
-};
 const isSameSettings = (left: SettingsState, right: SettingsState) =>
   left.nickname === right.nickname &&
   left.broadcastWins === right.broadcastWins &&
@@ -26,10 +24,47 @@ const isSameSettings = (left: SettingsState, right: SettingsState) =>
   left.terminalHints === right.terminalHints &&
   left.autoLock === right.autoLock;
 
+const toPayload = (s: SettingsState): UpdateUserSettingsPayload => ({
+  nickname: s.nickname,
+  broadcastWins: s.broadcastWins,
+  securityAlerts: s.securityAlerts,
+  terminalHints: s.terminalHints,
+  autoLock: s.autoLock,
+});
+
 export function SettingsPanel() {
-  const [settings, setSettings] = useState(defaultSettings);
-  const [savedSettings, setSavedSettings] = useState(defaultSettings);
+  const { address } = useAccount();
+  const queryClient = useQueryClient();
+  const { data: savedData } = useLuckyScratchUserSettings(address);
+
+  const defaultNickname = address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "NOT_CONNECTED";
+
+  const [settings, setSettings] = useState<SettingsState>({
+    nickname: defaultNickname,
+    broadcastWins: true,
+    securityAlerts: true,
+    terminalHints: false,
+    autoLock: true,
+  });
+  const [savedSettings, setSavedSettings] = useState<SettingsState>(settings);
   const [lastSavedAt, setLastSavedAt] = useState("Unsaved session");
+
+  useEffect(() => {
+    if (savedData) {
+      const loaded: SettingsState = {
+        nickname: savedData.nickname || defaultNickname,
+        broadcastWins: savedData.broadcastWins,
+        securityAlerts: savedData.securityAlerts,
+        terminalHints: savedData.terminalHints,
+        autoLock: savedData.autoLock,
+      };
+      setSettings(loaded);
+      setSavedSettings(loaded);
+      if (savedData.updatedAt) {
+        setLastSavedAt(new Date(savedData.updatedAt).toLocaleString());
+      }
+    }
+  }, [savedData, defaultNickname]);
 
   const isDirty = !isSameSettings(settings, savedSettings);
 
@@ -40,10 +75,34 @@ export function SettingsPanel() {
     }));
   };
 
+  const saveMutation = useMutation({
+    mutationFn: (payload: UpdateUserSettingsPayload) => luckyScratchAPI.updateUserSettings(address!, payload),
+    onSuccess: data => {
+      const loaded: SettingsState = {
+        nickname: data.nickname || defaultNickname,
+        broadcastWins: data.broadcastWins,
+        securityAlerts: data.securityAlerts,
+        terminalHints: data.terminalHints,
+        autoLock: data.autoLock,
+      };
+      setSavedSettings(loaded);
+      setLastSavedAt(data.updatedAt ? new Date(data.updatedAt).toLocaleString() : new Date().toLocaleString());
+      queryClient.invalidateQueries({
+        queryKey: ["lucky-scratch", "users", address?.toLowerCase(), "settings"],
+      });
+      notification.success("Settings saved.");
+    },
+    onError: error => {
+      notification.error(error instanceof Error ? error.message : "Failed to save settings.");
+    },
+  });
+
   const handleSave = () => {
-    setSavedSettings(settings);
-    setLastSavedAt(new Date().toLocaleString());
-    notification.success("Settings saved.");
+    if (!address) {
+      notification.error("Connect your wallet before saving settings.");
+      return;
+    }
+    saveMutation.mutate(toPayload(settings));
   };
 
   return (
@@ -75,11 +134,11 @@ export function SettingsPanel() {
           <div className="mt-1 text-xs text-ns-on-surface-variant">Last update: {lastSavedAt}</div>
           <button
             type="button"
-            disabled={!isDirty}
+            disabled={!isDirty || saveMutation.isPending}
             onClick={handleSave}
             className="mt-3 w-full rounded-lg bg-ns-primary-container py-2 text-xs font-bold text-ns-on-primary transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            Save Settings
+            {saveMutation.isPending ? "Saving..." : "Save Settings"}
           </button>
         </div>
       </div>

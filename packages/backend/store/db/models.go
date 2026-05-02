@@ -259,3 +259,15 @@ type User struct {
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 	LastSeenAt    pgtype.Timestamptz `json:"last_seen_at"`
 }
+
+type UserSetting struct {
+	ID             int64              `json:"id"`
+	WalletAddress  string             `json:"wallet_address"`
+	Nickname       string             `json:"nickname"`
+	BroadcastWins  bool               `json:"broadcast_wins"`
+	SecurityAlerts bool               `json:"security_alerts"`
+	TerminalHints  bool               `json:"terminal_hints"`
+	AutoLock       bool               `json:"auto_lock"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}

@@ -141,6 +141,12 @@ func (stubReadService) ListTopPlayersAllTime(context.Context, int) ([]db.ListTop
 func (stubReadService) ListTopPlayersSince(context.Context, time.Time, int) ([]db.ListTopPlayersSinceRow, error) {
 	return nil, nil
 }
+func (stubReadService) GetUserSettings(context.Context, string) (db.UserSetting, error) {
+	return db.UserSetting{}, pgx.ErrNoRows
+}
+func (stubReadService) UpsertUserSettings(context.Context, db.UpsertUserSettingsParams) (db.UserSetting, error) {
+	return db.UserSetting{}, nil
+}
 
 type stubRevealService struct{}
 

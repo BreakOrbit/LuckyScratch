@@ -33,6 +33,7 @@ type Querier interface {
 	GetRound(ctx context.Context, arg GetRoundParams) (Round, error)
 	GetTicket(ctx context.Context, arg GetTicketParams) (Ticket, error)
 	GetUploadedAsset(ctx context.Context, id int64) (UploadedAsset, error)
+	GetUserSettings(ctx context.Context, walletAddress string) (UserSetting, error)
 	InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) (AuditLog, error)
 	InsertIndexedLog(ctx context.Context, arg InsertIndexedLogParams) (IndexedLog, error)
 	InsertPoolCostLedger(ctx context.Context, arg InsertPoolCostLedgerParams) (PoolCostLedger, error)
@@ -73,6 +74,7 @@ type Querier interface {
 	UpsertRound(ctx context.Context, arg UpsertRoundParams) (Round, error)
 	UpsertTicket(ctx context.Context, arg UpsertTicketParams) (Ticket, error)
 	UpsertUser(ctx context.Context, walletAddress string) (User, error)
+	UpsertUserSettings(ctx context.Context, arg UpsertUserSettingsParams) (UserSetting, error)
 }
 
 var _ Querier = (*Queries)(nil)
