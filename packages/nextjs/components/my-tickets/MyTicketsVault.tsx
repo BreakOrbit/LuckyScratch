@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Address } from "@scaffold-ui/components";
 import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
 import { useAccount, usePublicClient } from "wagmi";
 import { TicketCard, type TicketStatus } from "~~/components/my-tickets/TicketCard";
@@ -10,7 +9,7 @@ import { TicketFilterBar } from "~~/components/my-tickets/TicketFilterBar";
 import { type VaultStat, VaultStatsBar } from "~~/components/my-tickets/VaultStatsBar";
 import { MyTicketsIcon, type PoolIconName } from "~~/components/my-tickets/icons";
 import { useLuckyScratchUserTickets } from "~~/hooks/luckyScratch/useLuckyScratchQueries";
-import { useDeployedContractInfo, useScaffoldWriteContract, useTargetNetwork } from "~~/hooks/scaffold-eth";
+import { useDeployedContractInfo, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 import { luckyScratchAPI } from "~~/services/luckyScratch/api";
 import { buildTicketClaimProofDirect } from "~~/services/luckyScratch/claim";
 import { formatUsdcFromMicro } from "~~/services/luckyScratch/poolMath";
@@ -114,7 +113,6 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
   const { address, chainId } = useAccount();
   const publicClient = usePublicClient();
   const queryClient = useQueryClient();
-  const { targetNetwork } = useTargetNetwork();
   const { data: coreContract } = useDeployedContractInfo({ contractName: "LuckyScratchCore" });
   const { writeContractAsync, isMining: isClaimMining } = useScaffoldWriteContract({
     contractName: "LuckyScratchCore",
@@ -405,21 +403,7 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
   return (
     <div className={embedded ? "w-full bg-[#0C1323] text-[#DCE2F9]" : "min-h-screen bg-[#0C1323] text-[#DCE2F9]"}>
       <div className={embedded ? "w-full p-6 md:p-8" : "mx-auto w-full max-w-7xl px-4 pb-16 pt-24 md:px-8"}>
-        <VaultStatsBar
-          stats={vaultStats}
-          wallet={
-            <div className="rounded-xl border border-[#4d4732]/20 bg-[#181f30]/70 p-4 backdrop-blur-xl">
-              <p className="text-[11px] uppercase tracking-[0.22em] text-[#d0c6ab]">Connected Wallet</p>
-              <div className="mt-2">
-                {address ? (
-                  <Address address={address} chain={targetNetwork} />
-                ) : (
-                  <span className="text-sm text-[#9FB0D0]">Connect a wallet to load tickets.</span>
-                )}
-              </div>
-            </div>
-          }
-        />
+        <VaultStatsBar stats={vaultStats} />
 
         <section className="rounded-xl border border-[#4d4732]/20 bg-[#181f30]/70 p-5 shadow-[0_24px_70px_rgba(0,0,0,0.24)] backdrop-blur-xl">
           <TicketFilterBar

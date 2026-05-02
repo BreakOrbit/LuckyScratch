@@ -1,6 +1,5 @@
 "use client";
 
-import type { ReactNode } from "react";
 import { MyTicketsIcon, type MyTicketsIconName } from "~~/components/my-tickets/icons";
 
 export type VaultStat = {
@@ -12,7 +11,6 @@ export type VaultStat = {
 
 type VaultStatsBarProps = {
   stats: VaultStat[];
-  wallet?: ReactNode;
 };
 
 type StatCardProps = VaultStat;
@@ -27,10 +25,10 @@ const StatCard = ({ label, value, icon, valueColor }: StatCardProps) => (
   </div>
 );
 
-export const VaultStatsBar = ({ stats, wallet }: VaultStatsBarProps) => {
+export const VaultStatsBar = ({ stats }: VaultStatsBarProps) => {
   return (
     <section className="mb-12">
-      <div className="mb-8 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+      <div className="mb-8 grid gap-4 lg:items-end">
         <div>
           <p className="mb-3 text-[11px] font-label font-bold uppercase tracking-[0.28em] text-[#d0c6ab]">
             Wallet Ticket Vault
@@ -39,7 +37,6 @@ export const VaultStatsBar = ({ stats, wallet }: VaultStatsBarProps) => {
             MY TICKET VAULT
           </h1>
         </div>
-        {wallet}
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
         {stats.map(stat => (
