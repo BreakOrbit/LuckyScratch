@@ -7,10 +7,11 @@ const (
 	PoolStatusClosing      = "Closing"
 	PoolStatusClosed       = "Closed"
 
-	RoundStatusPendingVRF = "PendingVRF"
-	RoundStatusReady      = "Ready"
-	RoundStatusSoldOut    = "SoldOut"
-	RoundStatusSettled    = "Settled"
+	RoundStatusPendingVRF        = "PendingVRF"
+	RoundStatusPendingEncryption = "PendingEncryption"
+	RoundStatusReady             = "Ready"
+	RoundStatusSoldOut           = "SoldOut"
+	RoundStatusSettled           = "Settled"
 
 	TicketStatusUnscratched = "Unscratched"
 	TicketStatusScratched   = "Scratched"
@@ -32,6 +33,7 @@ var poolStatusNames = []string{
 
 var roundStatusNames = []string{
 	RoundStatusPendingVRF,
+	RoundStatusPendingEncryption,
 	RoundStatusReady,
 	RoundStatusSoldOut,
 	RoundStatusSettled,

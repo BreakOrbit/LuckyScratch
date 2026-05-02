@@ -9,8 +9,10 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	gethabi "github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 
 	"lucky-scratch/config"
@@ -22,6 +24,7 @@ import (
 var erc20ABI = mustABI(`[{"inputs":[{"internalType":"address","name":"owner","type":"address"},{"internalType":"address","name":"spender","type":"address"}],"name":"allowance","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"}]`)
 
 type Client struct {
+	chainID      *big.Int
 	rpc          *ethclient.Client
 	registry     contracts.Registry
 	core         *bindings.Core
@@ -56,6 +59,7 @@ func NewClient(ctx context.Context, cfg config.Config, queries db.Querier) (*Cli
 	treasuryDeployment, _ := registry.Get(contracts.TreasuryContractName)
 
 	return &Client{
+		chainID:      big.NewInt(cfg.Chain.ID),
 		rpc:          rpc,
 		registry:     registry,
 		core:         bindings.NewCore(coreDeployment.Address, coreDeployment.ABI, rpc),
@@ -230,4 +234,24 @@ func mustABI(raw string) gethabi.ABI {
 		panic(err)
 	}
 	return parsed
+}
+
+func (c *Client) NewTransactor(privateKeyHex string) (*bind.TransactOpts, error) {
+	key := strings.TrimPrefix(privateKeyHex, "0x")
+	if len(key) != 64 {
+		return nil, fmt.Errorf("invalid private key length: expected 64 hex chars, got %d", len(key))
+	}
+	privateKey, err := crypto.HexToECDSA(key)
+	if err != nil {
+		return nil, fmt.Errorf("invalid private key: %w", err)
+	}
+	return bind.NewKeyedTransactorWithChainID(privateKey, c.chainID)
+}
+
+func (c *Client) EncryptPrizes(ctx context.Context, auth *bind.TransactOpts, poolID uint64, roundID uint32, startIndex uint32, endIndex uint32) (common.Hash, error) {
+	tx, err := c.core.EncryptPrizes(auth, poolID, roundID, startIndex, endIndex)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	return tx.Hash(), nil
 }

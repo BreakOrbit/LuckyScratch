@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { fhevm } from "hardhat";
-import { approveAndPurchase, createPool, deployLuckyScratchFixture, fulfillRound } from "./helpers";
+import { approveAndPurchase, createPool, deployLuckyScratchFixture, fulfillAndEncryptRound } from "./helpers";
 
 describe("LuckyScratchTicketTransfer", function () {
   beforeEach(function () {
@@ -10,7 +10,7 @@ describe("LuckyScratchTicketTransfer", function () {
   it("allows transfer before scratch and locks transfer after scratch", async function () {
     const deployed = await deployLuckyScratchFixture();
     await createPool(deployed);
-    await fulfillRound(deployed);
+    await fulfillAndEncryptRound(deployed);
 
     const [ticketId] = await approveAndPurchase(deployed, deployed.alice, 1);
     await deployed.ticket.connect(deployed.alice).transferFrom(deployed.alice.address, deployed.bob.address, ticketId);

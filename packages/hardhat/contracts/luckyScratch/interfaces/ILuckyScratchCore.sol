@@ -37,6 +37,8 @@ interface ILuckyScratchCore {
 
     function fulfillPoolRandomness(bytes32 requestId, uint256 randomWord) external;
 
+    function encryptPrizes(uint64 poolId, uint32 roundId, uint32 startIndex, uint32 endIndex) external;
+
     function getTicketRevealState(uint256 ticketId) external view returns (TicketStatus status, bool revealAuthorized);
 
     function getTicketPrizeHandle(uint256 ticketId) external view returns (euint64);
@@ -44,4 +46,7 @@ interface ILuckyScratchCore {
     function claimableCreatorProfit(uint256 poolId) external view returns (uint256);
 
     function onTicketTransfer(uint256 ticketId, address from, address to) external;
+
+    event PoolRoundShuffled(uint256 indexed poolId, uint256 indexed roundId);
+    event PoolRoundEncryptionProgress(uint256 indexed poolId, uint256 indexed roundId, uint32 startIndex, uint32 endIndex);
 }

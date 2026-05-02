@@ -14,6 +14,7 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	gethabi "github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/jackc/pgx/v5"
@@ -28,21 +29,32 @@ import (
 )
 
 type Service struct {
-	cfg     config.Config
-	queries db.Querier
-	chain   *chain.Client
+	cfg          config.Config
+	queries      db.Querier
+	chain        *chain.Client
+	encryptorAuth *bind.TransactOpts
 }
 
 const (
-	indexerPageSize = 500
+	indexerPageSize                  = 500
+	roundStatusPendingEncryption    = 1 // matches Solidity RoundStatus.PendingEncryption
 )
 
 func NewService(cfg config.Config, queries db.Querier, chainClient *chain.Client) Service {
-	return Service{
+	s := Service{
 		cfg:     cfg,
 		queries: queries,
 		chain:   chainClient,
 	}
+	if key := strings.TrimSpace(cfg.Chain.EncryptorKey); key != "" {
+		auth, err := chainClient.NewTransactor(key)
+		if err != nil {
+			log.Printf("WARNING: failed to initialize encryptor transactor: %v", err)
+		} else {
+			s.encryptorAuth = auth
+		}
+	}
+	return s
 }
 
 func (s Service) Sync(ctx context.Context) error {
@@ -168,6 +180,78 @@ func (s Service) CheckPendingVRF(ctx context.Context) error {
 	}
 	log.Printf("indexer pending VRF check completed without stale pools")
 	return nil
+}
+
+func (s Service) CheckPendingEncryption(ctx context.Context) error {
+	var pendingPools []int64
+	err := s.forEachPool(ctx, func(pool db.Pool) error {
+		round, roundErr := s.queries.GetRound(ctx, db.GetRoundParams{
+			ChainID: s.cfg.Chain.ID,
+			PoolID:  pool.PoolID,
+			RoundID: pool.CurrentRound,
+		})
+		if roundErr != nil {
+			return nil
+		}
+		if round.Status == models.RoundStatusPendingEncryption {
+			pendingPools = append(pendingPools, pool.PoolID)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	if len(pendingPools) > 0 {
+		log.Printf("indexer pending encryption check found pools needing encryption: %v", pendingPools)
+		return s.EncryptPendingRounds(ctx)
+	}
+	return nil
+}
+
+func (s Service) EncryptPendingRounds(ctx context.Context) error {
+	return s.encryptRounds(ctx, 0)
+}
+
+func (s Service) EncryptPool(ctx context.Context, poolID uint64) error {
+	return s.encryptRounds(ctx, poolID)
+}
+
+func (s Service) encryptRounds(ctx context.Context, filterPoolID uint64) error {
+	if s.encryptorAuth == nil {
+		log.Printf("skipping encryption: ENCRYPTOR_PRIVATE_KEY not configured")
+		return nil
+	}
+
+	return s.forEachPool(ctx, func(pool db.Pool) error {
+		if filterPoolID != 0 && uint64(pool.PoolID) != filterPoolID {
+			return nil
+		}
+		round, roundErr := s.queries.GetRound(ctx, db.GetRoundParams{
+			ChainID: s.cfg.Chain.ID,
+			PoolID:  pool.PoolID,
+			RoundID: pool.CurrentRound,
+		})
+		if roundErr != nil || round.Status != models.RoundStatusPendingEncryption {
+			return nil
+		}
+
+		roundState, chainErr := s.chain.RoundState(ctx, uint64(pool.PoolID), uint64(pool.CurrentRound))
+		if chainErr != nil {
+			return fmt.Errorf("read round state pool=%d round=%d: %w", pool.PoolID, pool.CurrentRound, chainErr)
+		}
+		if roundState.Status != roundStatusPendingEncryption {
+			return nil
+		}
+
+		txHash, txErr := s.chain.EncryptPrizes(ctx, s.encryptorAuth, uint64(pool.PoolID), uint32(pool.CurrentRound), 0, roundState.TotalTickets)
+		if txErr != nil {
+			return fmt.Errorf("encryptPrizes pool=%d round=%d: %w", pool.PoolID, pool.CurrentRound, txErr)
+		}
+		log.Printf("encryptPrizes tx sent: pool=%d round=%d tickets=%d tx=%s", pool.PoolID, pool.CurrentRound, roundState.TotalTickets, txHash.Hex())
+
+		return nil
+	})
 }
 
 func (s Service) RebuildPool(ctx context.Context, poolID uint64) error {
@@ -515,6 +599,14 @@ func (s Service) decodeLog(deployment contracts.Deployment, logEntry types.Log) 
 	case "PoolRoundInitialized":
 		result.Event.PoolID = topicUint64(logEntry.Topics[1])
 		result.Event.RoundID = topicUint64(logEntry.Topics[2])
+	case "PoolRoundShuffled":
+		result.Event.PoolID = topicUint64(logEntry.Topics[1])
+		result.Event.RoundID = topicUint64(logEntry.Topics[2])
+	case "PoolRoundEncryptionProgress":
+		result.Event.PoolID = topicUint64(logEntry.Topics[1])
+		result.Event.RoundID = topicUint64(logEntry.Topics[2])
+		result.Event.Payload["startIndex"] = asUint32(out[0])
+		result.Event.Payload["endIndex"] = asUint32(out[1])
 	case "RoundSettled":
 		result.Event.PoolID = topicUint64(logEntry.Topics[1])
 		result.Event.RoundID = topicUint64(logEntry.Topics[2])
@@ -612,6 +704,13 @@ func (s Service) applyEvent(ctx context.Context, decoded decodedLog) error {
 			return err
 		}
 		return s.recordInfraCost(ctx, "VRF_INFRA", decoded.Event.PoolID, decoded.Event.RoundID, decoded.Event.TxHash, "vrf_request", decoded.Event.TxHash)
+	case "PoolRoundShuffled":
+		if err := s.syncPool(ctx, uint64(decoded.Event.PoolID), eventContext(decoded.Event.context())); err != nil {
+			return err
+		}
+		return s.syncRound(ctx, uint64(decoded.Event.PoolID), uint64(decoded.Event.RoundID), eventContext(decoded.Event.context()), nil, nil)
+	case "PoolRoundEncryptionProgress":
+		return s.syncRound(ctx, uint64(decoded.Event.PoolID), uint64(decoded.Event.RoundID), eventContext(decoded.Event.context()), nil, nil)
 	case "TicketPurchased":
 		if err := s.syncPool(ctx, uint64(decoded.Event.PoolID), eventContext(decoded.Event.context())); err != nil {
 			return err
@@ -1028,6 +1127,8 @@ func supportedEventTopics(deployment contracts.Deployment) []common.Hash {
 		"PoolCreated",
 		"PoolRoundRequested",
 		"PoolRoundInitialized",
+		"PoolRoundShuffled",
+		"PoolRoundEncryptionProgress",
 		"RoundSettled",
 		"TicketPurchased",
 		"TicketScratched",

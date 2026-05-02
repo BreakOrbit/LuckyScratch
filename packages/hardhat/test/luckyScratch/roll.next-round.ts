@@ -1,6 +1,12 @@
 import { expect } from "chai";
 import { fhevm } from "hardhat";
-import { approveAndPurchase, buildWinningClaims, createPool, deployLuckyScratchFixture, fulfillRound } from "./helpers";
+import {
+  approveAndPurchase,
+  buildWinningClaims,
+  createPool,
+  deployLuckyScratchFixture,
+  fulfillAndEncryptRound,
+} from "./helpers";
 
 describe("LuckyScratchRollNextRound", function () {
   beforeEach(function () {
@@ -10,7 +16,7 @@ describe("LuckyScratchRollNextRound", function () {
   it("rejects rolling before settlement and rolls successfully after the round settles", async function () {
     const deployed = await deployLuckyScratchFixture();
     await createPool(deployed, { mode: 1 });
-    await fulfillRound(deployed);
+    await fulfillAndEncryptRound(deployed);
 
     const ticketIds = await approveAndPurchase(deployed, deployed.alice, 10);
     await deployed.core.connect(deployed.alice).scratchTicket(ticketIds[0]);
@@ -38,15 +44,15 @@ describe("LuckyScratchRollNextRound", function () {
     expect(state.currentRound).to.equal(2);
     expect(state.status).to.equal(0);
 
-    await fulfillRound(deployed, 2n, 999n);
+    await fulfillAndEncryptRound(deployed, 2n, 999n);
     const nextRound = await deployed.core.roundStates(1n, 2n);
-    expect(nextRound.status).to.equal(1);
+    expect(nextRound.status).to.equal(2);
   });
 
   it("keeps loop pools rollable after claimable creator profit is withdrawn", async function () {
     const deployed = await deployLuckyScratchFixture();
     await createPool(deployed, { mode: 1 });
-    await fulfillRound(deployed);
+    await fulfillAndEncryptRound(deployed);
 
     const ticketIds = await approveAndPurchase(deployed, deployed.alice, 10);
     await deployed.core.connect(deployed.alice).batchScratch(ticketIds);

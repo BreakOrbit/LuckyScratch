@@ -50,7 +50,7 @@ func TestDecodePoolConfigFlatGetterOutputs(t *testing.T) {
 }
 
 func TestDecodePublicStructGetterOutputs(t *testing.T) {
-	poolState, err := decodePoolState([]interface{}{uint8(0), uint32(1), false, true, false, false})
+	poolState, err := decodePoolState([]interface{}{uint8(0), uint32(1), false, true, false, false, false})
 	if err != nil {
 		t.Fatalf("decodePoolState returned error: %v", err)
 	}
@@ -84,6 +84,7 @@ func TestDecodePublicStructGetterOutputs(t *testing.T) {
 		uint32(2),
 		uint32(1),
 		uint32(20),
+		uint32(0),
 		uint64(5_000_000),
 		uint64(70_000_000),
 		requestRef,

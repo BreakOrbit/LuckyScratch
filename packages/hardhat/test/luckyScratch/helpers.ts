@@ -169,6 +169,16 @@ export async function fulfillRound(deployed: DeployedLuckyScratch, roundId = ROU
   await deployed.vrfAdapter.connect(deployed.admin).fulfillRandomness(round.vrfRequestRef, randomWord);
 }
 
+export async function encryptRound(deployed: DeployedLuckyScratch, roundId = ROUND_ID) {
+  const round = await deployed.core.roundStates(POOL_ID, roundId);
+  await deployed.core.connect(deployed.admin).encryptPrizes(POOL_ID, roundId, 0, round.totalTickets);
+}
+
+export async function fulfillAndEncryptRound(deployed: DeployedLuckyScratch, roundId = ROUND_ID, randomWord = 777n) {
+  await fulfillRound(deployed, roundId, randomWord);
+  await encryptRound(deployed, roundId);
+}
+
 export async function approveAndPurchase(
   deployed: DeployedLuckyScratch,
   buyer: HardhatEthersSigner,

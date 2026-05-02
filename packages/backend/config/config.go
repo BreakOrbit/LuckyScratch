@@ -51,6 +51,7 @@ type ChainConfig struct {
 	ID                int64
 	Name              string
 	RPCURL            string
+	EncryptorKey      string
 	Confirmations     uint64
 	FinalizationDepth uint64
 	ReorgLookback     uint64
@@ -106,6 +107,7 @@ type JobsConfig struct {
 	IndexerInterval   time.Duration
 	VRFCheckInterval  time.Duration
 	ReconcileInterval time.Duration
+	EncryptInterval   time.Duration
 }
 
 type AdminConfig struct {
@@ -144,6 +146,7 @@ func Load() Config {
 			ID:                getEnvInt64("CHAIN_ID", 11155111),
 			Name:              getEnv("CHAIN_NAME", "sepolia"),
 			RPCURL:            getEnv("RPC_URL", ""),
+			EncryptorKey:      getEnv("ENCRYPTOR_PRIVATE_KEY", ""),
 			Confirmations:     uint64(getEnvInt("CHAIN_CONFIRMATIONS", 3)),
 			FinalizationDepth: uint64(getEnvInt("CHAIN_FINALIZATION_DEPTH", 3)),
 			ReorgLookback:     uint64(getEnvInt("CHAIN_REORG_LOOKBACK", 15)),
@@ -193,6 +196,7 @@ func Load() Config {
 			IndexerInterval:   getEnvDuration("JOB_INDEXER_INTERVAL", 5*time.Second),
 			VRFCheckInterval:  getEnvDuration("JOB_VRF_CHECK_INTERVAL", 2*time.Minute),
 			ReconcileInterval: getEnvDuration("JOB_RECONCILE_INTERVAL", 2*time.Minute),
+			EncryptInterval:   getEnvDuration("JOB_ENCRYPT_INTERVAL", 10*time.Second),
 		},
 		Admin: AdminConfig{
 			Token: getEnv("ADMIN_TOKEN", ""),

@@ -3,6 +3,8 @@ package jobs
 import (
 	"context"
 	"fmt"
+	"log"
+	"math/rand/v2"
 	"time"
 
 	"lucky-scratch/config"
@@ -35,6 +37,7 @@ type JobStore interface {
 type IndexerService interface {
 	Sync(ctx context.Context) error
 	CheckPendingVRF(ctx context.Context) error
+	CheckPendingEncryption(ctx context.Context) error
 	Reconcile(ctx context.Context) error
 }
 
@@ -63,6 +66,9 @@ func (w Worker) Run(ctx context.Context) error {
 		return err
 	}
 
+	encryptDone := make(chan error, 1)
+	go w.runEncryptLoop(ctx, encryptDone)
+
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
@@ -72,8 +78,57 @@ func (w Worker) Run(ctx context.Context) error {
 		}
 
 		select {
+		case err := <-encryptDone:
+			if err != nil && ctx.Err() == nil {
+				log.Printf("encrypt goroutine exited with error: %v", err)
+			}
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}
+
+func (w Worker) runEncryptLoop(ctx context.Context, done chan<- error) {
+	interval := w.cfg.Jobs.EncryptInterval
+	if interval <= 0 {
+		interval = 10 * time.Second
+	}
+
+	baseInterval := interval
+	currentInterval := interval
+	maxInterval := 2 * time.Minute
+	consecutiveErrors := 0
+
+	ticker := time.NewTicker(currentInterval)
+	defer ticker.Stop()
+
+	for {
+		if err := w.indexerService.CheckPendingEncryption(ctx); err != nil {
+			consecutiveErrors++
+			backoff := baseInterval * time.Duration(1<<min(consecutiveErrors, 4))
+			if backoff > maxInterval {
+				backoff = maxInterval
+			}
+			jitter := time.Duration(rand.Int64N(int64(backoff) / 4))
+			currentInterval = backoff + jitter
+			log.Printf("encrypt loop error (backoff %s): %v", currentInterval, err)
+			ticker.Reset(currentInterval)
+		} else {
+			if consecutiveErrors > 0 {
+				log.Printf("encrypt loop recovered after %d errors", consecutiveErrors)
+			}
+			consecutiveErrors = 0
+			if currentInterval != baseInterval {
+				currentInterval = baseInterval
+				ticker.Reset(currentInterval)
+			}
+		}
+
+		select {
+		case <-ctx.Done():
+			done <- ctx.Err()
+			return
 		case <-ticker.C:
 		}
 	}

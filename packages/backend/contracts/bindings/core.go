@@ -9,6 +9,7 @@ import (
 	gethabi "github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 type Core struct {
@@ -106,6 +107,10 @@ func (c *Core) TicketPrizeHandle(ctx context.Context, ticketID uint64) ([32]byte
 	return *gethabi.ConvertType(out[0], new([32]byte)).(*[32]byte), nil
 }
 
+func (c *Core) EncryptPrizes(opts *bind.TransactOpts, poolID uint64, roundID uint32, startIndex uint32, endIndex uint32) (*types.Transaction, error) {
+	return c.contract.Transact(opts, "encryptPrizes", newBig(poolID), roundID, startIndex, endIndex)
+}
+
 func newBig(value uint64) *big.Int {
 	return new(big.Int).SetUint64(value)
 }
@@ -186,7 +191,7 @@ func decodePoolConfig(out []interface{}) (PoolConfig, error) {
 }
 
 func decodePoolState(out []interface{}) (PoolState, error) {
-	if err := requireOutputLen("poolStates", out, 6); err != nil {
+	if err := requireOutputLen("poolStates", out, 7); err != nil {
 		return PoolState{}, err
 	}
 
@@ -210,7 +215,11 @@ func decodePoolState(out []interface{}) (PoolState, error) {
 	if err != nil {
 		return PoolState{}, err
 	}
-	paused, err := abiOutput[bool](out, 5)
+	encrypted, err := abiOutput[bool](out, 5)
+	if err != nil {
+		return PoolState{}, err
+	}
+	paused, err := abiOutput[bool](out, 6)
 	if err != nil {
 		return PoolState{}, err
 	}
@@ -221,6 +230,7 @@ func decodePoolState(out []interface{}) (PoolState, error) {
 		CloseRequested: closeRequested,
 		VrfPending:     vrfPending,
 		Initialized:    initialized,
+		Encrypted:      encrypted,
 		Paused:         paused,
 	}, nil
 }
@@ -276,7 +286,7 @@ func decodePoolAccounting(out []interface{}) (PoolAccounting, error) {
 }
 
 func decodeRoundState(out []interface{}) (RoundState, error) {
-	if err := requireOutputLen("roundStates", out, 10); err != nil {
+	if err := requireOutputLen("roundStates", out, 11); err != nil {
 		return RoundState{}, err
 	}
 
@@ -304,19 +314,23 @@ func decodeRoundState(out []interface{}) (RoundState, error) {
 	if err != nil {
 		return RoundState{}, err
 	}
-	ticketPrice, err := abiOutput[uint64](out, 6)
+	encryptedCount, err := abiOutput[uint32](out, 6)
 	if err != nil {
 		return RoundState{}, err
 	}
-	roundPrizeBudget, err := abiOutput[uint64](out, 7)
+	ticketPrice, err := abiOutput[uint64](out, 7)
 	if err != nil {
 		return RoundState{}, err
 	}
-	vrfRequestRef, err := abiOutput[[32]byte](out, 8)
+	roundPrizeBudget, err := abiOutput[uint64](out, 8)
 	if err != nil {
 		return RoundState{}, err
 	}
-	shuffleRoot, err := abiOutput[[32]byte](out, 9)
+	vrfRequestRef, err := abiOutput[[32]byte](out, 9)
+	if err != nil {
+		return RoundState{}, err
+	}
+	shuffleRoot, err := abiOutput[[32]byte](out, 10)
 	if err != nil {
 		return RoundState{}, err
 	}
@@ -328,6 +342,7 @@ func decodeRoundState(out []interface{}) (RoundState, error) {
 		ScratchedCount:    scratchedCount,
 		WinClaimableCount: winClaimableCount,
 		TotalTickets:      totalTickets,
+		EncryptedCount:    encryptedCount,
 		TicketPrice:       ticketPrice,
 		RoundPrizeBudget:  roundPrizeBudget,
 		VrfRequestRef:     vrfRequestRef,

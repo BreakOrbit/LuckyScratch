@@ -1,6 +1,12 @@
 import { expect } from "chai";
 import { fhevm } from "hardhat";
-import { approveAndPurchase, createPool, deployLuckyScratchFixture, fulfillRound, scratchAndDecrypt } from "./helpers";
+import {
+  approveAndPurchase,
+  createPool,
+  deployLuckyScratchFixture,
+  fulfillAndEncryptRound,
+  scratchAndDecrypt,
+} from "./helpers";
 
 describe("LuckyScratchScratch", function () {
   beforeEach(function () {
@@ -10,7 +16,7 @@ describe("LuckyScratchScratch", function () {
   it("reveals the encrypted prize to the current owner and supports batch scratch", async function () {
     const deployed = await deployLuckyScratchFixture();
     await createPool(deployed);
-    await fulfillRound(deployed);
+    await fulfillAndEncryptRound(deployed);
 
     const ticketIds = await approveAndPurchase(deployed, deployed.alice, 2);
     const firstResult = await scratchAndDecrypt(deployed, deployed.alice, ticketIds[0]);

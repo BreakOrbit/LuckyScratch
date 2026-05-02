@@ -18,6 +18,7 @@ enum PoolStatus {
 
 enum RoundStatus {
     PendingVRF,
+    PendingEncryption,
     Ready,
     SoldOut,
     Settled
@@ -67,6 +68,7 @@ struct PoolState {
     bool closeRequested;
     bool vrfPending;
     bool initialized;
+    bool encrypted;
     bool paused;
 }
 
@@ -77,6 +79,7 @@ struct RoundState {
     uint32 scratchedCount;
     uint32 winClaimableCount;
     uint32 totalTickets;
+    uint32 encryptedCount;
     uint64 ticketPrice;
     uint64 roundPrizeBudget;
     bytes32 vrfRequestRef;

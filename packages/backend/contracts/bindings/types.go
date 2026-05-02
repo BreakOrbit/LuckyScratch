@@ -24,6 +24,7 @@ type PoolState struct {
 	CloseRequested bool
 	VrfPending     bool
 	Initialized    bool
+	Encrypted      bool
 	Paused         bool
 }
 
@@ -45,6 +46,7 @@ type RoundState struct {
 	ScratchedCount    uint32
 	WinClaimableCount uint32
 	TotalTickets      uint32
+	EncryptedCount    uint32
 	TicketPrice       uint64
 	RoundPrizeBudget  uint64
 	VrfRequestRef     [32]byte

@@ -18,6 +18,7 @@ type IndexerAdmin interface {
 	RebuildPool(ctx context.Context, poolID uint64) error
 	RebuildRound(ctx context.Context, poolID uint64, roundID uint64) error
 	RebuildTicket(ctx context.Context, ticketID uint64) error
+	EncryptPool(ctx context.Context, poolID uint64) error
 }
 
 type Service struct {
@@ -181,6 +182,16 @@ func (s Service) RebuildTicket(ctx context.Context, ticketID uint64, actor strin
 		return err
 	}
 	return s.auditAction(ctx, actor, "indexer.rebuild_ticket", "ticket", strconv.FormatUint(ticketID, 10), nil)
+}
+
+func (s Service) EncryptRound(ctx context.Context, poolID uint64, actor string) error {
+	if s.indexer == nil {
+		return fmt.Errorf("indexer admin operations are not configured")
+	}
+	if err := s.indexer.EncryptPool(ctx, poolID); err != nil {
+		return err
+	}
+	return s.auditAction(ctx, actor, "indexer.encrypt_rounds", "pool", strconv.FormatUint(poolID, 10), nil)
 }
 
 func (s Service) auditAction(ctx context.Context, actor string, action string, targetType string, targetID string, extra map[string]any) error {

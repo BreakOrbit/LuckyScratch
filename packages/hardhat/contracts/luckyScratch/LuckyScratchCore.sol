@@ -54,6 +54,8 @@ contract LuckyScratchCore is AccessControl, ReentrancyGuard, Pausable, ZamaEther
     error NotPoolCreator(uint256 poolId, address caller);
     error PoolNotSettled(uint256 poolId, uint256 roundId);
     error PoolNotLoopMode(uint256 poolId);
+    error NotPendingEncryption(uint256 poolId, uint256 roundId);
+    error InvalidEncryptionRange(uint32 from, uint32 to);
     event PoolCreated(uint256 indexed poolId, address indexed creator, bool protocolOwned);
     event PoolRoundRequested(uint256 indexed poolId, uint256 indexed roundId, bytes32 requestId);
     event PoolRoundInitialized(uint256 indexed poolId, uint256 indexed roundId);
@@ -102,6 +104,7 @@ contract LuckyScratchCore is AccessControl, ReentrancyGuard, Pausable, ZamaEther
     mapping(bytes32 requestId => VrfRequestContext) private vrfRequests;
     mapping(uint256 poolId => mapping(uint256 roundId => mapping(uint32 ticketIndex => bool))) public soldTicketSlots;
     mapping(uint256 poolId => mapping(uint256 roundId => uint32 cursor)) private nextAutoTicketIndex;
+    mapping(uint256 poolId => mapping(uint256 roundId => uint64[])) private shuffledPrizeBuffer;
 
     constructor(address admin) {
         if (admin == address(0)) revert ZeroAddress();
@@ -178,6 +181,7 @@ contract LuckyScratchCore is AccessControl, ReentrancyGuard, Pausable, ZamaEther
         state.currentRound = 1;
         state.vrfPending = true;
         state.initialized = false;
+        state.encrypted = false;
 
         RoundState storage round = roundStates[poolId][1];
         round.status = RoundStatus.PendingVRF;
@@ -226,6 +230,7 @@ contract LuckyScratchCore is AccessControl, ReentrancyGuard, Pausable, ZamaEther
         state.status = PoolStatus.Initializing;
         state.vrfPending = true;
         state.initialized = true;
+        state.encrypted = false;
 
         RoundState storage round = roundStates[poolId][nextRoundId];
         round.status = RoundStatus.PendingVRF;
@@ -299,7 +304,6 @@ contract LuckyScratchCore is AccessControl, ReentrancyGuard, Pausable, ZamaEther
         }
 
         PoolState storage state = poolStates[request.poolId];
-        PoolAccounting storage accounting = poolAccounting[request.poolId];
 
         if (state.status == PoolStatus.Closed) {
             state.vrfPending = false;
@@ -313,29 +317,59 @@ contract LuckyScratchCore is AccessControl, ReentrancyGuard, Pausable, ZamaEther
             randomWord
         );
 
-        uint32 positivePrizeCount;
-        for (uint32 i = 0; i < round.totalTickets; i++) {
-            euint64 encryptedPrize = FHE.asEuint64(shuffledPrizes[i]);
+        uint64[] storage buffer = shuffledPrizeBuffer[request.poolId][request.roundId];
+        for (uint256 i = 0; i < shuffledPrizes.length; i++) {
+            buffer.push(shuffledPrizes[i]);
+        }
+
+        if (poolAccounting[request.poolId].lockedNextRoundBudget >= round.roundPrizeBudget) {
+            poolAccounting[request.poolId].lockedNextRoundBudget -= round.roundPrizeBudget;
+        }
+        poolAccounting[request.poolId].reservedPrizeBudget += round.roundPrizeBudget;
+
+        round.status = RoundStatus.PendingEncryption;
+        round.shuffleRoot = shuffleRoot;
+        state.vrfPending = false;
+
+        emit PoolRoundShuffled(request.poolId, request.roundId);
+    }
+
+    function encryptPrizes(uint64 poolId, uint32 roundId, uint32 startIndex, uint32 endIndex) external override nonReentrant {
+        RoundState storage round = roundStates[poolId][roundId];
+        if (round.status != RoundStatus.PendingEncryption) revert NotPendingEncryption(poolId, roundId);
+        if (startIndex != round.encryptedCount) revert InvalidEncryptionRange(startIndex, endIndex);
+        if (startIndex >= endIndex || endIndex > round.totalTickets) revert InvalidEncryptionRange(startIndex, endIndex);
+
+        uint64[] storage buffer = shuffledPrizeBuffer[poolId][roundId];
+        if (buffer.length == 0) revert NotPendingEncryption(poolId, roundId);
+
+        uint32 positiveInBatch;
+        for (uint32 i = startIndex; i < endIndex; i++) {
+            euint64 encryptedPrize = FHE.asEuint64(buffer[i]);
             FHE.allowThis(encryptedPrize);
-            encryptedPrizeSlots[request.poolId][request.roundId][i] = encryptedPrize;
-            if (shuffledPrizes[i] > 0) {
-                positivePrizeCount += 1;
+            encryptedPrizeSlots[poolId][roundId][i] = encryptedPrize;
+            if (buffer[i] > 0) {
+                positiveInBatch += 1;
             }
         }
 
-        if (accounting.lockedNextRoundBudget >= round.roundPrizeBudget) {
-            accounting.lockedNextRoundBudget -= round.roundPrizeBudget;
+        round.encryptedCount = endIndex;
+        round.winClaimableCount += positiveInBatch;
+
+        emit PoolRoundEncryptionProgress(poolId, roundId, startIndex, endIndex);
+
+        if (endIndex == round.totalTickets) {
+            delete shuffledPrizeBuffer[poolId][roundId];
+
+            round.status = RoundStatus.Ready;
+
+            PoolState storage state = poolStates[poolId];
+            state.status = PoolStatus.Active;
+            state.initialized = true;
+            state.encrypted = true;
+
+            emit PoolRoundInitialized(poolId, roundId);
         }
-        accounting.reservedPrizeBudget += round.roundPrizeBudget;
-
-        round.status = RoundStatus.Ready;
-        round.winClaimableCount = positivePrizeCount;
-        round.shuffleRoot = shuffleRoot;
-        state.status = PoolStatus.Active;
-        state.vrfPending = false;
-        state.initialized = true;
-
-        emit PoolRoundInitialized(request.poolId, request.roundId);
     }
 
     function withdrawCreatorProfit(
@@ -667,6 +701,10 @@ contract LuckyScratchCore is AccessControl, ReentrancyGuard, Pausable, ZamaEther
         if (round.soldCount == 0) {
             if (round.status == RoundStatus.Ready && accounting.reservedPrizeBudget >= round.roundPrizeBudget) {
                 accounting.reservedPrizeBudget -= round.roundPrizeBudget;
+            }
+            if (round.status == RoundStatus.PendingEncryption && accounting.reservedPrizeBudget >= round.roundPrizeBudget) {
+                accounting.reservedPrizeBudget -= round.roundPrizeBudget;
+                delete shuffledPrizeBuffer[poolId][state.currentRound];
             }
             if (round.status == RoundStatus.PendingVRF && accounting.lockedNextRoundBudget >= round.roundPrizeBudget) {
                 accounting.lockedNextRoundBudget -= round.roundPrizeBudget;

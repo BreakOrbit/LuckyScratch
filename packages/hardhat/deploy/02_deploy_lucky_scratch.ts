@@ -18,14 +18,14 @@ const VRF_BY_NETWORK: Record<string, VrfNetworkConfig> = {
   mainnet: {
     coordinator: "0xD7f86b4b8Cae7D942340FF628F82735b7a20893a",
     keyHash: "0x8077df514608a09f83e4e8d300645594e5d7234665448ba83f51a50f842bd3d9",
-    callbackGasLimit: 1_500_000,
+    callbackGasLimit: 2_000_000,
     requestConfirmations: 3,
     nativePayment: true,
   },
   sepolia: {
     coordinator: "0x9DdfaCa8183c41ad55329BdeeD9F6A8d53168B1B",
     keyHash: "0x787d74caea10b2b357790d5b5247c2f63d1d91572a9846f780606e4d953677ae",
-    callbackGasLimit: 1_500_000,
+    callbackGasLimit: 2_000_000,
     requestConfirmations: 3,
     nativePayment: true,
   },

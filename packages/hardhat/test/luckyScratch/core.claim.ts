@@ -8,7 +8,7 @@ import {
   createPool,
   decryptConfidentialBalance,
   deployLuckyScratchFixture,
-  fulfillRound,
+  fulfillAndEncryptRound,
   scratchAndDecrypt,
 } from "./helpers";
 
@@ -20,7 +20,7 @@ describe("LuckyScratchClaim", function () {
   it("pays winning tickets, rejects zero-reward claims and prevents duplicate claims", async function () {
     const deployed = await deployLuckyScratchFixture();
     await createPool(deployed);
-    await fulfillRound(deployed);
+    await fulfillAndEncryptRound(deployed);
 
     const ticketIds = await approveAndPurchase(deployed, deployed.alice, 10);
 
@@ -60,7 +60,7 @@ describe("LuckyScratchClaim", function () {
   it("assembles claim proofs from scratched ticket handles", async function () {
     const deployed = await deployLuckyScratchFixture();
     await createPool(deployed);
-    await fulfillRound(deployed);
+    await fulfillAndEncryptRound(deployed);
 
     const [ticketId] = await approveAndPurchase(deployed, deployed.alice, 1);
     await deployed.core.connect(deployed.alice).scratchTicket(ticketId);
@@ -80,7 +80,7 @@ describe("LuckyScratchClaim", function () {
   it("supports batch claims and creator profit / bond operations", async function () {
     const deployed = await deployLuckyScratchFixture();
     await createPool(deployed);
-    await fulfillRound(deployed);
+    await fulfillAndEncryptRound(deployed);
 
     const ticketIds = await approveAndPurchase(deployed, deployed.alice, 10);
     for (const ticketId of ticketIds) {

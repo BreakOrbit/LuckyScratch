@@ -239,6 +239,8 @@ func (s *recordingAdminService) RebuildTicket(_ context.Context, ticketID uint64
 	return nil
 }
 
+func (*recordingAdminService) EncryptRound(context.Context, uint64, string) error { return nil }
+
 func newTestServer(adminSvc AdminService, token string, corsOrigins ...string) *Server {
 	cfg := config.Config{}
 	cfg.Admin.Token = token

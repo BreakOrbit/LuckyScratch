@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-eth/contract";
 const deployedContracts = {
   11155111: {
     LuckyScratchCore: {
-      address: "0x9Da0D136b93237229DCE4E03aad9D1Ca8F56045C",
+      address: "0xbE18CE78a8F53780ed671919fB1eB5219E600A2a",
       abi: [
         {
           inputs: [
@@ -65,6 +65,22 @@ const deployedContracts = {
         {
           inputs: [],
           name: "ExpectedPause",
+          type: "error",
+        },
+        {
+          inputs: [
+            {
+              internalType: "uint32",
+              name: "from",
+              type: "uint32",
+            },
+            {
+              internalType: "uint32",
+              name: "to",
+              type: "uint32",
+            },
+          ],
+          name: "InvalidEncryptionRange",
           type: "error",
         },
         {
@@ -150,6 +166,22 @@ const deployedContracts = {
             },
           ],
           name: "NoReward",
+          type: "error",
+        },
+        {
+          inputs: [
+            {
+              internalType: "uint256",
+              name: "poolId",
+              type: "uint256",
+            },
+            {
+              internalType: "uint256",
+              name: "roundId",
+              type: "uint256",
+            },
+          ],
+          name: "NotPendingEncryption",
           type: "error",
         },
         {
@@ -470,6 +502,37 @@ const deployedContracts = {
               name: "roundId",
               type: "uint256",
             },
+            {
+              indexed: false,
+              internalType: "uint32",
+              name: "startIndex",
+              type: "uint32",
+            },
+            {
+              indexed: false,
+              internalType: "uint32",
+              name: "endIndex",
+              type: "uint32",
+            },
+          ],
+          name: "PoolRoundEncryptionProgress",
+          type: "event",
+        },
+        {
+          anonymous: false,
+          inputs: [
+            {
+              indexed: true,
+              internalType: "uint256",
+              name: "poolId",
+              type: "uint256",
+            },
+            {
+              indexed: true,
+              internalType: "uint256",
+              name: "roundId",
+              type: "uint256",
+            },
           ],
           name: "PoolRoundInitialized",
           type: "event",
@@ -497,6 +560,25 @@ const deployedContracts = {
             },
           ],
           name: "PoolRoundRequested",
+          type: "event",
+        },
+        {
+          anonymous: false,
+          inputs: [
+            {
+              indexed: true,
+              internalType: "uint256",
+              name: "poolId",
+              type: "uint256",
+            },
+            {
+              indexed: true,
+              internalType: "uint256",
+              name: "roundId",
+              type: "uint256",
+            },
+          ],
+          name: "PoolRoundShuffled",
           type: "event",
         },
         {
@@ -966,6 +1048,34 @@ const deployedContracts = {
         {
           inputs: [
             {
+              internalType: "uint64",
+              name: "poolId",
+              type: "uint64",
+            },
+            {
+              internalType: "uint32",
+              name: "roundId",
+              type: "uint32",
+            },
+            {
+              internalType: "uint32",
+              name: "startIndex",
+              type: "uint32",
+            },
+            {
+              internalType: "uint32",
+              name: "endIndex",
+              type: "uint32",
+            },
+          ],
+          name: "encryptPrizes",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
               internalType: "bytes32",
               name: "requestId",
               type: "bytes32",
@@ -1342,6 +1452,11 @@ const deployedContracts = {
             },
             {
               internalType: "bool",
+              name: "encrypted",
+              type: "bool",
+            },
+            {
+              internalType: "bool",
               name: "paused",
               type: "bool",
             },
@@ -1490,6 +1605,11 @@ const deployedContracts = {
             {
               internalType: "uint32",
               name: "totalTickets",
+              type: "uint32",
+            },
+            {
+              internalType: "uint32",
+              name: "encryptedCount",
               type: "uint32",
             },
             {
@@ -1735,6 +1855,7 @@ const deployedContracts = {
         claimableCreatorProfit: "contracts/luckyScratch/interfaces/ILuckyScratchCore.sol",
         closePool: "contracts/luckyScratch/interfaces/ILuckyScratchCore.sol",
         createPool: "contracts/luckyScratch/interfaces/ILuckyScratchCore.sol",
+        encryptPrizes: "contracts/luckyScratch/interfaces/ILuckyScratchCore.sol",
         fulfillPoolRandomness: "contracts/luckyScratch/interfaces/ILuckyScratchCore.sol",
         getTicketPrizeHandle: "contracts/luckyScratch/interfaces/ILuckyScratchCore.sol",
         getTicketRevealState: "contracts/luckyScratch/interfaces/ILuckyScratchCore.sol",
@@ -1748,10 +1869,10 @@ const deployedContracts = {
         setTreasury: "contracts/luckyScratch/interfaces/ILuckyScratchCore.sol",
         setVrfAdapter: "contracts/luckyScratch/interfaces/ILuckyScratchCore.sol",
       },
-      deployedOnBlock: 10773368,
+      deployedOnBlock: 10774236,
     },
     LuckyScratchTicket: {
-      address: "0x82Cf2bEEe89E6F259696b8E0133744e38279FCEe",
+      address: "0xaE9f434d06975b6eeE45A2DEECF90A7Fe37Aa424",
       abi: [
         {
           inputs: [
@@ -2396,10 +2517,10 @@ const deployedContracts = {
         setCore: "contracts/luckyScratch/interfaces/ILuckyScratchTicket.sol",
         setTransferLocked: "contracts/luckyScratch/interfaces/ILuckyScratchTicket.sol",
       },
-      deployedOnBlock: 10773365,
+      deployedOnBlock: 10774233,
     },
     LuckyScratchTreasury: {
-      address: "0x21774d259ba98a19051c8F714cf6207cEF513a43",
+      address: "0x0180Cf8d272A9Ff3B0D22B99f2dDA542bA23810E",
       abi: [
         {
           inputs: [
@@ -2711,10 +2832,10 @@ const deployedContracts = {
         token: "contracts/luckyScratch/interfaces/ILuckyScratchTreasury.sol",
         withdrawCreatorProfit: "contracts/luckyScratch/interfaces/ILuckyScratchTreasury.sol",
       },
-      deployedOnBlock: 10773366,
+      deployedOnBlock: 10774234,
     },
     LuckyScratchVRFAdapter: {
-      address: "0xf3E80ff70F367E166e7e39c8fDc49bfa8960119F",
+      address: "0xC7DbE4D3A5fa97eeD2DeA86c54a75E354F1F2086",
       abi: [
         {
           inputs: [
@@ -3091,7 +3212,7 @@ const deployedContracts = {
         requestRandomness: "contracts/luckyScratch/interfaces/ILuckyScratchVRFAdapter.sol",
         setCore: "contracts/luckyScratch/interfaces/ILuckyScratchVRFAdapter.sol",
       },
-      deployedOnBlock: 10773367,
+      deployedOnBlock: 10774235,
     },
   },
 } as const;

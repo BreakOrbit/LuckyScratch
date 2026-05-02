@@ -57,6 +57,7 @@ type AdminService interface {
 	RebuildPool(ctx context.Context, poolID uint64, actor string) error
 	RebuildRound(ctx context.Context, poolID uint64, roundID uint64, actor string) error
 	RebuildTicket(ctx context.Context, ticketID uint64, actor string) error
+	EncryptRound(ctx context.Context, poolID uint64, actor string) error
 }
 
 type ChainSyncer interface {
@@ -751,6 +752,19 @@ func (s *Server) handleAdminPoolRoutes(w http.ResponseWriter, r *http.Request) {
 		}
 		logAPIEvent("admin_round_reindexed", "pool_id", poolID, "round_id", roundID, "actor", actor)
 		writeJSON(w, http.StatusOK, map[string]any{"poolId": poolID, "roundId": roundID, "status": "reindexed"})
+	case len(parts) == 4 && parts[1] == "rounds" && parts[3] == "encrypt":
+		if r.Method != http.MethodPost {
+			writeMethodNotAllowed(w)
+			return
+		}
+		actor := s.adminActor(r)
+		logAPIEvent("admin_encrypt_rounds_received", "pool_id", poolID, "actor", actor)
+		if err := s.adminService.EncryptRound(r.Context(), poolID, actor); err != nil {
+			writeServiceError(w, err)
+			return
+		}
+		logAPIEvent("admin_encrypt_rounds_completed", "pool_id", poolID, "actor", actor)
+		writeJSON(w, http.StatusOK, map[string]any{"status": "encryption triggered"})
 	default:
 		writeError(w, http.StatusNotFound, errors.New("route not found"))
 	}

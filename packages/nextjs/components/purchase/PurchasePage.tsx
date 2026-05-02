@@ -219,7 +219,11 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
       return;
     }
     if (!roundReady) {
-      notification.error("This pool is waiting for VRF initialization before tickets can be purchased.");
+      notification.error(
+        currentRound?.status === "PendingEncryption"
+          ? "Prizes are being encrypted. Please wait."
+          : "This pool is waiting for VRF initialization before tickets can be purchased.",
+      );
       return;
     }
     if (!canSubmitPurchase) {
@@ -354,7 +358,9 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
   const statusHint = !address
     ? "Connect your wallet to authorize confidential cUSDC payments."
     : !roundReady
-      ? "This round is waiting for VRF initialization before ticket purchases can open."
+      ? currentRound?.status === "PendingEncryption"
+        ? "Prizes are being encrypted. Ticket purchases will open shortly."
+        : "This round is waiting for VRF initialization before ticket purchases can open."
       : !operatorCheckAvailable
         ? "The current network does not expose cUSDC / treasury metadata to the frontend, so purchase is disabled."
         : isConfidentialBalanceLoading
@@ -420,8 +426,9 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
 
         {!roundReady ? (
           <div className="rounded-3xl border border-[#8D6C1D] bg-[#493916]/30 p-8 text-center text-[#FFD66D]">
-            The current round is waiting for VRF initialization. Ticket purchases will open after randomness is
-            fulfilled.
+            {currentRound?.status === "PendingEncryption"
+              ? "Prizes are being encrypted. Ticket purchases will open shortly."
+              : "The current round is waiting for VRF initialization. Ticket purchases will open after randomness is fulfilled."}
           </div>
         ) : totalAvailableTickets === 0 ? (
           <div className="rounded-3xl border border-[#8D6C1D] bg-[#493916]/30 p-8 text-center text-[#FFD66D]">
