@@ -28,17 +28,10 @@ const StatCard = ({ label, value, icon, valueColor }: StatCardProps) => (
 export const VaultStatsBar = ({ stats }: VaultStatsBarProps) => {
   return (
     <section className="mb-12">
-      <div className="mb-8 grid gap-4 lg:items-end">
-        <div>
-          <p className="mb-3 text-[11px] font-label font-bold uppercase tracking-[0.28em] text-[#d0c6ab]">
-            Wallet Ticket Vault
-          </p>
-          <h1 className="text-5xl md:text-6xl font-headline font-black text-[#ffd700] tracking-tighter drop-shadow-[0_0_15px_rgba(255,215,0,0.3)] uppercase">
-            MY TICKET VAULT
-          </h1>
-        </div>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+      <h1 className="text-5xl md:text-6xl font-headline font-black text-[#ffd700] tracking-tighter mb-8 drop-shadow-[0_0_15px_rgba(255,215,0,0.3)] uppercase">
+        MY TICKET VAULT
+      </h1>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {stats.map(stat => (
           <StatCard key={stat.label} {...stat} />
         ))}

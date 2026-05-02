@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { BoltIcon, CheckCircleIcon, FingerPrintIcon, PhotoIcon, UserCircleIcon } from "@heroicons/react/24/outline";
+import { notification } from "~~/utils/scaffold-eth";
 
 type SettingsState = {
   nickname: string;
@@ -27,8 +28,8 @@ const isSameSettings = (left: SettingsState, right: SettingsState) =>
 
 export function SettingsPanel() {
   const [settings, setSettings] = useState(defaultSettings);
-  const savedSettings = defaultSettings;
-  const lastSavedAt = "Unsaved session";
+  const [savedSettings, setSavedSettings] = useState(defaultSettings);
+  const [lastSavedAt, setLastSavedAt] = useState("Unsaved session");
 
   const isDirty = !isSameSettings(settings, savedSettings);
 
@@ -37,6 +38,12 @@ export function SettingsPanel() {
       ...current,
       [key]: value,
     }));
+  };
+
+  const handleSave = () => {
+    setSavedSettings(settings);
+    setLastSavedAt(new Date().toLocaleString());
+    notification.success("Settings saved.");
   };
 
   return (
@@ -66,6 +73,14 @@ export function SettingsPanel() {
             {isDirty ? "Ready to save" : "All changes synced"}
           </div>
           <div className="mt-1 text-xs text-ns-on-surface-variant">Last update: {lastSavedAt}</div>
+          <button
+            type="button"
+            disabled={!isDirty}
+            onClick={handleSave}
+            className="mt-3 w-full rounded-lg bg-ns-primary-container py-2 text-xs font-bold text-ns-on-primary transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Save Settings
+          </button>
         </div>
       </div>
 

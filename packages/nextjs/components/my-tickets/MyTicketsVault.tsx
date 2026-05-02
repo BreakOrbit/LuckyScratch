@@ -119,26 +119,15 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
   });
   const [activeTab, setActiveTab] = useState<TicketTab>("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [poolFilterInput, setPoolFilterInput] = useState("");
   const [pageOffset, setPageOffset] = useState(0);
   const [selectedTicketIds, setSelectedTicketIds] = useState<Set<number>>(new Set());
   const [claimingTicketId, setClaimingTicketId] = useState<number | null>(null);
   const [claimStage, setClaimStage] = useState("");
 
-  const poolFilterId = useMemo(() => {
-    const trimmed = poolFilterInput.trim();
-    if (!trimmed) {
-      return undefined;
-    }
-    const parsed = Number(trimmed);
-    return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
-  }, [poolFilterInput]);
-
   const ticketsQuery = useLuckyScratchUserTickets(address, {
     limit: PAGE_SIZE,
     offset: pageOffset,
     view: activeTab,
-    poolId: poolFilterId,
   });
   const tickets = useMemo(() => ticketsQuery.data?.items ?? [], [ticketsQuery.data?.items]);
   const normalizedSearch = searchQuery.trim().toLowerCase();
@@ -168,16 +157,15 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
     }
   });
 
-  const totalClaimedRewards = tickets.reduce((sum, ticket) => sum + ticket.claimClearRewardAmount, 0);
-  const revealedCount = tickets.filter(ticket => ticket.status !== "Unscratched").length;
+  const totalWinnings = tickets
+    .filter(ticket => ticket.status === "Claimed")
+    .reduce((sum, ticket) => sum + ticket.claimClearRewardAmount, 0);
+  const pendingRewards = tickets
+    .filter(ticket => ticket.status === "Scratched" && ticket.claimClearRewardAmount > 0)
+    .reduce((sum, ticket) => sum + ticket.claimClearRewardAmount, 0);
   const toClaimCount = tickets.filter(ticket => matchesTab(ticket, "to-claim")).length;
   const selectedTickets = tickets.filter(ticket => selectedTicketIds.has(ticket.ticketId));
   const selectedClaimableTickets = selectedTickets.filter(ticket => isTicketReadyForClaim(ticket, address));
-  const selectedPoolIds = new Set(selectedTickets.map(ticket => ticket.poolId));
-  const canOpenSelected = selectedTickets.length > 0 && selectedPoolIds.size === 1;
-  const scratchQueueHref = canOpenSelected
-    ? `/scratch/${selectedTickets[0].poolId}?tickets=${selectedTickets.map(ticket => ticket.ticketId).join(",")}`
-    : "/my-tickets";
   const totalCount = ticketsQuery.data?.totalCount ?? 0;
   const hasPreviousPage = pageOffset > 0;
   const hasNextPage = Boolean(ticketsQuery.data?.hasMore);
@@ -187,28 +175,22 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
   const lastVisibleTicketNumber = tickets.length === 0 ? 0 : Math.min(pageOffset + tickets.length, totalCount);
   const vaultStats: VaultStat[] = [
     {
-      label: "MATCHING TICKETS",
-      value: ticketsQuery.isLoading ? "--" : String(totalCount),
-      icon: "confirmation_number",
-      valueColor: "text-[#cabeff]",
+      label: "TOTAL WINNINGS",
+      value: ticketsQuery.isLoading ? "--" : `${formatUsdcFromMicro(totalWinnings)} USDC`,
+      icon: "payments",
+      valueColor: "text-[#ffe16d]",
     },
     {
-      label: "PAGE REVEALED",
-      value: ticketsQuery.isLoading ? "--" : String(revealedCount),
-      icon: "visibility",
+      label: "PENDING REWARDS",
+      value: ticketsQuery.isLoading ? "--" : `${formatUsdcFromMicro(pendingRewards)} USDC`,
+      icon: "pending",
       valueColor: "text-[#00DAF3]",
     },
     {
-      label: "READY TO CLAIM",
-      value: ticketsQuery.isLoading ? "--" : String(toClaimCount),
-      icon: "pending",
-      valueColor: "text-[#ffe16d]",
-    },
-    {
-      label: "PAGE REWARDS",
-      value: ticketsQuery.isLoading ? "--" : `${formatUsdcFromMicro(totalClaimedRewards)} USDC`,
-      icon: "payments",
-      valueColor: "text-[#ffe16d]",
+      label: "TOTAL TICKETS",
+      value: ticketsQuery.isLoading ? "--" : String(totalCount),
+      icon: "confirmation_number",
+      valueColor: "text-[#cabeff]",
     },
   ];
   const allFilteredSelected =
@@ -217,7 +199,7 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
   useEffect(() => {
     setPageOffset(0);
     setSelectedTicketIds(new Set());
-  }, [activeTab, poolFilterId, address]);
+  }, [activeTab, address]);
 
   useEffect(() => {
     setSelectedTicketIds(new Set());
@@ -393,42 +375,23 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
     },
   });
 
-  const claimSelectedLabel =
-    claimRewardMutation.isPending && claimingTicketId === null
-      ? claimStage || "CLAIMING"
-      : selectedClaimableTickets.length > 0
-        ? `CLAIM SELECTED (${selectedClaimableTickets.length})`
-        : "CLAIM SELECTED";
-
   return (
     <div className={embedded ? "w-full bg-[#0C1323] text-[#DCE2F9]" : "min-h-screen bg-[#0C1323] text-[#DCE2F9]"}>
       <div className={embedded ? "w-full p-6 md:p-8" : "mx-auto w-full max-w-7xl px-4 pb-16 pt-24 md:px-8"}>
         <VaultStatsBar stats={vaultStats} />
 
-        <section className="rounded-xl border border-[#4d4732]/20 bg-[#181f30]/70 p-5 shadow-[0_24px_70px_rgba(0,0,0,0.24)] backdrop-blur-xl">
+        <section className="rounded-xl border border-[#4d4732]/20 bg-[#181f30]/70 p-5 shadow-[0_24px_70px_rgba(0,0,0,0.24)] backdrop-blur-xl overflow-hidden">
           <TicketFilterBar
             activeTab={activeTab}
             onTabChange={setActiveTab}
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
-            poolFilterInput={poolFilterInput}
-            onPoolFilterChange={setPoolFilterInput}
-            onPoolFilterClear={() => setPoolFilterInput("")}
             selectAll={allFilteredSelected}
             onSelectAllChange={setAllFilteredSelected}
             claimCount={toClaimCount}
-            selectedCount={selectedTickets.length}
-            canOpenSelected={canOpenSelected}
-            openSelectedHref={scratchQueueHref}
-            openSelectedTitle={
-              selectedTickets.length > 0 && !canOpenSelected
-                ? "Select tickets from one pool to open a scratch queue."
-                : undefined
-            }
-            selectedClaimableCount={selectedClaimableTickets.length}
-            claimSelectedLabel={claimSelectedLabel}
-            claimSelectedDisabled={claimRewardMutation.isPending || isClaimMining}
-            onClaimSelected={() => claimRewardMutation.mutate(selectedClaimableTickets)}
+            onRevealAll={() => {}}
+            onBatchReveal={() => {}}
+            onClaimAll={() => claimRewardMutation.mutate(selectedClaimableTickets)}
           />
 
           {!address ? (

@@ -1,12 +1,14 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useAccount } from "wagmi";
+import { getAddress } from "viem";
+import { useAccount, useWalletClient } from "wagmi";
 import {
   ArrowRightIcon,
   CommandLineIcon,
   CpuChipIcon,
+  LockClosedIcon,
   TicketIcon,
   TrophyIcon,
   WalletIcon,
@@ -17,7 +19,10 @@ import {
   useLuckyScratchUserWins,
 } from "~~/hooks/luckyScratch/useLuckyScratchQueries";
 import { useDeployedContractInfo, useScaffoldReadContract } from "~~/hooks/scaffold-eth";
+import { useFhevmRuntime } from "~~/services/fhevm/FhevmRuntimeProvider";
+import { createSepoliaRelayerInstance, generateTicketKeypair } from "~~/services/fhevm/sdk";
 import { formatUsdcFromMicro } from "~~/services/luckyScratch/poolMath";
+import { notification } from "~~/utils/scaffold-eth";
 
 type ActivityItem = {
   timestamp: string;
@@ -44,7 +49,9 @@ const formatClaimRate = (claimedWins: number, totalTickets: number) => {
 };
 
 export function OverviewPanel() {
-  const { address } = useAccount();
+  const { address, chainId } = useAccount();
+  const { data: walletClient } = useWalletClient();
+  const { ensureReady } = useFhevmRuntime();
   const ticketsQuery = useLuckyScratchUserTickets(address);
   const winsQuery = useLuckyScratchUserWins(address);
   const creatorSummaryQuery = useLuckyScratchCreatorSummary(address);
@@ -58,10 +65,89 @@ export function OverviewPanel() {
     },
   });
 
+  const [balanceStage, setBalanceStage] = useState<string>("");
+  const [decryptedCusdcBalance, setDecryptedCusdcBalance] = useState<bigint | null>(null);
+
   const tickets = useMemo(() => ticketsQuery.data?.items ?? [], [ticketsQuery.data?.items]);
   const claimedWins = useMemo(() => winsQuery.data?.items ?? [], [winsQuery.data?.items]);
   const creatorSummary = creatorSummaryQuery.data;
   const confidentialBalanceHandle = paymentBalanceQuery.data;
+
+  const canDecryptBalance = Boolean(
+    address && walletClient && chainId === 11155111 && paymentTokenContract?.address && confidentialBalanceHandle,
+  );
+
+  const handleDecryptBalance = async () => {
+    if (
+      !address ||
+      !walletClient ||
+      chainId !== 11155111 ||
+      !paymentTokenContract?.address ||
+      !confidentialBalanceHandle
+    ) {
+      notification.error("Connect a Sepolia wallet with a cUSDC balance before decrypting.");
+      return;
+    }
+
+    try {
+      setBalanceStage("Preparing");
+      await ensureReady();
+
+      const userAddress = getAddress(address);
+      const tokenAddress = getAddress(paymentTokenContract.address);
+      const balanceHandle = String(confidentialBalanceHandle);
+      const instance = await createSepoliaRelayerInstance({ chainId });
+      const keypair = await generateTicketKeypair();
+      const startTimestamp = Math.floor(Date.now() / 1000);
+      const durationDays = 1;
+      const contractAddresses = [tokenAddress];
+      const eip712 = instance.createEIP712(keypair.publicKey, contractAddresses, startTimestamp, durationDays);
+
+      setBalanceStage("Sign request");
+      const signature = await walletClient.signTypedData({
+        account: userAddress,
+        domain: eip712.domain as any,
+        types: {
+          UserDecryptRequestVerification: eip712.types.UserDecryptRequestVerification,
+        } as any,
+        primaryType: "UserDecryptRequestVerification",
+        message: eip712.message as any,
+      });
+
+      setBalanceStage("Decrypting");
+      const result = await instance.userDecrypt(
+        [{ handle: balanceHandle, contractAddress: tokenAddress }],
+        keypair.privateKey,
+        keypair.publicKey,
+        signature,
+        contractAddresses,
+        userAddress,
+        startTimestamp,
+        durationDays,
+        {
+          onProgress: progress => {
+            if (progress.type === "queued") {
+              setBalanceStage("Queued");
+            }
+            if (progress.type === "throttled") {
+              setBalanceStage("Retrying");
+            }
+          },
+        },
+      );
+      const decryptedValue = result[balanceHandle] ?? Object.values(result)[0];
+      if (decryptedValue == null) {
+        throw new Error("Relayer did not return a decrypted cUSDC balance.");
+      }
+
+      setDecryptedCusdcBalance(typeof decryptedValue === "bigint" ? decryptedValue : BigInt(String(decryptedValue)));
+      notification.success("cUSDC balance decrypted.");
+    } catch (error) {
+      notification.error(error instanceof Error && error.message ? error.message : "Balance decryption failed.");
+    } finally {
+      setBalanceStage("");
+    }
+  };
 
   const ticketCount = tickets.length;
   const revealedCount = tickets.filter(ticket => ticket.status !== "Unscratched").length;
@@ -123,15 +209,32 @@ export function OverviewPanel() {
           </div>
           <div className="mb-2 flex items-baseline gap-3">
             <h3 className="font-headline text-4xl font-black tracking-tighter text-ns-on-surface">
-              {paymentBalanceQuery.isLoading ? "--" : confidentialBalanceHandle ? "Encrypted" : "--"}
+              {paymentBalanceQuery.isLoading
+                ? "--"
+                : decryptedCusdcBalance != null
+                  ? formatUsdcFromMicro(decryptedCusdcBalance, 6)
+                  : confidentialBalanceHandle
+                    ? "Encrypted"
+                    : "--"}
             </h3>
             <span className="text-sm font-bold text-ns-primary-container">cUSDC</span>
           </div>
-          <p className="mb-6 text-xs text-ns-on-surface-variant">
+          <p className="mb-4 text-xs text-ns-on-surface-variant">
             {paymentTokenContract?.address
-              ? "Confidential balance handle from the current network."
+              ? "Confidential balance on the current network."
               : "cUSDC metadata is not available on the current network."}
           </p>
+          {confidentialBalanceHandle ? (
+            <button
+              type="button"
+              disabled={!canDecryptBalance || Boolean(balanceStage)}
+              onClick={handleDecryptBalance}
+              className="mb-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-ns-primary-container/30 bg-ns-surface-container-lowest py-2.5 text-xs font-bold text-ns-primary-container transition-all hover:bg-ns-surface-container disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <LockClosedIcon className="h-4 w-4" />
+              {balanceStage || (decryptedCusdcBalance == null ? "Decrypt Balance" : "Refresh Balance")}
+            </button>
+          ) : null}
           <Link
             href="/faucet"
             className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-ns-primary-container py-3 text-sm font-bold text-ns-on-primary transition-all hover:brightness-110 active:scale-95"
