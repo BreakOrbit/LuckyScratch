@@ -35,7 +35,14 @@ import {
 import { useDeployedContractInfo, useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 import { luckyScratchAPI } from "~~/services/luckyScratch/api";
 import {
+  MAX_HIT_RATE_BPS,
+  MAX_PRIZE_SHARE_BPS,
+  MAX_RTP_BPS,
   MAX_TICKETS_PER_ROUND,
+  MAX_TOTAL_PRIZE_BUDGET_USDC,
+  MIN_HIT_RATE_BPS,
+  MIN_RTP_BPS,
+  MIN_TOTAL_PRIZE_BUDGET_USDC,
   PLATFORM_FEE_BPS,
   SUPPORTED_TICKET_PRICES_USDC,
   computeBondRequirementMicro,
@@ -75,11 +82,10 @@ const DEFAULT_COVER_ART =
 const createTierId = () => `tier-${Math.random().toString(36).slice(2, 10)}`;
 
 const defaultRewardTiers: RewardTierDraft[] = [
-  { id: createTierId(), amountUsdc: 20, quantity: 1 },
-  { id: createTierId(), amountUsdc: 10, quantity: 2 },
-  { id: createTierId(), amountUsdc: 5, quantity: 4 },
-  { id: createTierId(), amountUsdc: 2, quantity: 10 },
-  { id: createTierId(), amountUsdc: 1, quantity: 20 },
+  { id: createTierId(), amountUsdc: 50, quantity: 1 },
+  { id: createTierId(), amountUsdc: 20, quantity: 5 },
+  { id: createTierId(), amountUsdc: 10, quantity: 10 },
+  { id: createTierId(), amountUsdc: 5, quantity: 10 },
 ];
 
 const lotteryWinTypes: LotteryWinType[] = [
@@ -207,6 +213,9 @@ export function CreatePoolPage() {
   });
   const operatorReady = treasuryIsOperator === true;
   const officialAdminReady = poolType !== "official" || isCoreAdmin === true;
+  const totalPrizeBudgetOutOfRange =
+    prizePoolMicro < toMicroUsdc(MIN_TOTAL_PRIZE_BUDGET_USDC) ||
+    prizePoolMicro > toMicroUsdc(MAX_TOTAL_PRIZE_BUDGET_USDC);
 
   const validationErrors = [
     !address ? "Connect the creator wallet before creating a pool." : null,
@@ -226,6 +235,18 @@ export function CreatePoolPage() {
       ? "Every visible reward tier needs a positive amount and quantity."
       : null,
     winningTicketCount > totalTickets ? "Winning tier quantities cannot exceed total tickets." : null,
+    totalPrizeBudgetOutOfRange
+      ? `Total prize pool must be between ${MIN_TOTAL_PRIZE_BUDGET_USDC} and ${MAX_TOTAL_PRIZE_BUDGET_USDC} USDC.`
+      : null,
+    hitRateBps < MIN_HIT_RATE_BPS || hitRateBps > MAX_HIT_RATE_BPS
+      ? `Win rate must be between ${formatPercentFromBps(MIN_HIT_RATE_BPS)}% and ${formatPercentFromBps(MAX_HIT_RATE_BPS)}%.`
+      : null,
+    targetRtpBps < MIN_RTP_BPS || targetRtpBps > MAX_RTP_BPS
+      ? `RTP must be between ${formatPercentFromBps(MIN_RTP_BPS)}% and ${formatPercentFromBps(MAX_RTP_BPS)}%. Adjust prize pool or ticket count.`
+      : null,
+    maxPrizeShareBps > MAX_PRIZE_SHARE_BPS
+      ? `Max prize cannot exceed ${formatPercentFromBps(MAX_PRIZE_SHARE_BPS)}% of the total prize pool.`
+      : null,
   ].filter(Boolean) as string[];
 
   const updateTier = (id: string, field: "amountUsdc" | "quantity", value: number) => {
@@ -681,10 +702,11 @@ export function CreatePoolPage() {
                 <h2 className="font-headline text-xl font-bold text-[#DCE2F9]">Hit Rate &amp; Logic</h2>
               </div>
 
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
                 {[
                   ["Winning tickets", `${winningTicketCount}/${totalTickets}`],
                   ["Win rate", `${formatPercentFromBps(hitRateBps)}%`],
+                  ["RTP", `${formatPercentFromBps(targetRtpBps)}%`],
                   ["Max prize share", `${formatPercentFromBps(maxPrizeShareBps)}%`],
                 ].map(([label, value]) => (
                   <div key={label} className="rounded-lg bg-[#141B2C] p-4">
