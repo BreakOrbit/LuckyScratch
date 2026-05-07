@@ -41,6 +41,9 @@ Shared: `interfaces/`, `libraries/`, `types/` under `contracts/luckyScratch/`
 - Reward values are encrypted on-chain with fhEVM; payout requires `claimReward(ticketId, clearRewardAmount, decryptionProof)`
 - `scratchTicket` makes encrypted reward handle publicly decryptable; frontend obtains KMS `decryptionProof` via backend reveal-auth + Zama `publicDecrypt`
 - Scratch UI prepares results before the user scratches: `/scratch/[poolId]` submits `scratchTicket`/`batchScratch`, decrypts prize handles, then unlocks the scratch animation so revealed cards show ticket-specific amounts immediately
+- Decrypted ticket results are cached in the browser by chain, core contract, wallet, and ticket id so `/scratch/[poolId]` and `/my-tickets` can reuse known zero/winning amounts without repeat decrypt calls
+- Already scratched tickets are display-only in the scratch UI; only tickets that were `Unscratched` when preparation ran get an interactive scratch coating
+- `/my-tickets` classifies tabs client-side from the full user inventory plus browser reward cache: All, Unscratched, Revealed, Winning, and To Claim
 - All state-changing transactions are wallet-driven; no backend transaction relay
 - `tickets(ticketId)` returns compact `uint64` pool/round ids — keep backend/client bindings in sync with ABI
 - `createPool` enforces budget bands, ticket-price presets, 6-decimal cUSDC bond schedule, 256 ticket ceiling, and prize-tier consistency

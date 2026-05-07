@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeftIcon, StarIcon, WalletIcon } from "@heroicons/react/24/solid";
 import {
@@ -22,6 +22,7 @@ type BatchScratchViewProps = {
   ticketIds: string[];
   ticketArtUrl?: string;
   results: TicketResult[];
+  scratchableTicketIds?: string[];
   isReadyToScratch?: boolean;
   preparationStage?: string;
   preparationError?: string | null;
@@ -85,6 +86,7 @@ const BatchScratchCard = ({
   maxPrizeValue,
   ticketArtUrl,
   canScratch,
+  isScratchable,
   preparationStage,
   preparationError,
   onRetryPrepare,
@@ -100,6 +102,7 @@ const BatchScratchCard = ({
   maxPrizeValue: number;
   ticketArtUrl?: string;
   canScratch: boolean;
+  isScratchable: boolean;
   preparationStage: string;
   preparationError?: string | null;
   onRetryPrepare?: () => void;
@@ -114,7 +117,7 @@ const BatchScratchCard = ({
   const THRESHOLD = 0.55;
 
   useEffect(() => {
-    if (isRevealed || globalPhase === "animating" || globalPhase === "submitting") return;
+    if (!isScratchable || isRevealed || globalPhase === "animating" || globalPhase === "submitting") return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -158,7 +161,7 @@ const BatchScratchCard = ({
     ctx.fillText("✨ SCRATCH TO REVEAL ✨", CANVAS_W / 2, CANVAS_H - 20);
 
     hasTriggered.current = false;
-  }, [isRevealed, globalPhase]);
+  }, [isScratchable, isRevealed, globalPhase]);
 
   const scratch = useCallback((x: number, y: number) => {
     const canvas = canvasRef.current;
@@ -214,12 +217,12 @@ const BatchScratchCard = ({
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
-      if (!canScratch) return;
+      if (!canScratch || !isScratchable) return;
       e.preventDefault();
       isDrawing.current = true;
       scratch(e.clientX, e.clientY);
     },
-    [canScratch, scratch],
+    [canScratch, isScratchable, scratch],
   );
 
   const handlePointerMove = useCallback(
@@ -376,6 +379,7 @@ export const BatchScratchView: React.FC<BatchScratchViewProps> = ({
   ticketIds,
   ticketArtUrl,
   results,
+  scratchableTicketIds = ticketIds,
   isReadyToScratch = true,
   preparationStage = "Preparing result",
   preparationError,
@@ -390,7 +394,8 @@ export const BatchScratchView: React.FC<BatchScratchViewProps> = ({
   const particleCanvasRef = useRef<HTMLCanvasElement>(null);
   const animFrameRef = useRef<number>(0);
   const scratchPromiseRef = useRef<Promise<boolean> | null>(null);
-  const canScratch = isReadyToScratch && !preparationError;
+  const scratchableIdSet = useMemo(() => new Set(scratchableTicketIds), [scratchableTicketIds]);
+  const canScratch = scratchableIdSet.size > 0 && isReadyToScratch && !preparationError;
 
   const totalTickets = ticketIds.length;
   const hasKnownResults = results.some(r => r.isKnown !== false);
@@ -419,7 +424,7 @@ export const BatchScratchView: React.FC<BatchScratchViewProps> = ({
 
   const handleManualReveal = useCallback(
     async (index: number) => {
-      if (!canScratch) {
+      if (!canScratch || !scratchableIdSet.has(ticketIds[index])) {
         return;
       }
       const didScratch = await submitScratchAllOnce();
@@ -433,7 +438,7 @@ export const BatchScratchView: React.FC<BatchScratchViewProps> = ({
         return next;
       });
     },
-    [canScratch, submitScratchAllOnce],
+    [canScratch, scratchableIdSet, submitScratchAllOnce, ticketIds],
   );
 
   useEffect(() => {
@@ -442,6 +447,18 @@ export const BatchScratchView: React.FC<BatchScratchViewProps> = ({
       setTimeout(() => setShowSummary(true), 800);
     }
   }, [revealedIndices.size, ticketIds.length, allRevealed]);
+
+  useEffect(() => {
+    setRevealedIndices(prev => {
+      const next = new Set(prev);
+      ticketIds.forEach((ticketId, index) => {
+        if (!scratchableIdSet.has(ticketId)) {
+          next.add(index);
+        }
+      });
+      return next;
+    });
+  }, [scratchableIdSet, ticketIds]);
 
   /* Handle the "Scratch All" button click */
   const handleScratchAll = useCallback(async () => {
@@ -454,7 +471,8 @@ export const BatchScratchView: React.FC<BatchScratchViewProps> = ({
     }
     setPhase("animating");
 
-    ticketIds.forEach((_, index) => {
+    ticketIds.forEach((ticketId, index) => {
+      if (!scratchableIdSet.has(ticketId)) return;
       if (revealedIndices.has(index)) return; // Skip already revealed
 
       setTimeout(
@@ -468,7 +486,7 @@ export const BatchScratchView: React.FC<BatchScratchViewProps> = ({
         400 + index * 350,
       );
     });
-  }, [canScratch, ticketIds, revealedIndices, submitScratchAllOnce]);
+  }, [canScratch, scratchableIdSet, ticketIds, revealedIndices, submitScratchAllOnce]);
 
   /* Win celebration particles */
   useEffect(() => {
@@ -653,7 +671,7 @@ export const BatchScratchView: React.FC<BatchScratchViewProps> = ({
                     {phase === "submitting"
                       ? "Revealing..."
                       : canScratch
-                        ? "Reveal All"
+                        ? "Reveal New"
                         : preparationError
                           ? "Preparation Failed"
                           : preparationStage}
@@ -680,6 +698,7 @@ export const BatchScratchView: React.FC<BatchScratchViewProps> = ({
             {ticketIds.map((id, index) => {
               const isRevealed = revealedIndices.has(index);
               const res = results[index];
+              const isScratchable = scratchableIdSet.has(id);
 
               return (
                 <BatchScratchCard
@@ -694,6 +713,7 @@ export const BatchScratchView: React.FC<BatchScratchViewProps> = ({
                   maxPrizeValue={maxPrizeValue}
                   ticketArtUrl={ticketArtUrl}
                   canScratch={canScratch}
+                  isScratchable={isScratchable}
                   preparationStage={preparationStage}
                   preparationError={preparationError}
                   onRetryPrepare={onRetryPrepare}

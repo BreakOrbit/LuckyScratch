@@ -2,8 +2,10 @@ const STORAGE_KEY = "lucky-scratch:decrypted-rewards";
 
 type CachedReward = {
   clearRewardAmount: number;
-  decryptionProof: string;
+  decryptionProof?: string;
   cachedAt: number;
+  contractAddress?: string;
+  owner?: string;
 };
 
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -28,39 +30,80 @@ const writeCache = (cache: Record<string, CachedReward>) => {
   }
 };
 
-const cacheKey = (chainId: number, ticketId: number) => `${chainId}:${ticketId}`;
+type TicketRewardCacheScope = {
+  contractAddress?: string;
+  owner?: string;
+};
+
+const normalizeScopeValue = (value?: string) => value?.toLowerCase();
+
+const cacheKey = (chainId: number, ticketId: number, scope?: TicketRewardCacheScope) => {
+  const contractAddress = normalizeScopeValue(scope?.contractAddress);
+  const owner = normalizeScopeValue(scope?.owner);
+  if (contractAddress && owner) {
+    return `${chainId}:${contractAddress}:${owner}:${ticketId}`;
+  }
+  if (contractAddress) {
+    return `${chainId}:${contractAddress}:${ticketId}`;
+  }
+  return `${chainId}:${ticketId}`;
+};
+
+const buildCacheEntry = (
+  clearRewardAmount: number,
+  decryptionProof: string | undefined,
+  cachedAt: number,
+  scope?: TicketRewardCacheScope,
+): CachedReward => ({
+  clearRewardAmount,
+  decryptionProof,
+  cachedAt,
+  contractAddress: normalizeScopeValue(scope?.contractAddress),
+  owner: normalizeScopeValue(scope?.owner),
+});
 
 export const ticketRewardCache = {
-  get(chainId: number, ticketId: number): CachedReward | undefined {
+  get(chainId: number, ticketId: number, scope?: TicketRewardCacheScope): CachedReward | undefined {
     const cache = readCache();
-    const entry = cache[cacheKey(chainId, ticketId)];
+    const entry = cache[cacheKey(chainId, ticketId, scope)];
     if (!entry) return undefined;
     if (Date.now() - entry.cachedAt > CACHE_TTL_MS) return undefined;
     return entry;
   },
 
-  set(chainId: number, ticketId: number, clearRewardAmount: number, decryptionProof: string) {
+  set(
+    chainId: number,
+    ticketId: number,
+    clearRewardAmount: number,
+    decryptionProof?: string,
+    scope?: TicketRewardCacheScope,
+  ) {
     const cache = readCache();
-    cache[cacheKey(chainId, ticketId)] = { clearRewardAmount, decryptionProof, cachedAt: Date.now() };
+    cache[cacheKey(chainId, ticketId, scope)] = buildCacheEntry(clearRewardAmount, decryptionProof, Date.now(), scope);
     writeCache(cache);
   },
 
-  setBatch(chainId: number, entries: { ticketId: number; clearRewardAmount: number; decryptionProof: string }[]) {
+  setBatch(
+    chainId: number,
+    entries: { ticketId: number; clearRewardAmount: number; decryptionProof?: string }[],
+    scope?: TicketRewardCacheScope,
+  ) {
     const cache = readCache();
     const now = Date.now();
     for (const entry of entries) {
-      cache[cacheKey(chainId, entry.ticketId)] = {
-        clearRewardAmount: entry.clearRewardAmount,
-        decryptionProof: entry.decryptionProof,
-        cachedAt: now,
-      };
+      cache[cacheKey(chainId, entry.ticketId, scope)] = buildCacheEntry(
+        entry.clearRewardAmount,
+        entry.decryptionProof,
+        now,
+        scope,
+      );
     }
     writeCache(cache);
   },
 
-  remove(chainId: number, ticketId: number) {
+  remove(chainId: number, ticketId: number, scope?: TicketRewardCacheScope) {
     const cache = readCache();
-    delete cache[cacheKey(chainId, ticketId)];
+    delete cache[cacheKey(chainId, ticketId, scope)];
     writeCache(cache);
   },
 };

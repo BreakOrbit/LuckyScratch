@@ -2,13 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAccount, usePublicClient } from "wagmi";
 import { TicketCard, type TicketStatus } from "~~/components/my-tickets/TicketCard";
 import { TicketFilterBar } from "~~/components/my-tickets/TicketFilterBar";
 import { type VaultStat, VaultStatsBar } from "~~/components/my-tickets/VaultStatsBar";
 import { MyTicketsIcon, type PoolIconName } from "~~/components/my-tickets/icons";
-import { useLuckyScratchUserTickets } from "~~/hooks/luckyScratch/useLuckyScratchQueries";
 import { useDeployedContractInfo, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 import { luckyScratchAPI } from "~~/services/luckyScratch/api";
 import { buildTicketClaimProofDirect } from "~~/services/luckyScratch/claim";
@@ -24,17 +23,70 @@ type MyTicketsVaultProps = {
 };
 
 const PAGE_SIZE = 24;
+const API_PAGE_SIZE = 100;
+const MAX_TICKET_PAGES = 50;
 const POOL_ICON_NAMES: PoolIconName[] = ["diamond", "stars", "auto_awesome", "light", "star"];
 
 const ticketSearchText = (ticket: LuckyScratchTicket) =>
   [ticket.ticketId, ticket.poolId, ticket.roundId, ticket.ticketIndex, ticket.status].join(" ").toLowerCase();
 
-const isTicketReadyForClaim = (ticket: LuckyScratchTicket, address?: string, hasCachedReward?: boolean) =>
+const isTicketReadyForClaim = (ticket: LuckyScratchTicket, address?: string, cachedRewardAmount?: number) =>
   Boolean(
     address &&
-      ((ticket.status === "Scratched" && ticket.revealAuthorized) || hasCachedReward) &&
+      ticket.status !== "Claimed" &&
+      (cachedRewardAmount != null
+        ? cachedRewardAmount > 0
+        : ticket.status === "Scratched" && ticket.revealAuthorized) &&
       ticket.owner.toLowerCase() === address.toLowerCase(),
   );
+
+const getKnownRewardAmount = (ticket: LuckyScratchTicket, cachedRewardAmount?: number) =>
+  cachedRewardAmount ?? ticket.claimClearRewardAmount;
+
+const isTicketInTab = (ticket: LuckyScratchTicket, tab: TicketTab, address?: string, cachedRewardAmount?: number) => {
+  const knownRewardAmount = getKnownRewardAmount(ticket, cachedRewardAmount);
+  switch (tab) {
+    case "all":
+      return true;
+    case "unrevealed":
+      return ticket.status === "Unscratched";
+    case "revealed":
+      return ticket.status !== "Unscratched";
+    case "winning":
+      return knownRewardAmount > 0;
+    case "to-claim":
+      return isTicketReadyForClaim(ticket, address, knownRewardAmount);
+  }
+};
+
+const listAllUserTickets = async (address: string): Promise<UserTicketsResponse> => {
+  const items: LuckyScratchTicket[] = [];
+  let offset = 0;
+  let totalCount = 0;
+
+  for (let page = 0; page < MAX_TICKET_PAGES; page++) {
+    const response = await luckyScratchAPI.listUserTickets(address, {
+      limit: API_PAGE_SIZE,
+      offset,
+      view: "all",
+    });
+    items.push(...response.items);
+    totalCount = response.totalCount;
+    if (!response.hasMore || response.items.length === 0) {
+      break;
+    }
+    offset = response.nextOffset;
+  }
+
+  return {
+    items,
+    limit: items.length,
+    offset: 0,
+    nextOffset: items.length,
+    totalCount,
+    hasMore: items.length < totalCount,
+  };
+};
 
 const toErrorMessage = (error: unknown) => {
   if (error instanceof Error && error.message.trim() !== "") {
@@ -60,17 +112,22 @@ const getPoolIcon = (poolId: number, pool?: LuckyScratchPool): PoolIconName => {
   return POOL_ICON_NAMES[poolId % POOL_ICON_NAMES.length];
 };
 
-const getTicketCardStatus = (ticket: LuckyScratchTicket, canClaim: boolean): TicketStatus => {
+const getTicketCardStatus = (
+  ticket: LuckyScratchTicket,
+  canClaim: boolean,
+  cachedRewardAmount?: number,
+): TicketStatus => {
   if (ticket.status === "Unscratched") {
     return "unrevealed";
   }
   if (canClaim) {
     return "claimable";
   }
-  if (ticket.claimClearRewardAmount > 0) {
+  const knownRewardAmount = cachedRewardAmount ?? ticket.claimClearRewardAmount;
+  if (knownRewardAmount > 0) {
     return "winning";
   }
-  if (ticket.status === "Claimed") {
+  if (ticket.status === "Claimed" || cachedRewardAmount === 0) {
     return "no-win";
   }
   return "revealed";
@@ -122,24 +179,37 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
   const [claimingTicketId, setClaimingTicketId] = useState<number | null>(null);
   const [claimStage, setClaimStage] = useState("");
 
-  const ticketsQuery = useLuckyScratchUserTickets(address, {
-    limit: PAGE_SIZE,
-    offset: pageOffset,
-    view: activeTab,
+  const ticketsQuery = useQuery({
+    queryKey: ["lucky-scratch", "users", address?.toLowerCase(), "tickets", "all-pages"],
+    queryFn: () => listAllUserTickets(address!),
+    enabled: Boolean(address),
+    staleTime: 10_000,
   });
-  const tickets = useMemo(() => ticketsQuery.data?.items ?? [], [ticketsQuery.data?.items]);
+  const rewardCacheScope = useMemo(
+    () => (coreContract && address ? { contractAddress: coreContract.address, owner: address } : undefined),
+    [address, coreContract],
+  );
+  const allTickets = useMemo(() => ticketsQuery.data?.items ?? [], [ticketsQuery.data?.items]);
   const normalizedSearch = searchQuery.trim().toLowerCase();
   const filteredTickets = useMemo(
     () =>
-      tickets.filter(ticket => {
+      allTickets.filter(ticket => {
+        const cachedReward = ticketRewardCache.get(SEPOLIA_CHAIN_ID, ticket.ticketId, rewardCacheScope);
+        if (!isTicketInTab(ticket, activeTab, address, cachedReward?.clearRewardAmount)) {
+          return false;
+        }
         if (!normalizedSearch) {
           return true;
         }
         return ticketSearchText(ticket).includes(normalizedSearch);
       }),
-    [normalizedSearch, tickets],
+    [activeTab, address, allTickets, normalizedSearch, rewardCacheScope],
   );
-  const visiblePoolIds = useMemo(() => [...new Set(filteredTickets.map(ticket => ticket.poolId))], [filteredTickets]);
+  const visibleTickets = useMemo(
+    () => filteredTickets.slice(pageOffset, pageOffset + PAGE_SIZE),
+    [filteredTickets, pageOffset],
+  );
+  const visiblePoolIds = useMemo(() => [...new Set(visibleTickets.map(ticket => ticket.poolId))], [visibleTickets]);
   const visiblePoolQueries = useQueries({
     queries: visiblePoolIds.map(poolId => ({
       queryKey: ["lucky-scratch", "pools", String(poolId)],
@@ -155,30 +225,35 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
     }
   });
 
-  const totalWinnings = tickets
+  const totalWinnings = allTickets
     .filter(ticket => ticket.status === "Claimed")
     .reduce((sum, ticket) => sum + ticket.claimClearRewardAmount, 0);
-  const pendingRewards = tickets
-    .filter(ticket => ticket.status === "Scratched" && ticket.claimClearRewardAmount > 0)
-    .reduce((sum, ticket) => sum + ticket.claimClearRewardAmount, 0);
-  const totalCount = ticketsQuery.data?.totalCount ?? 0;
-  const toClaimCount =
-    activeTab === "to-claim"
-      ? totalCount
-      : tickets.filter(
-          ticket => ticket.status === "Scratched" && ticket.revealAuthorized && ticket.claimClearRewardAmount > 0,
-        ).length;
-  const selectedTickets = tickets.filter(ticket => selectedTicketIds.has(ticket.ticketId));
+  const pendingRewards = allTickets
+    .filter(ticket => {
+      const cachedReward = ticketRewardCache.get(SEPOLIA_CHAIN_ID, ticket.ticketId, rewardCacheScope);
+      return isTicketInTab(ticket, "to-claim", address, cachedReward?.clearRewardAmount);
+    })
+    .reduce((sum, ticket) => {
+      const cachedReward = ticketRewardCache.get(SEPOLIA_CHAIN_ID, ticket.ticketId, rewardCacheScope);
+      return sum + getKnownRewardAmount(ticket, cachedReward?.clearRewardAmount);
+    }, 0);
+  const totalCount = filteredTickets.length;
+  const toClaimCount = allTickets.filter(ticket => {
+    const cachedReward = ticketRewardCache.get(SEPOLIA_CHAIN_ID, ticket.ticketId, rewardCacheScope);
+    return isTicketInTab(ticket, "to-claim", address, cachedReward?.clearRewardAmount);
+  }).length;
+  const selectedTickets = visibleTickets.filter(ticket => selectedTicketIds.has(ticket.ticketId));
   const selectedClaimableTickets = selectedTickets.filter(ticket => {
-    const cachedReward = ticketRewardCache.get(SEPOLIA_CHAIN_ID, ticket.ticketId);
-    return isTicketReadyForClaim(ticket, address, cachedReward != null);
+    const cachedReward = ticketRewardCache.get(SEPOLIA_CHAIN_ID, ticket.ticketId, rewardCacheScope);
+    return isTicketReadyForClaim(ticket, address, cachedReward?.clearRewardAmount);
   });
   const hasPreviousPage = pageOffset > 0;
-  const hasNextPage = Boolean(ticketsQuery.data?.hasMore);
+  const hasNextPage = pageOffset + PAGE_SIZE < totalCount;
   const pageIndex = Math.floor(pageOffset / PAGE_SIZE) + 1;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-  const firstVisibleTicketNumber = tickets.length === 0 ? 0 : pageOffset + 1;
-  const lastVisibleTicketNumber = tickets.length === 0 ? 0 : Math.min(pageOffset + tickets.length, totalCount);
+  const firstVisibleTicketNumber = visibleTickets.length === 0 ? 0 : pageOffset + 1;
+  const lastVisibleTicketNumber =
+    visibleTickets.length === 0 ? 0 : Math.min(pageOffset + visibleTickets.length, totalCount);
   const vaultStats: VaultStat[] = [
     {
       label: "TOTAL WINNINGS",
@@ -194,7 +269,7 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
     },
     {
       label: "TOTAL TICKETS",
-      value: ticketsQuery.isLoading ? "--" : String(totalCount),
+      value: ticketsQuery.isLoading ? "--" : String(allTickets.length),
       icon: "confirmation_number",
       valueColor: "text-[#cabeff]",
     },
@@ -202,12 +277,18 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
   const selectedUnrevealedTickets = selectedTickets.filter(ticket => ticket.status === "Unscratched");
   const allUnrevealedTickets = filteredTickets.filter(ticket => ticket.status === "Unscratched");
   const allFilteredSelected =
-    filteredTickets.length > 0 && filteredTickets.every(ticket => selectedTicketIds.has(ticket.ticketId));
+    visibleTickets.length > 0 && visibleTickets.every(ticket => selectedTicketIds.has(ticket.ticketId));
 
   useEffect(() => {
     setPageOffset(0);
     setSelectedTicketIds(new Set());
-  }, [activeTab, address]);
+  }, [activeTab, address, normalizedSearch]);
+
+  useEffect(() => {
+    if (pageOffset > 0 && pageOffset >= totalCount) {
+      setPageOffset(Math.max(0, Math.floor(Math.max(totalCount - 1, 0) / PAGE_SIZE) * PAGE_SIZE));
+    }
+  }, [pageOffset, totalCount]);
 
   useEffect(() => {
     setSelectedTicketIds(new Set());
@@ -228,7 +309,7 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
   const setAllFilteredSelected = (checked: boolean) => {
     setSelectedTicketIds(current => {
       const next = new Set(current);
-      filteredTickets.forEach(ticket => {
+      visibleTickets.forEach(ticket => {
         if (checked) {
           next.add(ticket.ticketId);
         } else {
@@ -248,9 +329,8 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
         throw new Error("Contract info is not available.");
       }
       const claimableTickets = ticketsToClaim.filter(ticket => {
-        if (isTicketReadyForClaim(ticket, address)) return true;
-        const cachedReward = ticketRewardCache.get(SEPOLIA_CHAIN_ID, ticket.ticketId);
-        return cachedReward != null && ticket.owner.toLowerCase() === address.toLowerCase();
+        const cachedReward = ticketRewardCache.get(SEPOLIA_CHAIN_ID, ticket.ticketId, rewardCacheScope);
+        return isTicketReadyForClaim(ticket, address, cachedReward?.clearRewardAmount);
       });
       if (claimableTickets.length === 0) {
         throw new Error("This ticket is not ready for wallet-driven reward claim.");
@@ -265,7 +345,7 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
       let skippedZeroCount = 0;
       for (const [idx, ticket] of claimableTickets.entries()) {
         const suffix = claimableTickets.length > 1 ? ` ${idx + 1}/${claimableTickets.length}` : "";
-        const cached = ticketRewardCache.get(SEPOLIA_CHAIN_ID, ticket.ticketId);
+        const cached = ticketRewardCache.get(SEPOLIA_CHAIN_ID, ticket.ticketId, rewardCacheScope);
 
         // Use cached proof if available — skip decryption entirely
         if (cached && cached.decryptionProof && cached.clearRewardAmount > 0) {
@@ -310,6 +390,27 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
 
         setClaimStage(`Decrypting${suffix}`);
         const claimProof = await buildTicketClaimProofDirect({ chainId: SEPOLIA_CHAIN_ID, handle: handle as string });
+        const clearRewardAmount = Number(claimProof.clearRewardAmount);
+        ticketRewardCache.set(
+          SEPOLIA_CHAIN_ID,
+          ticket.ticketId,
+          clearRewardAmount,
+          claimProof.decryptionProof,
+          rewardCacheScope,
+        );
+        const userPrefix = ["lucky-scratch", "users", address.toLowerCase(), "tickets"];
+        queryClient.getQueriesData<UserTicketsResponse>({ queryKey: userPrefix }).forEach(([key, data]) => {
+          if (!data?.items.some(item => item.ticketId === ticket.ticketId)) return;
+          queryClient.setQueryData<UserTicketsResponse>(key, old => {
+            if (!old) return old;
+            return {
+              ...old,
+              items: old.items.map(item =>
+                item.ticketId === ticket.ticketId ? { ...item, claimClearRewardAmount: clearRewardAmount } : item,
+              ),
+            };
+          });
+        });
         console.log("[claim-fresh]", {
           ticketId: ticket.ticketId,
           walletChainId: SEPOLIA_CHAIN_ID,
@@ -381,11 +482,13 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
         if (
           txMsg.includes("TicketNotClaimable") &&
           claimInputs.some(
-            c => ticketRewardCache.get(SEPOLIA_CHAIN_ID, c.ticket.ticketId)?.decryptionProof === c.decryptionProof,
+            c =>
+              ticketRewardCache.get(SEPOLIA_CHAIN_ID, c.ticket.ticketId, rewardCacheScope)?.decryptionProof ===
+              c.decryptionProof,
           )
         ) {
           for (const claimInput of claimInputs) {
-            ticketRewardCache.remove(SEPOLIA_CHAIN_ID, claimInput.ticket.ticketId);
+            ticketRewardCache.remove(SEPOLIA_CHAIN_ID, claimInput.ticket.ticketId, rewardCacheScope);
           }
           throw new Error("Claim proof expired. Cache cleared — please try again to decrypt fresh.");
         }
@@ -395,7 +498,7 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
     onSuccess: async (result: ClaimMutationResult) => {
       // Clear reward cache for claimed tickets
       for (const ticket of result.claimedTickets) {
-        ticketRewardCache.remove(SEPOLIA_CHAIN_ID, ticket.ticketId);
+        ticketRewardCache.remove(SEPOLIA_CHAIN_ID, ticket.ticketId, rewardCacheScope);
       }
 
       // Optimistic update: mark claimed tickets as Claimed in cache
@@ -674,23 +777,23 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
             </div>
           ) : null}
 
-          {filteredTickets.length > 0 ? (
+          {visibleTickets.length > 0 ? (
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {filteredTickets.map(ticket => {
+              {visibleTickets.map(ticket => {
                 const ticketHref = `/scratch/${ticket.poolId}?tickets=${ticket.ticketId}`;
                 const checked = selectedTicketIds.has(ticket.ticketId);
-                const cachedReward = ticketRewardCache.get(SEPOLIA_CHAIN_ID, ticket.ticketId);
-                const canClaim = isTicketReadyForClaim(ticket, address, cachedReward != null);
+                const cachedReward = ticketRewardCache.get(SEPOLIA_CHAIN_ID, ticket.ticketId, rewardCacheScope);
+                const canClaim = isTicketReadyForClaim(ticket, address, cachedReward?.clearRewardAmount);
                 const isClaiming = claimRewardMutation.isPending && claimingTicketId === ticket.ticketId;
                 const claimDisabled = claimRewardMutation.isPending || isClaimMining || !canClaim;
                 const pool = poolById.get(ticket.poolId);
                 const poolName = pool?.metadata?.name?.trim() || `Pool #${ticket.poolId}`;
                 const isRevealed = ticket.status !== "Unscratched" || cachedReward != null;
                 const ticketArtUrl = isRevealed ? pool?.metadata?.ticketArtUrl : undefined;
-                const cardStatus = getTicketCardStatus(ticket, canClaim);
+                const cardStatus = getTicketCardStatus(ticket, canClaim, cachedReward?.clearRewardAmount);
                 const prizeAmount =
                   cardStatus === "winning" || cardStatus === "no-win"
-                    ? `${formatUsdcFromMicro(ticket.claimClearRewardAmount)} USDC`
+                    ? `${formatUsdcFromMicro(cachedReward?.clearRewardAmount ?? ticket.claimClearRewardAmount)} USDC`
                     : cardStatus === "claimable" && cachedReward != null
                       ? `${formatUsdcFromMicro(cachedReward.clearRewardAmount)} USDC`
                       : cardStatus === "claimable"
@@ -711,15 +814,12 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
                     href={ticketHref}
                     className="w-full py-2 bg-[#ffd700]/10 border border-[#ffd700]/30 text-[#ffd700] font-bold rounded-lg text-xs hover:bg-[#ffd700] hover:text-[#705e00] transition-all flex items-center justify-center gap-2"
                   >
-                    <MyTicketsIcon
-                      name={ticket.status === "Unscratched" ? "visibility" : "content_cut"}
-                      className="h-4 w-4"
-                    />
+                    <MyTicketsIcon name="visibility" className="h-4 w-4" />
                     {ticket.status === "Unscratched"
                       ? "REVEAL"
                       : ticket.status === "Claimed"
                         ? "VIEW TICKET"
-                        : "OPEN QUEUE"}
+                        : "VIEW RESULT"}
                   </Link>
                 );
 
@@ -765,7 +865,7 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
                 <button
                   type="button"
                   disabled={!hasNextPage || ticketsQuery.isFetching}
-                  onClick={() => setPageOffset(ticketsQuery.data?.nextOffset ?? pageOffset + PAGE_SIZE)}
+                  onClick={() => setPageOffset(current => current + PAGE_SIZE)}
                   className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-[#4d4732]/30 bg-[#070e1d] text-[#d0c6ab] transition hover:border-[#ffd700]/40 hover:text-white disabled:cursor-not-allowed disabled:border-[#4d4732]/10 disabled:text-[#d0c6ab]/25"
                   aria-label="Next page"
                 >

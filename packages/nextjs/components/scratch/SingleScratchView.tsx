@@ -18,6 +18,7 @@ type SingleScratchViewProps = {
   ticketId: string;
   ticketArtUrl?: string;
   result: { ticketId: string; isWin: boolean; prize: number; isKnown?: boolean };
+  isScratchable?: boolean;
   isReadyToScratch?: boolean;
   preparationStage?: string;
   preparationError?: string | null;
@@ -40,6 +41,7 @@ export const SingleScratchView: React.FC<SingleScratchViewProps> = ({
   ticketId,
   ticketArtUrl,
   result,
+  isScratchable = true,
   isReadyToScratch = true,
   preparationStage = "Preparing result",
   preparationError,
@@ -47,7 +49,7 @@ export const SingleScratchView: React.FC<SingleScratchViewProps> = ({
   onScratch,
 }) => {
   const router = useRouter();
-  const [phase, setPhase] = useState<ScratchPhase>("ready");
+  const [phase, setPhase] = useState<ScratchPhase>(isScratchable ? "ready" : "revealed");
   const [progress, setProgress] = useState(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawing = useRef(false);
@@ -56,11 +58,17 @@ export const SingleScratchView: React.FC<SingleScratchViewProps> = ({
   const CANVAS_W = 180;
   const CANVAS_H = 320;
   const THRESHOLD = 0.55;
-  const canScratch = isReadyToScratch && !preparationError;
+  const canScratch = isScratchable && isReadyToScratch && !preparationError;
 
   /* Initialize scratch coating */
   useEffect(() => {
     const canvas = canvasRef.current;
+    if (!isScratchable) {
+      setProgress(1);
+      setPhase("revealed");
+      hasTriggered.current = true;
+      return;
+    }
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -108,7 +116,7 @@ export const SingleScratchView: React.FC<SingleScratchViewProps> = ({
     hasTriggered.current = false;
     setProgress(0);
     setPhase("ready");
-  }, []);
+  }, [isScratchable]);
 
   /* Calculate scratch progress */
   const calculateProgress = useCallback(() => {
@@ -163,13 +171,14 @@ export const SingleScratchView: React.FC<SingleScratchViewProps> = ({
   const completeScratch = useCallback(async () => {
     setPhase("submitting");
     try {
+      if (!isScratchable) return;
       await onScratch?.();
       setTimeout(() => setPhase("revealed"), 500);
     } catch {
       hasTriggered.current = false;
       setPhase("ready");
     }
-  }, [onScratch]);
+  }, [isScratchable, onScratch]);
 
   const checkProgress = useCallback(() => {
     if (hasTriggered.current) return;
@@ -442,7 +451,9 @@ export const SingleScratchView: React.FC<SingleScratchViewProps> = ({
           <div className="flex flex-col items-center gap-2">
             <div className="terminal-line" />
             <p className="text-center text-[9px] text-[#D0C6AB]/70 font-bold tracking-[0.1em] px-4 leading-relaxed">
-              NEURAL LINK ESTABLISHED. REVEAL ALL FRAGMENTS TO SYNC WINNING SEQUENCE.
+              {isScratchable
+                ? "NEURAL LINK ESTABLISHED. REVEAL ALL FRAGMENTS TO SYNC WINNING SEQUENCE."
+                : "THIS TICKET HAS ALREADY BEEN SCRATCHED. ITS RESULT IS LOCKED IN."}
             </p>
             <div className="terminal-line" />
           </div>
@@ -450,7 +461,7 @@ export const SingleScratchView: React.FC<SingleScratchViewProps> = ({
       </main>
 
       {/* Result Overlay */}
-      {phase === "revealed" && result.isKnown !== false && (
+      {phase === "revealed" && isScratchable && result.isKnown !== false && (
         <ScratchResultOverlay
           isWin={result.isWin}
           prize={result.prize}

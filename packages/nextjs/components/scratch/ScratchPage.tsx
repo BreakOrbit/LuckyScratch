@@ -27,6 +27,7 @@ type TicketResult = {
   isWin: boolean;
   prize: number;
   isKnown?: boolean;
+  clearRewardAmount?: number;
   decryptionProof?: string;
 };
 
@@ -58,6 +59,8 @@ const toErrorMessage = (error: unknown) => {
   return "Reward decryption failed.";
 };
 
+const toMicroUsdc = (amount: bigint) => Number(amount);
+
 export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
   const searchParams = useSearchParams();
   const { address, chainId } = useAccount();
@@ -85,6 +88,7 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
   const [prepareError, setPrepareError] = useState<string | null>(null);
   const [isPreparingResults, setIsPreparingResults] = useState(false);
   const [areResultsReady, setAreResultsReady] = useState(false);
+  const [scratchableTicketIds, setScratchableTicketIds] = useState<string[]>([]);
   const preparationRunKeyRef = useRef("");
   const pool = poolQuery.data;
   const poolName = pool?.metadata?.name || `Pool #${poolId}`;
@@ -101,6 +105,7 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
     setPrepareError(null);
     setIsPreparingResults(false);
     setAreResultsReady(false);
+    setScratchableTicketIds([]);
     preparationRunKeyRef.current = "";
   }, [ticketIdsKey]);
 
@@ -180,6 +185,7 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
       const scratchableTicketIds = revealStates
         .filter(state => state.status === TICKET_STATUS_UNSCRATCHED)
         .map(state => state.ticketId);
+      setScratchableTicketIds(scratchableTicketIds);
       if (scratchableTicketIds.length > 0) {
         setPrepareStage("Confirming scratch transaction");
         let scratchTxHash: string | undefined;
@@ -238,8 +244,20 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
       }
 
       setPrepareStage("Decrypting result");
+      const cacheScope = { contractAddress: coreContract.address, owner: address };
       const settledResults = await Promise.allSettled(
         ticketIds.map(async ticketId => {
+          const cachedResult = ticketRewardCache.get(scratchChainId, Number(ticketId), cacheScope);
+          if (cachedResult) {
+            return {
+              ticketId,
+              isWin: cachedResult.clearRewardAmount > 0,
+              prize: fromMicroUsdc(BigInt(cachedResult.clearRewardAmount)),
+              isKnown: true,
+              decryptionProof: cachedResult.decryptionProof,
+            } satisfies TicketResult;
+          }
+
           const handle = await publicClient.readContract({
             address: coreContract.address,
             abi: coreContract.abi,
@@ -252,6 +270,7 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
             isWin: claimProof.clearRewardAmount > 0n,
             prize: fromMicroUsdc(claimProof.clearRewardAmount),
             isKnown: true,
+            clearRewardAmount: toMicroUsdc(claimProof.clearRewardAmount),
             decryptionProof: claimProof.decryptionProof,
           } satisfies TicketResult;
         }),
@@ -275,17 +294,19 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
 
       setResultsByTicketId(nextResults);
 
-      // Cache decrypted rewards + proofs for instant claim on my-tickets
+      // Cache decrypted rewards + proofs for instant display/claim on my-tickets
       if (scratchChainId) {
         const cacheEntries = Object.entries(nextResults)
-          .filter(([, result]) => result.isKnown && result.prize > 0 && result.decryptionProof)
-          .map(([id, result]) => ({
-            ticketId: Number(id),
-            clearRewardAmount: Math.round(result.prize * 1e6),
-            decryptionProof: result.decryptionProof!,
-          }));
+          .filter(([, result]) => result.isKnown)
+          .map(([id, result]) => {
+            return {
+              ticketId: Number(id),
+              clearRewardAmount: result.clearRewardAmount ?? Math.round(result.prize * 1e6),
+              decryptionProof: result.decryptionProof,
+            };
+          });
         if (cacheEntries.length > 0) {
-          ticketRewardCache.setBatch(scratchChainId, cacheEntries);
+          ticketRewardCache.setBatch(scratchChainId, cacheEntries, cacheScope);
 
           // Update user tickets list cache with decrypted prize amounts
           const rewardMap = new Map(cacheEntries.map(e => [e.ticketId, e.clearRewardAmount]));
@@ -408,7 +429,10 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
     if (!areResultsReady) {
       throw new Error("Ticket result is still being prepared.");
     }
-  }, [areResultsReady]);
+    if (scratchableTicketIds.length === 0) {
+      throw new Error("This ticket has already been scratched.");
+    }
+  }, [areResultsReady, scratchableTicketIds.length]);
 
   const preparationStageLabel =
     prepareError ||
@@ -453,6 +477,7 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
         ticketId={ticketIds[0]}
         ticketArtUrl={pool?.metadata?.ticketArtUrl}
         result={results[0]}
+        isScratchable={scratchableTicketIds.includes(ticketIds[0])}
         isReadyToScratch={areResultsReady}
         preparationStage={preparationStageLabel}
         preparationError={prepareError}
@@ -469,6 +494,7 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
       ticketIds={ticketIds}
       ticketArtUrl={pool?.metadata?.ticketArtUrl}
       results={results}
+      scratchableTicketIds={scratchableTicketIds}
       isReadyToScratch={areResultsReady}
       preparationStage={preparationStageLabel}
       preparationError={prepareError}
