@@ -16,6 +16,8 @@ type TicketFilterBarProps = {
   onBatchReveal?: () => void;
   onClaimAll?: () => void;
   isRevealPending?: boolean;
+  isClaimPending?: boolean;
+  canClaimAll?: boolean;
 };
 
 const TABS: { key: TicketTab; label: string; badge?: boolean }[] = [
@@ -38,6 +40,8 @@ export const TicketFilterBar = ({
   onBatchReveal,
   onClaimAll,
   isRevealPending = false,
+  isClaimPending = false,
+  canClaimAll = false,
 }: TicketFilterBarProps) => {
   return (
     <section className="mb-10 space-y-4">
@@ -116,11 +120,12 @@ export const TicketFilterBar = ({
           </button>
           <button
             type="button"
+            disabled={isClaimPending || !canClaimAll}
             onClick={onClaimAll}
-            className="flex-1 md:flex-none px-6 py-2.5 bg-[#ffd700] text-[#705e00] rounded-lg font-bold text-sm shadow-[0_0_15px_rgba(255,215,0,0.2)] hover:scale-105 transition-all flex items-center justify-center gap-2"
+            className="flex-1 md:flex-none px-6 py-2.5 bg-[#ffd700] text-[#705e00] rounded-lg font-bold text-sm shadow-[0_0_15px_rgba(255,215,0,0.2)] hover:scale-105 transition-all flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:bg-[#232a3b] disabled:text-[#d0c6ab]/35 disabled:shadow-none disabled:hover:scale-100"
           >
             <MyTicketsIcon name="auto_awesome" className="h-4 w-4" />
-            CLAIM ALL
+            {isClaimPending ? "CLAIMING" : "CLAIM ALL"}
           </button>
         </div>
       </div>

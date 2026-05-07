@@ -243,9 +243,9 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
     return isTicketInTab(ticket, "to-claim", address, cachedReward?.clearRewardAmount);
   }).length;
   const selectedTickets = visibleTickets.filter(ticket => selectedTicketIds.has(ticket.ticketId));
-  const selectedClaimableTickets = selectedTickets.filter(ticket => {
+  const allClaimableTickets = allTickets.filter(ticket => {
     const cachedReward = ticketRewardCache.get(SEPOLIA_CHAIN_ID, ticket.ticketId, rewardCacheScope);
-    return isTicketReadyForClaim(ticket, address, cachedReward?.clearRewardAmount);
+    return isTicketInTab(ticket, "to-claim", address, cachedReward?.clearRewardAmount);
   });
   const hasPreviousPage = pageOffset > 0;
   const hasNextPage = pageOffset + PAGE_SIZE < totalCount;
@@ -637,20 +637,18 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
             args: [BigInt(ticket.ticketId)],
           });
           const claimProof = await buildTicketClaimProofDirect({ chainId: SEPOLIA_CHAIN_ID, handle: handle as string });
-          if (claimProof.clearRewardAmount > 0n) {
-            cacheEntries.push({
-              ticketId: ticket.ticketId,
-              clearRewardAmount: Number(claimProof.clearRewardAmount),
-              decryptionProof: claimProof.decryptionProof,
-            });
-          }
+          cacheEntries.push({
+            ticketId: ticket.ticketId,
+            clearRewardAmount: Number(claimProof.clearRewardAmount),
+            decryptionProof: claimProof.decryptionProof,
+          });
         } catch {
           failedCount += 1;
         }
       }
 
       if (cacheEntries.length > 0) {
-        ticketRewardCache.setBatch(SEPOLIA_CHAIN_ID, cacheEntries);
+        ticketRewardCache.setBatch(SEPOLIA_CHAIN_ID, cacheEntries, rewardCacheScope);
 
         // Update user tickets list cache with decrypted prize amounts
         const rewardMap = new Map(cacheEntries.map(e => [e.ticketId, e.clearRewardAmount]));
@@ -726,7 +724,16 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
     batchRevealMutation.mutate(selectedUnrevealedTickets);
   };
 
+  const handleClaimAll = () => {
+    if (allClaimableTickets.length === 0) {
+      notification.info("No claimable winning tickets yet.");
+      return;
+    }
+    claimRewardMutation.mutate(allClaimableTickets);
+  };
+
   const isRevealPending = batchRevealMutation.isPending || isRevealMining;
+  const isClaimPending = claimRewardMutation.isPending || isClaimMining;
 
   return (
     <div className={embedded ? "w-full bg-[#0C1323] text-[#DCE2F9]" : "min-h-screen bg-[#0C1323] text-[#DCE2F9]"}>
@@ -744,8 +751,10 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
             claimCount={toClaimCount}
             onRevealAll={handleRevealAll}
             onBatchReveal={handleBatchReveal}
-            onClaimAll={() => claimRewardMutation.mutate(selectedClaimableTickets)}
+            onClaimAll={handleClaimAll}
             isRevealPending={isRevealPending}
+            isClaimPending={isClaimPending}
+            canClaimAll={allClaimableTickets.length > 0}
           />
 
           {!address ? (
