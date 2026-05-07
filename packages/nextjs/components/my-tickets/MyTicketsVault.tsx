@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAccount, usePublicClient } from "wagmi";
 import { TicketCard, type TicketStatus } from "~~/components/my-tickets/TicketCard";
@@ -154,6 +155,7 @@ const SEPOLIA_CHAIN_ID = 11155111 as const;
 
 export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
   const { address } = useAccount();
+  const router = useRouter();
   const publicClient = usePublicClient({ chainId: SEPOLIA_CHAIN_ID });
   const queryClient = useQueryClient();
   const { data: coreContract } = useDeployedContractInfo({
@@ -162,14 +164,6 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
   });
   const { writeContractAsync, isMining: isClaimMining } = useScaffoldWriteContract({
     contractName: "LuckyScratchCore",
-    chainId: SEPOLIA_CHAIN_ID,
-  });
-  const { writeContractAsync: writeRevealContractAsync, isMining: isRevealMining } = useScaffoldWriteContract({
-    contractName: "LuckyScratchCore",
-    chainId: SEPOLIA_CHAIN_ID,
-  });
-  const { data: ticketContract } = useDeployedContractInfo({
-    contractName: "LuckyScratchTicket",
     chainId: SEPOLIA_CHAIN_ID,
   });
   const [activeTab, setActiveTab] = useState<TicketTab>("all");
@@ -563,165 +557,25 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
     },
   });
 
-  const batchRevealMutation = useMutation({
-    mutationFn: async (ticketsToReveal: LuckyScratchTicket[]) => {
-      if (!address) {
-        throw new Error("Connect your wallet before revealing tickets.");
-      }
-      if (!coreContract || !publicClient || !ticketContract) {
-        throw new Error("Contract info is not available.");
-      }
-      const unrevealedTickets = ticketsToReveal.filter(
-        ticket => ticket.status === "Unscratched" && ticket.owner.toLowerCase() === address.toLowerCase(),
-      );
-      if (unrevealedTickets.length === 0) {
-        throw new Error("No unrevealed tickets selected.");
-      }
-
-      setClaimingTicketId(unrevealedTickets.length === 1 ? unrevealedTickets[0].ticketId : null);
-
-      // Scratch on-chain
-      setClaimStage("Confirming scratch");
-      let scratchTxHash: string | undefined;
-      if (unrevealedTickets.length === 1) {
-        scratchTxHash = await writeRevealContractAsync({
-          functionName: "scratchTicket",
-          args: [BigInt(unrevealedTickets[0].ticketId)],
-        });
-      } else {
-        scratchTxHash = await writeRevealContractAsync({
-          functionName: "batchScratch",
-          args: [unrevealedTickets.map(t => BigInt(t.ticketId))],
-        });
-      }
-      if (!scratchTxHash) {
-        throw new Error("Scratch transaction was not submitted.");
-      }
-
-      // Optimistic cache update
-      const scratchedIdSet = new Set(unrevealedTickets.map(t => t.ticketId));
-      const userPrefix = ["lucky-scratch", "users", address.toLowerCase(), "tickets"];
-      queryClient.getQueriesData<UserTicketsResponse>({ queryKey: userPrefix }).forEach(([key, data]) => {
-        if (!data?.items) return;
-        const hasTarget = data.items.some(t => scratchedIdSet.has(t.ticketId));
-        if (!hasTarget) return;
-        queryClient.setQueryData<UserTicketsResponse>(key, old => {
-          if (!old) return old;
-          return {
-            ...old,
-            items: old.items.map(t =>
-              scratchedIdSet.has(t.ticketId) ? { ...t, status: "Scratched", revealAuthorized: true } : t,
-            ),
-          };
-        });
-      });
-
-      try {
-        await luckyScratchAPI.syncTransaction(scratchTxHash);
-      } catch {
-        console.warn("Backend tx sync failed; cache will update on next poll");
-      }
-
-      // Decrypt prize handles and cache results
-      setClaimStage("Decrypting prizes");
-      const cacheEntries: { ticketId: number; clearRewardAmount: number; decryptionProof: string }[] = [];
-      let failedCount = 0;
-      for (const [idx, ticket] of unrevealedTickets.entries()) {
-        const suffix = unrevealedTickets.length > 1 ? ` ${idx + 1}/${unrevealedTickets.length}` : "";
-        setClaimStage(`Decrypting${suffix}`);
-        try {
-          const handle = await publicClient.readContract({
-            address: coreContract.address,
-            abi: coreContract.abi,
-            functionName: "getTicketPrizeHandle",
-            args: [BigInt(ticket.ticketId)],
-          });
-          const claimProof = await buildTicketClaimProofDirect({ chainId: SEPOLIA_CHAIN_ID, handle: handle as string });
-          cacheEntries.push({
-            ticketId: ticket.ticketId,
-            clearRewardAmount: Number(claimProof.clearRewardAmount),
-            decryptionProof: claimProof.decryptionProof,
-          });
-        } catch {
-          failedCount += 1;
-        }
-      }
-
-      if (cacheEntries.length > 0) {
-        ticketRewardCache.setBatch(SEPOLIA_CHAIN_ID, cacheEntries, rewardCacheScope);
-
-        // Update user tickets list cache with decrypted prize amounts
-        const rewardMap = new Map(cacheEntries.map(e => [e.ticketId, e.clearRewardAmount]));
-        queryClient.getQueriesData<UserTicketsResponse>({ queryKey: userPrefix }).forEach(([key, data]) => {
-          if (!data?.items) return;
-          const hasTarget = data.items.some(t => rewardMap.has(t.ticketId));
-          if (!hasTarget) return;
-          queryClient.setQueryData<UserTicketsResponse>(key, old => {
-            if (!old) return old;
-            return {
-              ...old,
-              items: old.items.map(t => {
-                const reward = rewardMap.get(t.ticketId);
-                return reward != null ? { ...t, claimClearRewardAmount: reward } : t;
-              }),
-            };
-          });
-        });
-      }
-
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["readContract"] }),
-        queryClient.invalidateQueries({ queryKey: ["lucky-scratch", "users", address.toLowerCase(), "tickets"] }),
-        ...unrevealedTickets.map(t =>
-          queryClient.invalidateQueries({ queryKey: ["lucky-scratch", "tickets", String(t.ticketId)] }),
-        ),
-      ]);
-
-      // Re-invalidate after delay to catch backend indexer lag
-      setTimeout(() => {
-        queryClient.invalidateQueries({
-          queryKey: ["lucky-scratch", "users", address.toLowerCase(), "tickets"],
-        });
-      }, 3000);
-
-      return { revealedCount: unrevealedTickets.length, failedCount };
-    },
-    onSuccess: (result: { revealedCount: number; failedCount: number }) => {
-      if (result.failedCount > 0) {
-        notification.warning(
-          `${result.revealedCount - result.failedCount} ticket(s) revealed. ${result.failedCount} decryption(s) failed — try again later.`,
-        );
-      } else {
-        notification.success(
-          result.revealedCount === 1 ? "Ticket revealed!" : `${result.revealedCount} tickets revealed!`,
-        );
-      }
-    },
-    onError: error => {
-      const message = error instanceof Error && error.message.trim() !== "" ? error.message : "Batch reveal failed.";
-      notification.error(message);
-    },
-    onSettled: () => {
-      setClaimingTicketId(null);
-      setClaimStage("");
-    },
-  });
-
-  const handleRevealAll = () => {
-    const ticketsToReveal = allUnrevealedTickets.length > 0 ? allUnrevealedTickets : selectedUnrevealedTickets;
+  const openScratchFlow = (ticketsToReveal: LuckyScratchTicket[], emptyMessage: string) => {
     if (ticketsToReveal.length === 0) {
-      notification.info("No unrevealed tickets to reveal.");
+      notification.info(emptyMessage);
       return;
     }
-    batchRevealMutation.mutate(ticketsToReveal);
+    const poolIds = [...new Set(ticketsToReveal.map(ticket => ticket.poolId))];
+    if (poolIds.length > 1) {
+      notification.info("Select tickets from one pool to reveal them together.");
+      return;
+    }
+    router.push(`/scratch/${poolIds[0]}?tickets=${ticketsToReveal.map(ticket => ticket.ticketId).join(",")}`);
+  };
+
+  const handleRevealAll = () => {
+    openScratchFlow(allUnrevealedTickets, "No unrevealed tickets to reveal.");
   };
 
   const handleBatchReveal = () => {
-    if (selectedUnrevealedTickets.length === 0) {
-      notification.info("Select unrevealed tickets first.");
-      return;
-    }
-    batchRevealMutation.mutate(selectedUnrevealedTickets);
+    openScratchFlow(selectedUnrevealedTickets, "Select unrevealed tickets first.");
   };
 
   const handleClaimAll = () => {
@@ -732,7 +586,6 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
     claimRewardMutation.mutate(allClaimableTickets);
   };
 
-  const isRevealPending = batchRevealMutation.isPending || isRevealMining;
   const isClaimPending = claimRewardMutation.isPending || isClaimMining;
 
   return (
@@ -752,7 +605,6 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
             onRevealAll={handleRevealAll}
             onBatchReveal={handleBatchReveal}
             onClaimAll={handleClaimAll}
-            isRevealPending={isRevealPending}
             isClaimPending={isClaimPending}
             canClaimAll={allClaimableTickets.length > 0}
           />

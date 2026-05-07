@@ -44,6 +44,7 @@ Shared: `interfaces/`, `libraries/`, `types/` under `contracts/luckyScratch/`
 - Decrypted ticket results are cached in the browser by chain, core contract, wallet, and ticket id so `/scratch/[poolId]` and `/my-tickets` can reuse known zero/winning amounts without repeat decrypt calls
 - Already scratched tickets are display-only in the scratch UI; only tickets that were `Unscratched` when preparation ran get an interactive scratch coating
 - `/my-tickets` classifies tabs client-side from the full user inventory plus browser reward cache: All, Unscratched, Revealed, Winning, and To Claim
+- `/my-tickets` reveal actions route unrevealed tickets into `/scratch/[poolId]`; they must not scratch/decrypt directly inside the vault and bypass the scratch animation
 - All state-changing transactions are wallet-driven; no backend transaction relay
 - `tickets(ticketId)` returns compact `uint64` pool/round ids — keep backend/client bindings in sync with ABI
 - `createPool` enforces budget bands, ticket-price presets, 6-decimal cUSDC bond schedule, 256 ticket ceiling, and prize-tier consistency

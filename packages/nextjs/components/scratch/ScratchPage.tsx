@@ -89,6 +89,7 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
   const [isPreparingResults, setIsPreparingResults] = useState(false);
   const [areResultsReady, setAreResultsReady] = useState(false);
   const [scratchableTicketIds, setScratchableTicketIds] = useState<string[]>([]);
+  const [ticketScratchabilityById, setTicketScratchabilityById] = useState<Record<string, boolean>>({});
   const preparationRunKeyRef = useRef("");
   const pool = poolQuery.data;
   const poolName = pool?.metadata?.name || `Pool #${poolId}`;
@@ -106,6 +107,7 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
     setIsPreparingResults(false);
     setAreResultsReady(false);
     setScratchableTicketIds([]);
+    setTicketScratchabilityById({});
     preparationRunKeyRef.current = "";
   }, [ticketIdsKey]);
 
@@ -185,6 +187,11 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
       const scratchableTicketIds = revealStates
         .filter(state => state.status === TICKET_STATUS_UNSCRATCHED)
         .map(state => state.ticketId);
+      setTicketScratchabilityById(
+        Object.fromEntries(
+          revealStates.map(state => [state.ticketId, state.status === TICKET_STATUS_UNSCRATCHED] as const),
+        ),
+      );
       setScratchableTicketIds(scratchableTicketIds);
       if (scratchableTicketIds.length > 0) {
         setPrepareStage("Confirming scratch transaction");
@@ -437,6 +444,8 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
   const preparationStageLabel =
     prepareError ||
     (isPreparingResults ? prepareStage || "Preparing result" : areResultsReady ? "Result ready" : "Preparing result");
+  const hasCheckedTicketScratchability = Object.keys(ticketScratchabilityById).length > 0;
+  const visibleScratchableTicketIds = hasCheckedTicketScratchability ? scratchableTicketIds : ticketIds;
 
   if (ticketIds.length === 0) {
     return (
@@ -477,7 +486,7 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
         ticketId={ticketIds[0]}
         ticketArtUrl={pool?.metadata?.ticketArtUrl}
         result={results[0]}
-        isScratchable={scratchableTicketIds.includes(ticketIds[0])}
+        isScratchable={ticketScratchabilityById[ticketIds[0]] ?? true}
         isReadyToScratch={areResultsReady}
         preparationStage={preparationStageLabel}
         preparationError={prepareError}
@@ -495,7 +504,7 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
       ticketIds={ticketIds}
       ticketArtUrl={pool?.metadata?.ticketArtUrl}
       results={results}
-      scratchableTicketIds={scratchableTicketIds}
+      scratchableTicketIds={visibleScratchableTicketIds}
       isReadyToScratch={areResultsReady}
       preparationStage={preparationStageLabel}
       preparationError={prepareError}
