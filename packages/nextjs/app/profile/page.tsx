@@ -110,9 +110,7 @@ export default function ProfilePage() {
                       className="h-full w-full rounded-full object-cover"
                     />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center rounded-full bg-[#0C1323] font-headline text-4xl font-black text-ns-primary-container">
-                      {address ? address.slice(2, 4).toUpperCase() : "LS"}
-                    </div>
+                    <img src="/unnamed.png" alt="Default avatar" className="h-full w-full rounded-full object-cover" />
                   )}
                 </div>
                 <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-ns-primary-container px-4 py-0.5 text-[10px] font-black uppercase tracking-widest text-ns-on-primary">

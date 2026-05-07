@@ -182,9 +182,11 @@ export function SettingsPanel() {
                     src={settings.avatarUrl}
                   />
                 ) : (
-                  <div className="flex aspect-square w-full items-center justify-center rounded-full bg-[#0C1323] font-headline text-5xl font-black text-ns-primary-container">
-                    {address ? address.slice(2, 4).toUpperCase() : "LS"}
-                  </div>
+                  <img
+                    alt="Default avatar preview"
+                    className="aspect-square w-full rounded-full object-cover grayscale transition duration-700 hover:grayscale-0"
+                    src="/unnamed.png"
+                  />
                 )}
               </div>
               <div className="absolute inset-0 -z-10 scale-110 rounded-full bg-ns-primary-container/20 blur-3xl" />

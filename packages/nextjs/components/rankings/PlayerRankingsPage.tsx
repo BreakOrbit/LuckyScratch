@@ -3,12 +3,7 @@
 import { useMemo, useState } from "react";
 import { BellIcon, BoltIcon, ShieldCheckIcon, TrophyIcon } from "@heroicons/react/24/outline";
 import { useLuckyScratchPlayerLeaderboard } from "~~/hooks/luckyScratch/useLuckyScratchQueries";
-import {
-  formatCompactMicroUsdc,
-  getAddressAvatarGradient,
-  getAddressBadgeText,
-  getPoolShortCreator,
-} from "~~/services/luckyScratch/display";
+import { formatCompactMicroUsdc, getPoolShortCreator } from "~~/services/luckyScratch/display";
 
 type Timeframe = "weekly" | "all-time";
 
@@ -66,17 +61,14 @@ type AddressAvatarProps = {
   avatarUrl?: string;
 };
 
-const AddressAvatar = ({ address, className, badgeClassName, avatarUrl }: AddressAvatarProps) => (
+const AddressAvatar = ({ className, badgeClassName, avatarUrl }: AddressAvatarProps) => (
   <div
     className={`flex items-center justify-center overflow-hidden rounded-full border border-white/15 text-white shadow-[0_0_30px_rgba(255,215,0,0.12)] ${className} ${badgeClassName || ""}`}
-    style={avatarUrl ? undefined : { background: getAddressAvatarGradient(address) }}
   >
     {avatarUrl ? (
       <img src={avatarUrl} alt="Player avatar" className="h-full w-full object-cover" />
     ) : (
-      <span className="font-headline text-xl font-black uppercase tracking-[0.2em]">
-        {getAddressBadgeText(address)}
-      </span>
+      <img src="/unnamed.png" alt="Default avatar" className="h-full w-full object-cover" />
     )}
   </div>
 );
