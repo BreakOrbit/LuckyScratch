@@ -10,7 +10,7 @@ import (
 )
 
 const getUserSettings = `-- name: GetUserSettings :one
-SELECT id, wallet_address, nickname, broadcast_wins, security_alerts, terminal_hints, auto_lock, created_at, updated_at FROM user_settings
+SELECT id, wallet_address, nickname, broadcast_wins, security_alerts, terminal_hints, auto_lock, created_at, updated_at, avatar_url FROM user_settings
 WHERE wallet_address = lower($1)
 `
 
@@ -27,6 +27,7 @@ func (q *Queries) GetUserSettings(ctx context.Context, walletAddress string) (Us
 		&i.AutoLock,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AvatarUrl,
 	)
 	return i, err
 }
@@ -38,14 +39,16 @@ INSERT INTO user_settings (
     broadcast_wins,
     security_alerts,
     terminal_hints,
-    auto_lock
+    auto_lock,
+    avatar_url
 ) VALUES (
     lower($1),
     $2,
     $3,
     $4,
     $5,
-    $6
+    $6,
+    $7
 )
 ON CONFLICT (wallet_address) DO UPDATE SET
     nickname = EXCLUDED.nickname,
@@ -53,8 +56,9 @@ ON CONFLICT (wallet_address) DO UPDATE SET
     security_alerts = EXCLUDED.security_alerts,
     terminal_hints = EXCLUDED.terminal_hints,
     auto_lock = EXCLUDED.auto_lock,
+    avatar_url = EXCLUDED.avatar_url,
     updated_at = NOW()
-RETURNING id, wallet_address, nickname, broadcast_wins, security_alerts, terminal_hints, auto_lock, created_at, updated_at
+RETURNING id, wallet_address, nickname, broadcast_wins, security_alerts, terminal_hints, auto_lock, created_at, updated_at, avatar_url
 `
 
 type UpsertUserSettingsParams struct {
@@ -64,6 +68,7 @@ type UpsertUserSettingsParams struct {
 	SecurityAlerts bool   `json:"security_alerts"`
 	TerminalHints  bool   `json:"terminal_hints"`
 	AutoLock       bool   `json:"auto_lock"`
+	AvatarUrl      string `json:"avatar_url"`
 }
 
 func (q *Queries) UpsertUserSettings(ctx context.Context, arg UpsertUserSettingsParams) (UserSetting, error) {
@@ -74,6 +79,7 @@ func (q *Queries) UpsertUserSettings(ctx context.Context, arg UpsertUserSettings
 		arg.SecurityAlerts,
 		arg.TerminalHints,
 		arg.AutoLock,
+		arg.AvatarUrl,
 	)
 	var i UserSetting
 	err := row.Scan(
@@ -86,6 +92,7 @@ func (q *Queries) UpsertUserSettings(ctx context.Context, arg UpsertUserSettings
 		&i.AutoLock,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AvatarUrl,
 	)
 	return i, err
 }

@@ -12,8 +12,7 @@ import {
 
 type Timeframe = "weekly" | "all-time";
 
-const CHAMPIONS_HALL_BACKGROUND =
-  "https://lh3.googleusercontent.com/aida/ADBb0uiidBHqA5ZSCmlWayFUDoIrKHnjsdTA0A1yPTbnYMCpms2R8Il3P-9ZvFh-3rHe_-OM9sA7Umb3fdP83scGr6L4g2YIN-mRMwnGXzFvtZKy6IO4e7TTQJD8rqmVjjJsQbuag3Ei5o0VMiRGiUr17CDXn63-Avtm3P92Z2VS0NGxz5Sxv87su5gruFNJkDtlNvCCpQB8kw6vO7MNONVmQIuMetcC2d61XHpqYNchPDxp1eAiXPhuLEl88Cjb";
+const CHAMPIONS_HALL_BACKGROUND = "/player-rankings-pg.jpg";
 
 const podiumLayouts: Record<
   number,
@@ -64,14 +63,21 @@ type AddressAvatarProps = {
   address: string;
   className: string;
   badgeClassName?: string;
+  avatarUrl?: string;
 };
 
-const AddressAvatar = ({ address, className, badgeClassName }: AddressAvatarProps) => (
+const AddressAvatar = ({ address, className, badgeClassName, avatarUrl }: AddressAvatarProps) => (
   <div
-    className={`flex items-center justify-center rounded-full border border-white/15 text-white shadow-[0_0_30px_rgba(255,215,0,0.12)] ${className} ${badgeClassName || ""}`}
-    style={{ background: getAddressAvatarGradient(address) }}
+    className={`flex items-center justify-center overflow-hidden rounded-full border border-white/15 text-white shadow-[0_0_30px_rgba(255,215,0,0.12)] ${className} ${badgeClassName || ""}`}
+    style={avatarUrl ? undefined : { background: getAddressAvatarGradient(address) }}
   >
-    <span className="font-headline text-xl font-black uppercase tracking-[0.2em]">{getAddressBadgeText(address)}</span>
+    {avatarUrl ? (
+      <img src={avatarUrl} alt="Player avatar" className="h-full w-full object-cover" />
+    ) : (
+      <span className="font-headline text-xl font-black uppercase tracking-[0.2em]">
+        {getAddressBadgeText(address)}
+      </span>
+    )}
   </div>
 );
 
@@ -157,7 +163,8 @@ export function PlayerRankingsPage() {
                         : "from-amber-400 to-amber-800 shadow-[0_0_30px_rgba(194,65,12,0.4)]";
 
                   const address = player.playerAddress || player.displayAddress;
-                  const displayName = getPoolShortCreator(player.displayAddress || player.playerAddress, 6, 4);
+                  const displayName =
+                    player.nickname || getPoolShortCreator(player.displayAddress || player.playerAddress, 6, 4);
 
                   return (
                     <div
@@ -176,7 +183,11 @@ export function PlayerRankingsPage() {
                           }}
                         />
                         <div className={`relative rounded-full bg-gradient-to-b p-1.5 ${ringClass}`}>
-                          <AddressAvatar address={address} className={`${layout.avatarSize}`} />
+                          <AddressAvatar
+                            address={address}
+                            className={`${layout.avatarSize}`}
+                            avatarUrl={player.avatarUrl}
+                          />
                         </div>
                         <div
                           className={`absolute ${layout.badgeSize} flex items-center justify-center rounded-full border-4 border-white/20 bg-[#FFD700] font-headline font-black text-[#0F1626] shadow-xl`}
@@ -272,7 +283,8 @@ export function PlayerRankingsPage() {
               <div className="divide-y divide-white/5">
                 {leaderboard.map(player => {
                   const address = player.playerAddress || player.displayAddress;
-                  const label = getPoolShortCreator(player.displayAddress || player.playerAddress, 6, 4);
+                  const label =
+                    player.nickname || getPoolShortCreator(player.displayAddress || player.playerAddress, 6, 4);
 
                   return (
                     <article
@@ -283,7 +295,7 @@ export function PlayerRankingsPage() {
                         {String(player.rank).padStart(2, "0")}
                       </div>
                       <div className="col-span-5 flex items-center gap-4">
-                        <AddressAvatar address={address} className="h-14 w-14" />
+                        <AddressAvatar address={address} className="h-14 w-14" avatarUrl={player.avatarUrl} />
                         <div>
                           <p className="font-headline text-lg font-black uppercase tracking-tight text-white">
                             {label}
@@ -320,7 +332,7 @@ export function PlayerRankingsPage() {
               </div>
               <p className="text-sm text-[#D0C6AB]">
                 {crownHolder
-                  ? `${getPoolShortCreator(crownHolder.displayAddress || crownHolder.playerAddress, 6, 4)} currently leads with ${formatCompactMicroUsdc(crownHolder.totalRewardAmount)} USDC claimed.`
+                  ? `${crownHolder.nickname || getPoolShortCreator(crownHolder.displayAddress || crownHolder.playerAddress, 6, 4)} currently leads with ${formatCompactMicroUsdc(crownHolder.totalRewardAmount)} USDC claimed.`
                   : "Waiting for the first claimed winner to reach the board."}
               </p>
             </div>

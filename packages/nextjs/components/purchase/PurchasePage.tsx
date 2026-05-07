@@ -414,6 +414,7 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
           winRate={Number(formatPercentFromBps(pool.hitRateBps))}
           poolTotal={fromMicroUsdc(pool.totalPrizeBudget)}
           poolType={modeLabelFromPool(pool.hitRateBps)}
+          poolMode={pool.mode || "OneTime"}
           issuer={issuer}
           description={
             pool.metadata?.description ||
@@ -445,7 +446,18 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
           </div>
         ) : totalAvailableTickets === 0 ? (
           <div className="rounded-3xl border border-[#8D6C1D] bg-[#493916]/30 p-8 text-center text-[#FFD66D]">
-            The current round is sold out. Wait for the next loop round or choose another pool.
+            <div className="text-xl font-headline font-bold mb-2">Sold Out</div>
+            <div className="text-sm text-[#FFD66D]/70">
+              {pool.mode === "Loop"
+                ? "All tickets for the current round have been sold. The next round will start automatically — check back soon or choose another pool."
+                : "All tickets for this pool have been sold. This is a one-time pool with no upcoming rounds."}
+            </div>
+            <button
+              onClick={() => router.push("/store")}
+              className="mt-4 rounded-xl bg-[#FFD700]/10 border border-[#FFD700]/30 px-6 py-2 text-sm font-headline font-bold text-[#FFD700] hover:bg-[#FFD700]/20 transition-colors"
+            >
+              Browse Other Pools
+            </button>
           </div>
         ) : (
           <div

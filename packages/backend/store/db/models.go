@@ -270,4 +270,5 @@ type UserSetting struct {
 	AutoLock       bool               `json:"auto_lock"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	AvatarUrl      string             `json:"avatar_url"`
 }

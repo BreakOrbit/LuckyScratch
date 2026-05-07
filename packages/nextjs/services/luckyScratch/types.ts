@@ -56,6 +56,8 @@ export type LuckyScratchPlayerLeaderboardEntry = {
   winCount: number;
   totalRewardAmount: number;
   lastWinAt: string;
+  nickname?: string;
+  avatarUrl?: string;
 };
 
 export type LuckyScratchPlayerLeaderboardResponse = {
@@ -331,6 +333,7 @@ export type LuckyScratchUserSettings = {
   securityAlerts: boolean;
   terminalHints: boolean;
   autoLock: boolean;
+  avatarUrl?: string;
   updatedAt?: string;
 };
 
@@ -340,4 +343,5 @@ export type UpdateUserSettingsPayload = {
   securityAlerts: boolean;
   terminalHints: boolean;
   autoLock: boolean;
+  avatarUrl?: string;
 };

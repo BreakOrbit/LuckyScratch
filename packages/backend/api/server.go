@@ -392,6 +392,7 @@ func userSettingsResponse(row db.UserSetting) map[string]any {
 		"securityAlerts": row.SecurityAlerts,
 		"terminalHints":  row.TerminalHints,
 		"autoLock":       row.AutoLock,
+		"avatarUrl":      row.AvatarUrl,
 		"updatedAt":      row.UpdatedAt.Time,
 	}
 }
@@ -408,6 +409,7 @@ func (s *Server) handleUserSettings(w http.ResponseWriter, r *http.Request, addr
 					"securityAlerts": true,
 					"terminalHints":  false,
 					"autoLock":       true,
+					"avatarUrl":      "",
 				})
 				return
 			}
@@ -423,6 +425,7 @@ func (s *Server) handleUserSettings(w http.ResponseWriter, r *http.Request, addr
 			SecurityAlerts bool   `json:"securityAlerts"`
 			TerminalHints  bool   `json:"terminalHints"`
 			AutoLock       bool   `json:"autoLock"`
+			AvatarUrl      string `json:"avatarUrl"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, err)
@@ -437,6 +440,7 @@ func (s *Server) handleUserSettings(w http.ResponseWriter, r *http.Request, addr
 			SecurityAlerts: req.SecurityAlerts,
 			TerminalHints:  req.TerminalHints,
 			AutoLock:       req.AutoLock,
+			AvatarUrl:      req.AvatarUrl,
 		})
 		if err != nil {
 			writeServiceError(w, err)
@@ -1077,6 +1081,8 @@ func playerLeaderboardAllTimeResponse(rows []db.ListTopPlayersAllTimeRow) []map[
 			"winCount":          row.WinCount,
 			"totalRewardAmount": row.TotalRewardAmount,
 			"lastWinAt":         row.LastWinAt.Time,
+			"nickname":          row.Nickname,
+			"avatarUrl":         row.AvatarUrl,
 		})
 	}
 	return items
@@ -1092,6 +1098,8 @@ func playerLeaderboardSinceResponse(rows []db.ListTopPlayersSinceRow) []map[stri
 			"winCount":          row.WinCount,
 			"totalRewardAmount": row.TotalRewardAmount,
 			"lastWinAt":         row.LastWinAt.Time,
+			"nickname":          row.Nickname,
+			"avatarUrl":         row.AvatarUrl,
 		})
 	}
 	return items

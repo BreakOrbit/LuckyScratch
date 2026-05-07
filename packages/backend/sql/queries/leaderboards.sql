@@ -18,31 +18,37 @@ LIMIT $2 OFFSET $3;
 
 -- name: ListTopPlayersAllTime :many
 SELECT
-  lower(claimed_by) AS player_address,
-  MIN(claimed_by)::TEXT AS display_address,
+  lower(t.claimed_by) AS player_address,
+  MIN(t.claimed_by)::TEXT AS display_address,
   COUNT(*)::BIGINT AS win_count,
-  COALESCE(SUM(claim_clear_reward_amount), 0)::BIGINT AS total_reward_amount,
-  MAX(updated_at)::TIMESTAMPTZ AS last_win_at
-FROM tickets
-WHERE chain_id = $1
-  AND lower(claimed_by) != ''
-  AND claim_clear_reward_amount > 0
-GROUP BY lower(claimed_by)
+  COALESCE(SUM(t.claim_clear_reward_amount), 0)::BIGINT AS total_reward_amount,
+  MAX(t.updated_at)::TIMESTAMPTZ AS last_win_at,
+  COALESCE(us.nickname, '') AS nickname,
+  COALESCE(us.avatar_url, '') AS avatar_url
+FROM tickets t
+LEFT JOIN user_settings us ON us.wallet_address = lower(t.claimed_by)
+WHERE t.chain_id = $1
+  AND lower(t.claimed_by) != ''
+  AND t.claim_clear_reward_amount > 0
+GROUP BY lower(t.claimed_by), us.nickname, us.avatar_url
 ORDER BY total_reward_amount DESC, win_count DESC, last_win_at DESC
 LIMIT $2;
 
 -- name: ListTopPlayersSince :many
 SELECT
-  lower(claimed_by) AS player_address,
-  MIN(claimed_by)::TEXT AS display_address,
+  lower(t.claimed_by) AS player_address,
+  MIN(t.claimed_by)::TEXT AS display_address,
   COUNT(*)::BIGINT AS win_count,
-  COALESCE(SUM(claim_clear_reward_amount), 0)::BIGINT AS total_reward_amount,
-  MAX(updated_at)::TIMESTAMPTZ AS last_win_at
-FROM tickets
-WHERE chain_id = $1
-  AND lower(claimed_by) != ''
-  AND claim_clear_reward_amount > 0
-  AND updated_at >= $2
-GROUP BY lower(claimed_by)
+  COALESCE(SUM(t.claim_clear_reward_amount), 0)::BIGINT AS total_reward_amount,
+  MAX(t.updated_at)::TIMESTAMPTZ AS last_win_at,
+  COALESCE(us.nickname, '') AS nickname,
+  COALESCE(us.avatar_url, '') AS avatar_url
+FROM tickets t
+LEFT JOIN user_settings us ON us.wallet_address = lower(t.claimed_by)
+WHERE t.chain_id = $1
+  AND lower(t.claimed_by) != ''
+  AND t.claim_clear_reward_amount > 0
+  AND t.updated_at >= $2
+GROUP BY lower(t.claimed_by), us.nickname, us.avatar_url
 ORDER BY total_reward_amount DESC, win_count DESC, last_win_at DESC
 LIMIT $3;

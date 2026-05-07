@@ -13,6 +13,7 @@ type PoolInfoPanelProps = {
   winRate: number;
   poolTotal: number;
   poolType: string;
+  poolMode: string;
   issuer: string;
   description: string;
   totalTickets?: number;
@@ -39,6 +40,7 @@ export const PoolInfoPanel: React.FC<PoolInfoPanelProps> = ({
   winRate,
   poolTotal,
   poolType,
+  poolMode,
   issuer,
   description,
   totalTickets = 56,
@@ -159,13 +161,20 @@ export const PoolInfoPanel: React.FC<PoolInfoPanelProps> = ({
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-white/40 mb-3">
           <span>
             Remaining:{" "}
-            <span className="text-white/65 font-semibold">
-              {remaining}/{totalTickets}
+            <span className={remaining === 0 ? "text-[#FFB4AB] font-bold" : "text-white/65 font-semibold"}>
+              {remaining === 0 ? "SOLD OUT" : `${remaining}/${totalTickets}`}
             </span>
           </span>
           <span className="text-white/10">|</span>
           <span>
             Win Type: <span className="text-white/65">{poolType}</span>
+          </span>
+          <span className="text-white/10">|</span>
+          <span>
+            Pool Mode:{" "}
+            <span className={`font-semibold ${poolMode === "Loop" ? "text-[#00DAF3]" : "text-white/65"}`}>
+              {poolMode === "Loop" ? "Recurring" : "One-Time"}
+            </span>
           </span>
           <span className="text-white/10">|</span>
           <span>

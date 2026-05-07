@@ -16,6 +16,7 @@ import { OverviewPanel } from "~~/components/profile/OverviewPanel";
 import { SettingsPanel } from "~~/components/profile/SettingsPanel";
 import {
   useLuckyScratchCreatorSummary,
+  useLuckyScratchUserSettings,
   useLuckyScratchUserTickets,
   useLuckyScratchUserWins,
 } from "~~/hooks/luckyScratch/useLuckyScratchQueries";
@@ -54,6 +55,7 @@ export default function ProfilePage() {
   const ticketsQuery = useLuckyScratchUserTickets(address);
   const winsQuery = useLuckyScratchUserWins(address);
   const creatorSummaryQuery = useLuckyScratchCreatorSummary(address);
+  const { data: userSettings } = useLuckyScratchUserSettings(address);
 
   const totalTickets = ticketsQuery.data?.items.length ?? 0;
   const claimedWins = winsQuery.data?.items.length ?? 0;
@@ -101,9 +103,17 @@ export default function ProfilePage() {
             <div className="relative flex flex-col items-center text-center">
               <div className="relative mb-6">
                 <div className="flex h-32 w-32 items-center justify-center rounded-full bg-gradient-to-tr from-ns-primary-container via-ns-surface-bright to-ns-primary p-1 shadow-[0_0_30px_rgba(255,215,0,0.2)]">
-                  <div className="flex h-full w-full items-center justify-center rounded-full bg-[#0C1323] font-headline text-4xl font-black text-ns-primary-container">
-                    {address ? address.slice(2, 4).toUpperCase() : "LS"}
-                  </div>
+                  {userSettings?.avatarUrl ? (
+                    <img
+                      src={userSettings.avatarUrl}
+                      alt="User avatar"
+                      className="h-full w-full rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center rounded-full bg-[#0C1323] font-headline text-4xl font-black text-ns-primary-container">
+                      {address ? address.slice(2, 4).toUpperCase() : "LS"}
+                    </div>
+                  )}
                 </div>
                 <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-ns-primary-container px-4 py-0.5 text-[10px] font-black uppercase tracking-widest text-ns-on-primary">
                   {address ? "CONNECTED" : "OFFLINE"}

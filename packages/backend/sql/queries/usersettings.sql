@@ -9,14 +9,16 @@ INSERT INTO user_settings (
     broadcast_wins,
     security_alerts,
     terminal_hints,
-    auto_lock
+    auto_lock,
+    avatar_url
 ) VALUES (
     lower(sqlc.arg(wallet_address)),
     sqlc.arg(nickname),
     sqlc.arg(broadcast_wins),
     sqlc.arg(security_alerts),
     sqlc.arg(terminal_hints),
-    sqlc.arg(auto_lock)
+    sqlc.arg(auto_lock),
+    sqlc.arg(avatar_url)
 )
 ON CONFLICT (wallet_address) DO UPDATE SET
     nickname = EXCLUDED.nickname,
@@ -24,5 +26,6 @@ ON CONFLICT (wallet_address) DO UPDATE SET
     security_alerts = EXCLUDED.security_alerts,
     terminal_hints = EXCLUDED.terminal_hints,
     auto_lock = EXCLUDED.auto_lock,
+    avatar_url = EXCLUDED.avatar_url,
     updated_at = NOW()
 RETURNING *;

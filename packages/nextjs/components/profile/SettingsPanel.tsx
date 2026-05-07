@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 import { BoltIcon, CheckCircleIcon, FingerPrintIcon, PhotoIcon, UserCircleIcon } from "@heroicons/react/24/outline";
@@ -15,6 +15,7 @@ type SettingsState = {
   securityAlerts: boolean;
   terminalHints: boolean;
   autoLock: boolean;
+  avatarUrl: string;
 };
 
 const isSameSettings = (left: SettingsState, right: SettingsState) =>
@@ -22,7 +23,8 @@ const isSameSettings = (left: SettingsState, right: SettingsState) =>
   left.broadcastWins === right.broadcastWins &&
   left.securityAlerts === right.securityAlerts &&
   left.terminalHints === right.terminalHints &&
-  left.autoLock === right.autoLock;
+  left.autoLock === right.autoLock &&
+  left.avatarUrl === right.avatarUrl;
 
 const toPayload = (s: SettingsState): UpdateUserSettingsPayload => ({
   nickname: s.nickname,
@@ -30,6 +32,7 @@ const toPayload = (s: SettingsState): UpdateUserSettingsPayload => ({
   securityAlerts: s.securityAlerts,
   terminalHints: s.terminalHints,
   autoLock: s.autoLock,
+  avatarUrl: s.avatarUrl || undefined,
 });
 
 export function SettingsPanel() {
@@ -39,12 +42,16 @@ export function SettingsPanel() {
 
   const defaultNickname = address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "NOT_CONNECTED";
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
   const [settings, setSettings] = useState<SettingsState>({
     nickname: defaultNickname,
     broadcastWins: true,
     securityAlerts: true,
     terminalHints: false,
     autoLock: true,
+    avatarUrl: "",
   });
   const [savedSettings, setSavedSettings] = useState<SettingsState>(settings);
   const [lastSavedAt, setLastSavedAt] = useState("Unsaved session");
@@ -57,6 +64,7 @@ export function SettingsPanel() {
         securityAlerts: savedData.securityAlerts,
         terminalHints: savedData.terminalHints,
         autoLock: savedData.autoLock,
+        avatarUrl: savedData.avatarUrl || "",
       };
       setSettings(loaded);
       setSavedSettings(loaded);
@@ -84,6 +92,7 @@ export function SettingsPanel() {
         securityAlerts: data.securityAlerts,
         terminalHints: data.terminalHints,
         autoLock: data.autoLock,
+        avatarUrl: data.avatarUrl || "",
       };
       setSavedSettings(loaded);
       setLastSavedAt(data.updatedAt ? new Date(data.updatedAt).toLocaleString() : new Date().toLocaleString());
@@ -103,6 +112,23 @@ export function SettingsPanel() {
       return;
     }
     saveMutation.mutate(toPayload(settings));
+  };
+
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !address) return;
+
+    setIsUploading(true);
+    try {
+      const asset = await luckyScratchAPI.uploadImage(file, address, "avatar");
+      setSettings(current => ({ ...current, avatarUrl: asset.gatewayUrl }));
+      notification.success("Avatar uploaded. Save settings to apply.");
+    } catch (error) {
+      notification.error(error instanceof Error ? error.message : "Avatar upload failed.");
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   };
 
   return (
@@ -149,18 +175,29 @@ export function SettingsPanel() {
           <div className="flex flex-col items-center text-center">
             <div className="relative mb-6">
               <div className="w-52 rounded-full bg-gradient-to-br from-ns-primary-container via-ns-primary to-ns-secondary p-1 shadow-[0_0_40px_rgba(255,215,0,0.2)]">
-                <img
-                  alt="User avatar preview"
-                  className="aspect-square w-full rounded-full object-cover grayscale transition duration-700 hover:grayscale-0"
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuArrF605MJVk9CXZ76IUTL3MtTgpVDFkQHFOpucpjy0sFSkLli3b_wp7F-22MmEWGNlslT9YCIkEUrj-GfzuP9LgIjFDPD3Lxiv6os2bahovXDC0qJ-Do927z4hSQh6s4kyREYZISxMf_I1gLklvN7W3dIZkqd_-uYRVwdLmnxBbIgpFmrs69oQV8aD6m9pUFsanWtNOaN_ZXEn39KatZboneNprrkjvDQIP__5ec56JD2a2aT2MSGMVJb33Rsuq6YKRKBHmEUMNi9t"
-                />
+                {settings.avatarUrl ? (
+                  <img
+                    alt="User avatar preview"
+                    className="aspect-square w-full rounded-full object-cover grayscale transition duration-700 hover:grayscale-0"
+                    src={settings.avatarUrl}
+                  />
+                ) : (
+                  <div className="flex aspect-square w-full items-center justify-center rounded-full bg-[#0C1323] font-headline text-5xl font-black text-ns-primary-container">
+                    {address ? address.slice(2, 4).toUpperCase() : "LS"}
+                  </div>
+                )}
               </div>
               <div className="absolute inset-0 -z-10 scale-110 rounded-full bg-ns-primary-container/20 blur-3xl" />
             </div>
 
-            <button className="btn border-ns-primary-container/30 bg-ns-surface-container-highest px-6 text-xs font-black uppercase tracking-[0.2em] text-ns-primary-container hover:border-ns-primary-container hover:bg-ns-primary-container hover:text-ns-on-primary">
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+              className="btn border-ns-primary-container/30 bg-ns-surface-container-highest px-6 text-xs font-black uppercase tracking-[0.2em] text-ns-primary-container hover:border-ns-primary-container hover:bg-ns-primary-container hover:text-ns-on-primary disabled:opacity-50"
+            >
               <PhotoIcon className="h-5 w-5" />
-              Upload New Avatar
+              {isUploading ? "Uploading..." : "Upload New Avatar"}
             </button>
           </div>
 
