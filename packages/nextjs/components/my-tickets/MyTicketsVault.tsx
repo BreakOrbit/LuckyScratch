@@ -14,7 +14,7 @@ import { luckyScratchAPI } from "~~/services/luckyScratch/api";
 import { buildTicketClaimProofDirect } from "~~/services/luckyScratch/claim";
 import { formatUsdcFromMicro } from "~~/services/luckyScratch/poolMath";
 import { ticketRewardCache } from "~~/services/luckyScratch/ticketCache";
-import type { LuckyScratchPool, LuckyScratchTicket } from "~~/services/luckyScratch/types";
+import type { LuckyScratchPool, LuckyScratchTicket, UserTicketsResponse } from "~~/services/luckyScratch/types";
 import { notification } from "~~/utils/scaffold-eth";
 
 type TicketTab = "all" | "unrevealed" | "revealed" | "winning" | "to-claim";
@@ -107,6 +107,14 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
     contractName: "LuckyScratchCore",
     chainId: SEPOLIA_CHAIN_ID,
   });
+  const { writeContractAsync: writeRevealContractAsync, isMining: isRevealMining } = useScaffoldWriteContract({
+    contractName: "LuckyScratchCore",
+    chainId: SEPOLIA_CHAIN_ID,
+  });
+  const { data: ticketContract } = useDeployedContractInfo({
+    contractName: "LuckyScratchTicket",
+    chainId: SEPOLIA_CHAIN_ID,
+  });
   const [activeTab, setActiveTab] = useState<TicketTab>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [pageOffset, setPageOffset] = useState(0);
@@ -191,6 +199,8 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
       valueColor: "text-[#cabeff]",
     },
   ];
+  const selectedUnrevealedTickets = selectedTickets.filter(ticket => ticket.status === "Unscratched");
+  const allUnrevealedTickets = filteredTickets.filter(ticket => ticket.status === "Unscratched");
   const allFilteredSelected =
     filteredTickets.length > 0 && filteredTickets.every(ticket => selectedTicketIds.has(ticket.ticketId));
 
@@ -450,6 +460,171 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
     },
   });
 
+  const batchRevealMutation = useMutation({
+    mutationFn: async (ticketsToReveal: LuckyScratchTicket[]) => {
+      if (!address) {
+        throw new Error("Connect your wallet before revealing tickets.");
+      }
+      if (!coreContract || !publicClient || !ticketContract) {
+        throw new Error("Contract info is not available.");
+      }
+      const unrevealedTickets = ticketsToReveal.filter(
+        ticket => ticket.status === "Unscratched" && ticket.owner.toLowerCase() === address.toLowerCase(),
+      );
+      if (unrevealedTickets.length === 0) {
+        throw new Error("No unrevealed tickets selected.");
+      }
+
+      setClaimingTicketId(unrevealedTickets.length === 1 ? unrevealedTickets[0].ticketId : null);
+
+      // Scratch on-chain
+      setClaimStage("Confirming scratch");
+      let scratchTxHash: string | undefined;
+      if (unrevealedTickets.length === 1) {
+        scratchTxHash = await writeRevealContractAsync({
+          functionName: "scratchTicket",
+          args: [BigInt(unrevealedTickets[0].ticketId)],
+        });
+      } else {
+        scratchTxHash = await writeRevealContractAsync({
+          functionName: "batchScratch",
+          args: [unrevealedTickets.map(t => BigInt(t.ticketId))],
+        });
+      }
+      if (!scratchTxHash) {
+        throw new Error("Scratch transaction was not submitted.");
+      }
+
+      // Optimistic cache update
+      const scratchedIdSet = new Set(unrevealedTickets.map(t => t.ticketId));
+      const userPrefix = ["lucky-scratch", "users", address.toLowerCase(), "tickets"];
+      queryClient.getQueriesData<UserTicketsResponse>({ queryKey: userPrefix }).forEach(([key, data]) => {
+        if (!data?.items) return;
+        const hasTarget = data.items.some(t => scratchedIdSet.has(t.ticketId));
+        if (!hasTarget) return;
+        queryClient.setQueryData<UserTicketsResponse>(key, old => {
+          if (!old) return old;
+          return {
+            ...old,
+            items: old.items.map(t =>
+              scratchedIdSet.has(t.ticketId) ? { ...t, status: "Scratched", revealAuthorized: true } : t,
+            ),
+          };
+        });
+      });
+
+      try {
+        await luckyScratchAPI.syncTransaction(scratchTxHash);
+      } catch {
+        console.warn("Backend tx sync failed; cache will update on next poll");
+      }
+
+      // Decrypt prize handles and cache results
+      setClaimStage("Decrypting prizes");
+      const cacheEntries: { ticketId: number; clearRewardAmount: number; decryptionProof: string }[] = [];
+      let failedCount = 0;
+      for (const [idx, ticket] of unrevealedTickets.entries()) {
+        const suffix = unrevealedTickets.length > 1 ? ` ${idx + 1}/${unrevealedTickets.length}` : "";
+        setClaimStage(`Decrypting${suffix}`);
+        try {
+          const handle = await publicClient.readContract({
+            address: coreContract.address,
+            abi: coreContract.abi,
+            functionName: "getTicketPrizeHandle",
+            args: [BigInt(ticket.ticketId)],
+          });
+          const claimProof = await buildTicketClaimProofDirect({ chainId: SEPOLIA_CHAIN_ID, handle: handle as string });
+          if (claimProof.clearRewardAmount > 0n) {
+            cacheEntries.push({
+              ticketId: ticket.ticketId,
+              clearRewardAmount: Number(claimProof.clearRewardAmount),
+              decryptionProof: claimProof.decryptionProof,
+            });
+          }
+        } catch {
+          failedCount += 1;
+        }
+      }
+
+      if (cacheEntries.length > 0) {
+        ticketRewardCache.setBatch(SEPOLIA_CHAIN_ID, cacheEntries);
+
+        // Update user tickets list cache with decrypted prize amounts
+        const rewardMap = new Map(cacheEntries.map(e => [e.ticketId, e.clearRewardAmount]));
+        queryClient.getQueriesData<UserTicketsResponse>({ queryKey: userPrefix }).forEach(([key, data]) => {
+          if (!data?.items) return;
+          const hasTarget = data.items.some(t => rewardMap.has(t.ticketId));
+          if (!hasTarget) return;
+          queryClient.setQueryData<UserTicketsResponse>(key, old => {
+            if (!old) return old;
+            return {
+              ...old,
+              items: old.items.map(t => {
+                const reward = rewardMap.get(t.ticketId);
+                return reward != null ? { ...t, claimClearRewardAmount: reward } : t;
+              }),
+            };
+          });
+        });
+      }
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["readContract"] }),
+        queryClient.invalidateQueries({ queryKey: ["lucky-scratch", "users", address.toLowerCase(), "tickets"] }),
+        ...unrevealedTickets.map(t =>
+          queryClient.invalidateQueries({ queryKey: ["lucky-scratch", "tickets", String(t.ticketId)] }),
+        ),
+      ]);
+
+      // Re-invalidate after delay to catch backend indexer lag
+      setTimeout(() => {
+        queryClient.invalidateQueries({
+          queryKey: ["lucky-scratch", "users", address.toLowerCase(), "tickets"],
+        });
+      }, 3000);
+
+      return { revealedCount: unrevealedTickets.length, failedCount };
+    },
+    onSuccess: (result: { revealedCount: number; failedCount: number }) => {
+      if (result.failedCount > 0) {
+        notification.warning(
+          `${result.revealedCount - result.failedCount} ticket(s) revealed. ${result.failedCount} decryption(s) failed — try again later.`,
+        );
+      } else {
+        notification.success(
+          result.revealedCount === 1 ? "Ticket revealed!" : `${result.revealedCount} tickets revealed!`,
+        );
+      }
+    },
+    onError: error => {
+      const message = error instanceof Error && error.message.trim() !== "" ? error.message : "Batch reveal failed.";
+      notification.error(message);
+    },
+    onSettled: () => {
+      setClaimingTicketId(null);
+      setClaimStage("");
+    },
+  });
+
+  const handleRevealAll = () => {
+    const ticketsToReveal = allUnrevealedTickets.length > 0 ? allUnrevealedTickets : selectedUnrevealedTickets;
+    if (ticketsToReveal.length === 0) {
+      notification.info("No unrevealed tickets to reveal.");
+      return;
+    }
+    batchRevealMutation.mutate(ticketsToReveal);
+  };
+
+  const handleBatchReveal = () => {
+    if (selectedUnrevealedTickets.length === 0) {
+      notification.info("Select unrevealed tickets first.");
+      return;
+    }
+    batchRevealMutation.mutate(selectedUnrevealedTickets);
+  };
+
+  const isRevealPending = batchRevealMutation.isPending || isRevealMining;
+
   return (
     <div className={embedded ? "w-full bg-[#0C1323] text-[#DCE2F9]" : "min-h-screen bg-[#0C1323] text-[#DCE2F9]"}>
       <div className={embedded ? "w-full p-6 md:p-8" : "mx-auto w-full max-w-7xl px-4 pb-16 pt-24 md:px-8"}>
@@ -464,9 +639,10 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
             selectAll={allFilteredSelected}
             onSelectAllChange={setAllFilteredSelected}
             claimCount={toClaimCount}
-            onRevealAll={() => {}}
-            onBatchReveal={() => {}}
+            onRevealAll={handleRevealAll}
+            onBatchReveal={handleBatchReveal}
             onClaimAll={() => claimRewardMutation.mutate(selectedClaimableTickets)}
+            isRevealPending={isRevealPending}
           />
 
           {!address ? (

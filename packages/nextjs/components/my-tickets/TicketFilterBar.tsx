@@ -15,6 +15,7 @@ type TicketFilterBarProps = {
   onRevealAll?: () => void;
   onBatchReveal?: () => void;
   onClaimAll?: () => void;
+  isRevealPending?: boolean;
 };
 
 const TABS: { key: TicketTab; label: string; badge?: boolean }[] = [
@@ -36,6 +37,7 @@ export const TicketFilterBar = ({
   onRevealAll,
   onBatchReveal,
   onClaimAll,
+  isRevealPending = false,
 }: TicketFilterBarProps) => {
   return (
     <section className="mb-10 space-y-4">
@@ -96,16 +98,18 @@ export const TicketFilterBar = ({
         <div className="flex gap-3 w-full md:w-auto">
           <button
             type="button"
+            disabled={isRevealPending}
             onClick={onRevealAll}
-            className="flex-1 md:flex-none px-6 py-2.5 bg-[#232a3b] border border-[#4d4732]/50 text-[#dce2f9] rounded-lg font-bold text-sm hover:bg-[#32394a] transition-all flex items-center justify-center gap-2"
+            className="flex-1 md:flex-none px-6 py-2.5 bg-[#232a3b] border border-[#4d4732]/50 text-[#dce2f9] rounded-lg font-bold text-sm hover:bg-[#32394a] transition-all flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <MyTicketsIcon name="content_cut" className="h-4 w-4" />
             REVEAL ALL
           </button>
           <button
             type="button"
+            disabled={isRevealPending}
             onClick={onBatchReveal}
-            className="flex-1 md:flex-none px-6 py-2.5 bg-[#232a3b] border border-[#4d4732]/50 text-[#dce2f9] rounded-lg font-bold text-sm hover:bg-[#32394a] transition-all flex items-center justify-center gap-2"
+            className="flex-1 md:flex-none px-6 py-2.5 bg-[#232a3b] border border-[#4d4732]/50 text-[#dce2f9] rounded-lg font-bold text-sm hover:bg-[#32394a] transition-all flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <MyTicketsIcon name="layers" className="h-4 w-4" />
             BATCH REVEAL
