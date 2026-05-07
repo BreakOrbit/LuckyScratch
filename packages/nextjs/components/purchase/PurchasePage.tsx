@@ -242,6 +242,12 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
       }
 
       setPhase("purchasing");
+
+      // Refresh purchase context to avoid buying already-sold indexes
+      await queryClient.refetchQueries({
+        queryKey: ["lucky-scratch", "pools", poolId, "purchase-context"],
+      });
+
       let purchasedTicketIds: string[] = [];
       const txHash = await writeContractAsync(
         pool.selectable
@@ -302,7 +308,14 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
       ]);
     } catch (error) {
       const message = getParsedError(error) || "Ticket purchase failed.";
-      notification.error(message);
+      if (message.includes("TicketIndexAlreadySold")) {
+        notification.warning("Some tickets were just sold by another player. Refreshing available tickets...");
+        await queryClient.refetchQueries({
+          queryKey: ["lucky-scratch", "pools", poolId, "purchase-context"],
+        });
+      } else {
+        notification.error(message);
+      }
       setPhase("selecting");
     }
   }, [

@@ -238,7 +238,7 @@ const BatchScratchCard = ({
 
   return (
     <div
-      className="flex-none snap-center relative floating-card shrink-0"
+      className="relative floating-card"
       style={{
         animation: globalPhase === "ready" ? `batch-card-entrance 0.5s ease-out ${index * 0.08}s forwards` : undefined,
         opacity: globalPhase === "ready" ? 0 : 1,
@@ -675,11 +675,8 @@ export const BatchScratchView: React.FC<BatchScratchViewProps> = ({
         </div>
 
         {/* Horizontal Ticket Gallery */}
-        <div
-          className="flex-grow w-full overflow-x-auto z-10 mt-12 md:mt-24"
-          style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-        >
-          <div className="flex items-center justify-center gap-8 px-8 pb-10 pt-10 min-w-max mx-auto snap-x snap-mandatory">
+        <div className="flex-grow w-full overflow-y-auto z-10 mt-12 md:mt-24 px-4">
+          <div className="flex flex-wrap items-start justify-center gap-6 pb-10 pt-10 max-w-[1600px] mx-auto">
             {ticketIds.map((id, index) => {
               const isRevealed = revealedIndices.has(index);
               const res = results[index];

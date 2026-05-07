@@ -15,7 +15,7 @@ import { luckyScratchAPI } from "~~/services/luckyScratch/api";
 import { buildTicketClaimProofDirect } from "~~/services/luckyScratch/claim";
 import { fromMicroUsdc } from "~~/services/luckyScratch/poolMath";
 import { ticketRewardCache } from "~~/services/luckyScratch/ticketCache";
-import type { LuckyScratchTicket } from "~~/services/luckyScratch/types";
+import type { LuckyScratchTicket, UserTicketsResponse } from "~~/services/luckyScratch/types";
 import { AllowedChainIds, getParsedError, notification } from "~~/utils/scaffold-eth";
 
 type ScratchPageProps = {
@@ -205,6 +205,24 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
           });
         }
 
+        // Also update user tickets list caches so my-tickets shows updated status immediately
+        const scratchedIdSet = new Set(scratchableTicketIds.map(Number));
+        const userPrefix = ["lucky-scratch", "users", address.toLowerCase(), "tickets"];
+        queryClient.getQueriesData<UserTicketsResponse>({ queryKey: userPrefix }).forEach(([key, data]) => {
+          if (!data?.items) return;
+          const hasTarget = data.items.some(t => scratchedIdSet.has(t.ticketId));
+          if (!hasTarget) return;
+          queryClient.setQueryData<UserTicketsResponse>(key, old => {
+            if (!old) return old;
+            return {
+              ...old,
+              items: old.items.map(t =>
+                scratchedIdSet.has(t.ticketId) ? { ...t, status: "Scratched", revealAuthorized: true } : t,
+              ),
+            };
+          });
+        });
+
         try {
           await luckyScratchAPI.syncTransaction(scratchTxHash);
         } catch {
@@ -268,6 +286,25 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
           }));
         if (cacheEntries.length > 0) {
           ticketRewardCache.setBatch(scratchChainId, cacheEntries);
+
+          // Update user tickets list cache with decrypted prize amounts
+          const rewardMap = new Map(cacheEntries.map(e => [e.ticketId, e.clearRewardAmount]));
+          const userPrefix = ["lucky-scratch", "users", address.toLowerCase(), "tickets"];
+          queryClient.getQueriesData<UserTicketsResponse>({ queryKey: userPrefix }).forEach(([key, data]) => {
+            if (!data?.items) return;
+            const hasTarget = data.items.some(t => rewardMap.has(t.ticketId));
+            if (!hasTarget) return;
+            queryClient.setQueryData<UserTicketsResponse>(key, old => {
+              if (!old) return old;
+              return {
+                ...old,
+                items: old.items.map(t => {
+                  const reward = rewardMap.get(t.ticketId);
+                  return reward != null ? { ...t, claimClearRewardAmount: reward } : t;
+                }),
+              };
+            });
+          });
         }
       }
 
