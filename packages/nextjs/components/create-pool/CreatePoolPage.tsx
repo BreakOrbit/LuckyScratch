@@ -1010,19 +1010,10 @@ export function CreatePoolPage() {
                 >
                   <span className="flex items-center justify-center gap-3">
                     <RocketLaunchIcon className="h-5 w-5" />
-                    {isSubmitting || isMining
-                      ? "CREATING POOL..."
-                      : `CONFIRM CREATION - LOCK BOND ${formatUsdcFromMicro(estimatedBondMicro)} USDC`}
+                    {isSubmitting || isMining ? "CREATING POOL..." : "CONFIRM CREATION"}
                   </span>
                 </button>
               </div>
-
-              <button
-                type="button"
-                className="w-full rounded-xl py-3 font-headline font-bold text-[#D0C6AB] transition-colors hover:text-[#DCE2F9]"
-              >
-                SAVE AS DRAFT
-              </button>
             </div>
           </div>
         </div>

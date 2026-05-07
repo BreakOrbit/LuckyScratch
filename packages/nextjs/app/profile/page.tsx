@@ -1,6 +1,7 @@
 "use client";
 
-import { type ReactNode, useCallback, useState } from "react";
+import { type ReactNode, useCallback, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 import {
   Cog8ToothIcon,
@@ -20,6 +21,7 @@ import {
   useLuckyScratchUserTickets,
   useLuckyScratchUserWins,
 } from "~~/hooks/luckyScratch/useLuckyScratchQueries";
+import { luckyScratchAPI } from "~~/services/luckyScratch/api";
 import { notification } from "~~/utils/scaffold-eth";
 
 const formatShortAddress = (address?: string) => {
@@ -56,11 +58,34 @@ export default function ProfilePage() {
   const winsQuery = useLuckyScratchUserWins(address);
   const creatorSummaryQuery = useLuckyScratchCreatorSummary(address);
   const { data: userSettings } = useLuckyScratchUserSettings(address);
+  const poolsQuery = useQuery({
+    queryKey: ["lucky-scratch", "pools", "all"],
+    queryFn: () => luckyScratchAPI.listPools({ limit: 100 }),
+    staleTime: 60_000,
+  });
 
   const totalTickets = ticketsQuery.data?.items.length ?? 0;
   const claimedWins = winsQuery.data?.items.length ?? 0;
   const createdPools = creatorSummaryQuery.data?.totalPools ?? 0;
   const revealedTickets = ticketsQuery.data?.items.filter(ticket => ticket.status !== "Unscratched").length ?? 0;
+
+  const userLevel = useMemo(() => {
+    const tickets = ticketsQuery.data?.items;
+    const pools = poolsQuery.data?.items;
+    if (!tickets?.length || !pools?.length) return 0;
+
+    const priceMap = new Map<number, number>();
+    for (const pool of pools) {
+      priceMap.set(pool.poolId, pool.ticketPrice);
+    }
+
+    let totalSpentMicro = 0;
+    for (const ticket of tickets) {
+      totalSpentMicro += priceMap.get(ticket.poolId) ?? 0;
+    }
+
+    return Math.floor(totalSpentMicro / 1e6 / 100);
+  }, [ticketsQuery.data?.items, poolsQuery.data?.items]);
 
   const copyAddress = useCallback(async () => {
     if (!address) {
@@ -114,10 +139,12 @@ export default function ProfilePage() {
                   )}
                 </div>
                 <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-ns-primary-container px-4 py-0.5 text-[10px] font-black uppercase tracking-widest text-ns-on-primary">
-                  {address ? "CONNECTED" : "OFFLINE"}
+                  {address ? `LV ${userLevel}` : "OFFLINE"}
                 </div>
               </div>
-              <h2 className="font-headline text-2xl font-bold text-ns-on-surface mb-1">{playerLabel(address)}</h2>
+              <h2 className="font-headline text-2xl font-bold text-ns-on-surface mb-1">
+                {userSettings?.nickname || playerLabel(address)}
+              </h2>
               <div className="flex items-center gap-2 mb-6">
                 <span className="text-xs font-mono text-ns-on-surface-variant bg-ns-surface-container-lowest px-2 py-1 rounded">
                   {formatShortAddress(address)}

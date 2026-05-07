@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeftIcon, StarIcon, WalletIcon } from "@heroicons/react/24/solid";
+import { ArrowLeftIcon, StarIcon } from "@heroicons/react/24/solid";
 import {
   TICKET_ART_FALLBACK_URL,
   TICKET_ART_FRAME_CLASS,
@@ -19,6 +19,7 @@ type TicketResult = {
 type BatchScratchViewProps = {
   poolName: string;
   ticketPrice: number;
+  maxPrize: number;
   ticketIds: string[];
   ticketArtUrl?: string;
   results: TicketResult[];
@@ -376,6 +377,7 @@ const BatchScratchCard = ({
 export const BatchScratchView: React.FC<BatchScratchViewProps> = ({
   poolName,
   ticketPrice,
+  maxPrize,
   ticketIds,
   ticketArtUrl,
   results,
@@ -573,7 +575,7 @@ export const BatchScratchView: React.FC<BatchScratchViewProps> = ({
   const handleBackToTickets = useCallback(() => router.push("/my-tickets"), [router]);
   const handleClaimAll = useCallback(() => router.push("/my-tickets"), [router]);
 
-  const maxPrizeValue = results.reduce((max, r) => (r.prize > max ? r.prize : max), 0) || 50;
+  const maxPrizeValue = maxPrize;
 
   return (
     <div className="bg-[#0C1323] font-body text-[#DCE2F9] min-h-screen cinematic-bg">
@@ -596,12 +598,7 @@ export const BatchScratchView: React.FC<BatchScratchViewProps> = ({
             <div className="h-[1px] w-full bg-gradient-to-r from-[#FFD700]/50 to-transparent" />
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="glass-panel px-4 py-1.5 rounded-full flex items-center gap-2 neon-glow-primary">
-            <WalletIcon className="w-4 h-4 text-[#FFD700]" />
-            <span className="font-headline font-black text-sm tracking-tighter text-[#FFF6DF]">1,240.00 U</span>
-          </div>
-        </div>
+        <div />
       </header>
 
       {/* Confetti canvas */}

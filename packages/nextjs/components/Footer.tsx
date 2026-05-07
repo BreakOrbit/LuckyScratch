@@ -11,7 +11,7 @@ export const Footer = () => {
         <div>
           <div className="text-[#FFD700] font-bold text-xl font-headline mb-4">LUCKY SCRATCH</div>
           <p className="font-body text-sm uppercase tracking-widest text-ns-tertiary opacity-80 max-w-md">
-            © 2024 LUCKY SCRATCH. THE CELESTIAL VAULT SECURED.
+            © 2026 LUCKY SCRATCH. THE CELESTIAL VAULT SECURED.
           </p>
         </div>
         <div className="flex flex-wrap justify-center md:justify-end gap-x-12 gap-y-4 font-body text-sm uppercase tracking-widest text-ns-on-surface-variant/60">

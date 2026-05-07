@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ScratchResultOverlay } from "./ScratchResultOverlay";
-import { ArrowLeftIcon, ChevronRightIcon, QrCodeIcon, StarIcon, WalletIcon } from "@heroicons/react/24/solid";
+import { ArrowLeftIcon, ChevronRightIcon, QrCodeIcon, StarIcon } from "@heroicons/react/24/solid";
 import {
   TICKET_ART_FALLBACK_URL,
   TICKET_ART_FRAME_CLASS,
@@ -244,12 +244,7 @@ export const SingleScratchView: React.FC<SingleScratchViewProps> = ({
             <div className="h-[1px] w-full bg-gradient-to-r from-[#FFD700]/50 to-transparent" />
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="glass-panel px-4 py-1.5 rounded-full flex items-center gap-2 neon-glow-primary">
-            <WalletIcon className="w-4 h-4 text-[#FFD700]" />
-            <span className="font-headline font-black text-sm tracking-tighter text-[#FFF6DF]">1,240.00 U</span>
-          </div>
-        </div>
+        <div />
       </header>
 
       <main className="relative min-h-[calc(100vh-64px)] flex flex-col items-center justify-center p-6 gap-8 overflow-hidden z-10">

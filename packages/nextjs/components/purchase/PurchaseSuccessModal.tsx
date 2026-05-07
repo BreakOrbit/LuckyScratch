@@ -75,7 +75,7 @@ export const PurchaseSuccessModal: React.FC<PurchaseSuccessModalProps> = ({
 
       {/* Modal Content */}
       <div
-        className={`relative cyber-glass rounded-3xl p-8 md:p-10 max-w-md w-full border border-[#FFD700]/20 transition-all duration-500 ${
+        className={`relative cyber-glass rounded-3xl p-8 md:p-10 max-w-md w-full max-h-[90vh] overflow-y-auto border border-[#FFD700]/20 transition-all duration-500 ${
           visible ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-4"
         }`}
         style={{
@@ -101,7 +101,7 @@ export const PurchaseSuccessModal: React.FC<PurchaseSuccessModalProps> = ({
         </div>
 
         {/* ── Ticket Cards Grid ── */}
-        <div className="flex flex-wrap justify-center gap-3 mb-8">
+        <div className="flex flex-wrap justify-center gap-3 mb-8 max-h-[40vh] overflow-y-auto pr-1">
           {ticketIds.map((id, i) => (
             <div
               key={id}

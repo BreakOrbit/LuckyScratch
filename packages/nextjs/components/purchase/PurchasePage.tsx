@@ -438,13 +438,7 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
           </div>
         )}
 
-        {!roundReady ? (
-          <div className="rounded-3xl border border-[#8D6C1D] bg-[#493916]/30 p-8 text-center text-[#FFD66D]">
-            {currentRound?.status === "PendingEncryption"
-              ? "Prizes are being encrypted. Ticket purchases will open shortly."
-              : "The current round is waiting for VRF initialization. Ticket purchases will open after randomness is fulfilled."}
-          </div>
-        ) : totalAvailableTickets === 0 ? (
+        {totalAvailableTickets === 0 ? (
           <div className="rounded-3xl border border-[#8D6C1D] bg-[#493916]/30 p-8 text-center text-[#FFD66D]">
             <div className="text-xl font-headline font-bold mb-2">Sold Out</div>
             <div className="text-sm text-[#FFD66D]/70">
@@ -458,6 +452,12 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
             >
               Browse Other Pools
             </button>
+          </div>
+        ) : !roundReady ? (
+          <div className="rounded-3xl border border-[#8D6C1D] bg-[#493916]/30 p-8 text-center text-[#FFD66D]">
+            {currentRound?.status === "PendingEncryption"
+              ? "Prizes are being encrypted. Ticket purchases will open shortly."
+              : "The current round is waiting for VRF initialization. Ticket purchases will open after randomness is fulfilled."}
           </div>
         ) : (
           <div

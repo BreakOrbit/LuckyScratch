@@ -491,6 +491,7 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
     <BatchScratchView
       poolName={poolName}
       ticketPrice={ticketPrice}
+      maxPrize={maxPrize}
       ticketIds={ticketIds}
       ticketArtUrl={pool?.metadata?.ticketArtUrl}
       results={results}
