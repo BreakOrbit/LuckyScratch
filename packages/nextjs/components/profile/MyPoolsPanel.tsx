@@ -87,6 +87,7 @@ export function MyPoolsPanel() {
   const queryClient = useQueryClient();
   const { writeContractAsync, isMining } = useScaffoldWriteContract({ contractName: "LuckyScratchCore" });
   const [query, setQuery] = useState("");
+  const [sortBy, setSortBy] = useState<(typeof sortOptions)[number]>("Latest");
   const [selectedPool, setSelectedPool] = useState<LuckyScratchPool | null>(null);
 
   const { data: summary, isLoading: summaryLoading } = useLuckyScratchCreatorSummary(address);
@@ -152,7 +153,7 @@ export function MyPoolsPanel() {
     },
   });
 
-  const pools =
+  const filteredPools =
     poolsResponse?.items.filter(pool => {
       const normalized = query.trim().toLowerCase();
       if (!normalized) {
@@ -164,6 +165,20 @@ export function MyPoolsPanel() {
         pool.creator.toLowerCase().includes(normalized)
       );
     }) ?? [];
+
+  const pools = [...filteredPools].sort((a, b) => {
+    switch (sortBy) {
+      case "Popular":
+        return (b.currentRoundState?.soldCount ?? 0) - (a.currentRoundState?.soldCount ?? 0);
+      case "Win Rate":
+        return b.hitRateBps - a.hitRateBps;
+      case "Price":
+        return b.ticketPrice - a.ticketPrice;
+      case "Latest":
+      default:
+        return b.poolId - a.poolId;
+    }
+  });
 
   if (!address) {
     return (
@@ -267,11 +282,12 @@ export function MyPoolsPanel() {
           <span className="mr-2 text-[10px] font-bold uppercase tracking-widest text-[#D0C6AB]">Sort By</span>
           <div className="flex flex-wrap gap-1">
             {sortOptions.map(option => {
-              const active = option === "Latest";
+              const active = option === sortBy;
               return (
                 <button
                   key={option}
                   type="button"
+                  onClick={() => setSortBy(option)}
                   className={`rounded-lg px-4 py-1.5 text-xs font-bold transition-all ${
                     active
                       ? "border border-[#FFD700]/50 bg-[#1A2133] text-[#FFE16D] shadow-inner"
