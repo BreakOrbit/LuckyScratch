@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause-Clear
 pragma solidity ^0.8.24;
 
-import {FHE} from "@fhevm/solidity/lib/FHE.sol";
-import {CoprocessorConfig} from "@fhevm/solidity/lib/Impl.sol";
+import { FHE } from "@fhevm/solidity/lib/FHE.sol";
+import { CoprocessorConfig } from "@fhevm/solidity/lib/Impl.sol";
 
 /**
  * @title   ZamaConfig.

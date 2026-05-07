@@ -6,11 +6,11 @@ import { PrizeTierInput } from "../types/LuckyScratchTypes.sol";
 library PrizeShuffleLib {
     error InvalidPrizeTable();
 
-    function buildShuffledPrizeTable(PrizeTierInput[] storage tiers, uint32 totalTickets, uint256 randomWord)
-        internal
-        view
-        returns (uint64[] memory shuffledPrizes, bytes32 shuffleRoot)
-    {
+    function buildShuffledPrizeTable(
+        PrizeTierInput[] storage tiers,
+        uint32 totalTickets,
+        uint256 randomWord
+    ) internal view returns (uint64[] memory shuffledPrizes, bytes32 shuffleRoot) {
         shuffledPrizes = new uint64[](totalTickets);
 
         uint256 cursor;

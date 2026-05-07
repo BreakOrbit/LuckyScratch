@@ -13,6 +13,7 @@ import { useDeployedContractInfo, useScaffoldWriteContract } from "~~/hooks/scaf
 import { luckyScratchAPI } from "~~/services/luckyScratch/api";
 import { buildTicketClaimProofDirect } from "~~/services/luckyScratch/claim";
 import { formatUsdcFromMicro } from "~~/services/luckyScratch/poolMath";
+import { ticketRewardCache } from "~~/services/luckyScratch/ticketCache";
 import type { LuckyScratchPool, LuckyScratchTicket } from "~~/services/luckyScratch/types";
 import { notification } from "~~/utils/scaffold-eth";
 
@@ -25,30 +26,13 @@ type MyTicketsVaultProps = {
 const PAGE_SIZE = 24;
 const POOL_ICON_NAMES: PoolIconName[] = ["diamond", "stars", "auto_awesome", "light", "star"];
 
-const matchesTab = (ticket: LuckyScratchTicket, tab: TicketTab) => {
-  switch (tab) {
-    case "unrevealed":
-      return ticket.status === "Unscratched";
-    case "revealed":
-      return ticket.status !== "Unscratched";
-    case "winning":
-      return ticket.claimClearRewardAmount > 0;
-    case "to-claim":
-      return ticket.status === "Scratched" && ticket.revealAuthorized && ticket.claimClearRewardAmount > 0;
-    default:
-      return true;
-  }
-};
-
 const ticketSearchText = (ticket: LuckyScratchTicket) =>
   [ticket.ticketId, ticket.poolId, ticket.roundId, ticket.ticketIndex, ticket.status].join(" ").toLowerCase();
 
-const isTicketReadyForClaim = (ticket: LuckyScratchTicket, address?: string) =>
+const isTicketReadyForClaim = (ticket: LuckyScratchTicket, address?: string, hasCachedReward?: boolean) =>
   Boolean(
     address &&
-      ticket.status === "Scratched" &&
-      ticket.revealAuthorized &&
-      ticket.claimClearRewardAmount > 0 &&
+      ((ticket.status === "Scratched" && ticket.revealAuthorized) || hasCachedReward) &&
       ticket.owner.toLowerCase() === address.toLowerCase(),
   );
 
@@ -109,13 +93,19 @@ type ClaimMutationResult = {
   skippedZeroCount: number;
 };
 
+const SEPOLIA_CHAIN_ID = 11155111 as const;
+
 export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
-  const { address, chainId } = useAccount();
-  const publicClient = usePublicClient();
+  const { address } = useAccount();
+  const publicClient = usePublicClient({ chainId: SEPOLIA_CHAIN_ID });
   const queryClient = useQueryClient();
-  const { data: coreContract } = useDeployedContractInfo({ contractName: "LuckyScratchCore" });
+  const { data: coreContract } = useDeployedContractInfo({
+    contractName: "LuckyScratchCore",
+    chainId: SEPOLIA_CHAIN_ID,
+  });
   const { writeContractAsync, isMining: isClaimMining } = useScaffoldWriteContract({
     contractName: "LuckyScratchCore",
+    chainId: SEPOLIA_CHAIN_ID,
   });
   const [activeTab, setActiveTab] = useState<TicketTab>("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -163,10 +153,18 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
   const pendingRewards = tickets
     .filter(ticket => ticket.status === "Scratched" && ticket.claimClearRewardAmount > 0)
     .reduce((sum, ticket) => sum + ticket.claimClearRewardAmount, 0);
-  const toClaimCount = tickets.filter(ticket => matchesTab(ticket, "to-claim")).length;
-  const selectedTickets = tickets.filter(ticket => selectedTicketIds.has(ticket.ticketId));
-  const selectedClaimableTickets = selectedTickets.filter(ticket => isTicketReadyForClaim(ticket, address));
   const totalCount = ticketsQuery.data?.totalCount ?? 0;
+  const toClaimCount =
+    activeTab === "to-claim"
+      ? totalCount
+      : tickets.filter(
+          ticket => ticket.status === "Scratched" && ticket.revealAuthorized && ticket.claimClearRewardAmount > 0,
+        ).length;
+  const selectedTickets = tickets.filter(ticket => selectedTicketIds.has(ticket.ticketId));
+  const selectedClaimableTickets = selectedTickets.filter(ticket => {
+    const cachedReward = ticketRewardCache.get(SEPOLIA_CHAIN_ID, ticket.ticketId);
+    return isTicketReadyForClaim(ticket, address, cachedReward != null);
+  });
   const hasPreviousPage = pageOffset > 0;
   const hasNextPage = Boolean(ticketsQuery.data?.hasMore);
   const pageIndex = Math.floor(pageOffset / PAGE_SIZE) + 1;
@@ -236,10 +234,14 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
       if (!address) {
         throw new Error("Connect your wallet before claiming rewards.");
       }
-      if (!chainId) {
-        throw new Error("Connect to a supported network before claiming rewards.");
+      if (!coreContract || !publicClient) {
+        throw new Error("Contract info is not available.");
       }
-      const claimableTickets = ticketsToClaim.filter(ticket => isTicketReadyForClaim(ticket, address));
+      const claimableTickets = ticketsToClaim.filter(ticket => {
+        if (isTicketReadyForClaim(ticket, address)) return true;
+        const cachedReward = ticketRewardCache.get(SEPOLIA_CHAIN_ID, ticket.ticketId);
+        return cachedReward != null && ticket.owner.toLowerCase() === address.toLowerCase();
+      });
       if (claimableTickets.length === 0) {
         throw new Error("This ticket is not ready for wallet-driven reward claim.");
       }
@@ -253,16 +255,59 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
       let skippedZeroCount = 0;
       for (const [idx, ticket] of claimableTickets.entries()) {
         const suffix = claimableTickets.length > 1 ? ` ${idx + 1}/${claimableTickets.length}` : "";
+        const cached = ticketRewardCache.get(SEPOLIA_CHAIN_ID, ticket.ticketId);
+
+        // Use cached proof if available — skip decryption entirely
+        if (cached && cached.decryptionProof && cached.clearRewardAmount > 0) {
+          // Verify on-chain state when backend data may be stale
+          setClaimStage(`Verifying${suffix}`);
+          const state = await publicClient.readContract({
+            address: coreContract.address,
+            abi: coreContract.abi,
+            functionName: "getTicketRevealState",
+            args: [BigInt(ticket.ticketId)],
+          });
+          const [onChainStatus, onChainRevealAuthorized] = state as readonly [number, boolean];
+          console.log("[claim-cached]", {
+            ticketId: ticket.ticketId,
+            walletChainId: SEPOLIA_CHAIN_ID,
+            contractAddress: coreContract.address,
+            onChainStatus: Number(onChainStatus),
+            onChainRevealAuthorized,
+            cachedAmount: cached.clearRewardAmount,
+            proofLen: cached.decryptionProof.length,
+          });
+          if (onChainStatus !== 1 || !onChainRevealAuthorized) {
+            skippedZeroCount += 1;
+            continue;
+          }
+          claimInputs.push({
+            ticket,
+            clearRewardAmount: BigInt(cached.clearRewardAmount),
+            decryptionProof: cached.decryptionProof as `0x${string}`,
+          });
+          continue;
+        }
+
+        // No cache — decrypt fresh
         setClaimStage(`Reading handle${suffix}`);
-        const handle = await publicClient!.readContract({
-          address: coreContract!.address,
-          abi: coreContract!.abi,
+        const handle = await publicClient.readContract({
+          address: coreContract.address,
+          abi: coreContract.abi,
           functionName: "getTicketPrizeHandle",
           args: [BigInt(ticket.ticketId)],
         });
 
         setClaimStage(`Decrypting${suffix}`);
-        const claimProof = await buildTicketClaimProofDirect({ chainId: chainId!, handle });
+        const claimProof = await buildTicketClaimProofDirect({ chainId: SEPOLIA_CHAIN_ID, handle: handle as string });
+        console.log("[claim-fresh]", {
+          ticketId: ticket.ticketId,
+          walletChainId: SEPOLIA_CHAIN_ID,
+          contractAddress: coreContract.address,
+          handle: handle as string,
+          clearRewardAmount: claimProof.clearRewardAmount.toString(),
+          proofLen: claimProof.decryptionProof.length,
+        });
         if (claimProof.clearRewardAmount === 0n) {
           skippedZeroCount += 1;
           continue;
@@ -283,49 +328,66 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
       }
 
       setClaimStage("Submitting");
-      let claimTxHash: string | undefined;
-      if (claimInputs.length === 1) {
-        const claimInput = claimInputs[0];
-        claimTxHash = await writeContractAsync(
-          {
-            functionName: "claimReward",
-            args: [BigInt(claimInput.ticket.ticketId), claimInput.clearRewardAmount, claimInput.decryptionProof],
-          },
-          {
-            blockConfirmations: 1,
-          },
-        );
-      } else {
-        claimTxHash = await writeContractAsync(
-          {
-            functionName: "batchClaimRewards",
-            args: [
-              claimInputs.map(claimInput => BigInt(claimInput.ticket.ticketId)),
-              claimInputs.map(claimInput => claimInput.clearRewardAmount),
-              claimInputs.map(claimInput => claimInput.decryptionProof),
-            ],
-          },
-          {
-            blockConfirmations: 1,
-          },
-        );
-      }
-
-      // Sync this tx to backend before returning so onSuccess refetch gets authoritative data
-      if (claimTxHash) {
-        try {
-          await luckyScratchAPI.syncTransaction(claimTxHash);
-        } catch {
-          console.warn("Backend tx sync failed; cache will update on next poll");
+      try {
+        let claimTxHash: string | undefined;
+        if (claimInputs.length === 1) {
+          const claimInput = claimInputs[0];
+          claimTxHash = await writeContractAsync(
+            {
+              functionName: "claimReward",
+              args: [BigInt(claimInput.ticket.ticketId), claimInput.clearRewardAmount, claimInput.decryptionProof],
+            },
+            { blockConfirmations: 1 },
+          );
+        } else {
+          claimTxHash = await writeContractAsync(
+            {
+              functionName: "batchClaimRewards",
+              args: [
+                claimInputs.map(claimInput => BigInt(claimInput.ticket.ticketId)),
+                claimInputs.map(claimInput => claimInput.clearRewardAmount),
+                claimInputs.map(claimInput => claimInput.decryptionProof),
+              ],
+            },
+            { blockConfirmations: 1 },
+          );
         }
-      }
 
-      return {
-        claimedTickets: claimInputs.map(claimInput => claimInput.ticket),
-        skippedZeroCount,
-      };
+        if (claimTxHash) {
+          try {
+            await luckyScratchAPI.syncTransaction(claimTxHash);
+          } catch {
+            console.warn("Backend tx sync failed; cache will update on next poll");
+          }
+        }
+
+        return {
+          claimedTickets: claimInputs.map(claimInput => claimInput.ticket),
+          skippedZeroCount,
+        };
+      } catch (txError) {
+        const txMsg = txError instanceof Error ? txError.message : "";
+        // Cached proof was stale — clear cache and tell user to retry with fresh decryption
+        if (
+          txMsg.includes("TicketNotClaimable") &&
+          claimInputs.some(
+            c => ticketRewardCache.get(SEPOLIA_CHAIN_ID, c.ticket.ticketId)?.decryptionProof === c.decryptionProof,
+          )
+        ) {
+          for (const claimInput of claimInputs) {
+            ticketRewardCache.remove(SEPOLIA_CHAIN_ID, claimInput.ticket.ticketId);
+          }
+          throw new Error("Claim proof expired. Cache cleared — please try again to decrypt fresh.");
+        }
+        throw txError;
+      }
     },
     onSuccess: async (result: ClaimMutationResult) => {
+      // Clear reward cache for claimed tickets
+      for (const ticket of result.claimedTickets) {
+        ticketRewardCache.remove(SEPOLIA_CHAIN_ID, ticket.ticketId);
+      }
+
       // Optimistic update: mark claimed tickets as Claimed in cache
       for (const ticket of result.claimedTickets) {
         queryClient.setQueryData<LuckyScratchTicket>(["lucky-scratch", "tickets", String(ticket.ticketId)], old => {
@@ -367,7 +429,20 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
         notification.info(error.message);
         return;
       }
-      notification.error(toErrorMessage(error));
+      const message = toErrorMessage(error);
+      if (message.includes("Claim proof expired")) {
+        notification.info(message);
+        return;
+      }
+      if (message.includes("TicketNotClaimable")) {
+        notification.warning("Ticket state has changed. Refreshing data — please try again.");
+        const lowerAddress = address?.toLowerCase();
+        if (lowerAddress) {
+          queryClient.invalidateQueries({ queryKey: ["lucky-scratch", "users", lowerAddress, "tickets"] });
+        }
+        return;
+      }
+      notification.error(message);
     },
     onSettled: () => {
       setClaimingTicketId(null);
@@ -428,20 +503,23 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
               {filteredTickets.map(ticket => {
                 const ticketHref = `/scratch/${ticket.poolId}?tickets=${ticket.ticketId}`;
                 const checked = selectedTicketIds.has(ticket.ticketId);
-                const canClaim = isTicketReadyForClaim(ticket, address);
+                const cachedReward = ticketRewardCache.get(SEPOLIA_CHAIN_ID, ticket.ticketId);
+                const canClaim = isTicketReadyForClaim(ticket, address, cachedReward != null);
                 const isClaiming = claimRewardMutation.isPending && claimingTicketId === ticket.ticketId;
                 const claimDisabled = claimRewardMutation.isPending || isClaimMining || !canClaim;
                 const pool = poolById.get(ticket.poolId);
                 const poolName = pool?.metadata?.name?.trim() || `Pool #${ticket.poolId}`;
-                const isRevealed = ticket.status !== "Unscratched";
+                const isRevealed = ticket.status !== "Unscratched" || cachedReward != null;
                 const ticketArtUrl = isRevealed ? pool?.metadata?.ticketArtUrl : undefined;
                 const cardStatus = getTicketCardStatus(ticket, canClaim);
                 const prizeAmount =
                   cardStatus === "winning" || cardStatus === "no-win"
                     ? `${formatUsdcFromMicro(ticket.claimClearRewardAmount)} USDC`
-                    : cardStatus === "claimable"
-                      ? "ENCRYPTED"
-                      : undefined;
+                    : cardStatus === "claimable" && cachedReward != null
+                      ? `${formatUsdcFromMicro(cachedReward.clearRewardAmount)} USDC`
+                      : cardStatus === "claimable"
+                        ? "ENCRYPTED"
+                        : undefined;
                 const action = canClaim ? (
                   <button
                     type="button"
@@ -450,7 +528,7 @@ export const MyTicketsVault = ({ embedded = false }: MyTicketsVaultProps) => {
                     className="w-full py-2 bg-[#ffd700] text-[#705e00] font-black rounded-lg text-xs shadow-xl hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:bg-[#232a3b] disabled:text-[#d0c6ab]/35 disabled:shadow-none"
                   >
                     <MyTicketsIcon name="payments" className="h-4 w-4" />
-                    {isClaiming ? claimStage || "CLAIMING" : "DECRYPT & CLAIM"}
+                    {isClaiming ? claimStage || "CLAIMING" : cachedReward != null ? "CLAIM" : "DECRYPT & CLAIM"}
                   </button>
                 ) : (
                   <Link

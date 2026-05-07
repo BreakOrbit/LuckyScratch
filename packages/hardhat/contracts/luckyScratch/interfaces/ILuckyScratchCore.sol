@@ -48,5 +48,10 @@ interface ILuckyScratchCore {
     function onTicketTransfer(uint256 ticketId, address from, address to) external;
 
     event PoolRoundShuffled(uint256 indexed poolId, uint256 indexed roundId);
-    event PoolRoundEncryptionProgress(uint256 indexed poolId, uint256 indexed roundId, uint32 startIndex, uint32 endIndex);
+    event PoolRoundEncryptionProgress(
+        uint256 indexed poolId,
+        uint256 indexed roundId,
+        uint32 startIndex,
+        uint32 endIndex
+    );
 }

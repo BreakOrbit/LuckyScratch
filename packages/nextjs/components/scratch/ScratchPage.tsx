@@ -14,6 +14,7 @@ import { useDeployedContractInfo, useScaffoldWriteContract } from "~~/hooks/scaf
 import { luckyScratchAPI } from "~~/services/luckyScratch/api";
 import { buildTicketClaimProofDirect } from "~~/services/luckyScratch/claim";
 import { fromMicroUsdc } from "~~/services/luckyScratch/poolMath";
+import { ticketRewardCache } from "~~/services/luckyScratch/ticketCache";
 import type { LuckyScratchTicket } from "~~/services/luckyScratch/types";
 import { AllowedChainIds, getParsedError, notification } from "~~/utils/scaffold-eth";
 
@@ -26,6 +27,7 @@ type TicketResult = {
   isWin: boolean;
   prize: number;
   isKnown?: boolean;
+  decryptionProof?: string;
 };
 
 const TICKET_STATUS_UNSCRATCHED = 0;
@@ -232,6 +234,7 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
             isWin: claimProof.clearRewardAmount > 0n,
             prize: fromMicroUsdc(claimProof.clearRewardAmount),
             isKnown: true,
+            decryptionProof: claimProof.decryptionProof,
           } satisfies TicketResult;
         }),
       );
@@ -254,6 +257,20 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
 
       setResultsByTicketId(nextResults);
 
+      // Cache decrypted rewards + proofs for instant claim on my-tickets
+      if (scratchChainId) {
+        const cacheEntries = Object.entries(nextResults)
+          .filter(([, result]) => result.isKnown && result.prize > 0 && result.decryptionProof)
+          .map(([id, result]) => ({
+            ticketId: Number(id),
+            clearRewardAmount: Math.round(result.prize * 1e6),
+            decryptionProof: result.decryptionProof!,
+          }));
+        if (cacheEntries.length > 0) {
+          ticketRewardCache.setBatch(scratchChainId, cacheEntries);
+        }
+      }
+
       if (failedCount > 0) {
         throw new Error(`${failedCount} ticket result(s) could not be decrypted now. ${toErrorMessage(firstFailure)}`);
       }
@@ -266,6 +283,13 @@ export const ScratchPage: React.FC<ScratchPageProps> = ({ poolId }) => {
           queryClient.invalidateQueries({ queryKey: ["lucky-scratch", "tickets", ticketId] }),
         ),
       ]);
+
+      // Re-invalidate after delay to catch backend indexer lag
+      setTimeout(() => {
+        queryClient.invalidateQueries({
+          queryKey: ["lucky-scratch", "users", address.toLowerCase(), "tickets"],
+        });
+      }, 3000);
 
       setAreResultsReady(true);
       setPrepareStage("Ready");
