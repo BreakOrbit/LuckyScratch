@@ -76,8 +76,7 @@ const inputClassName =
 const panelClassName = "rounded-xl border border-[#4D4732]/15 bg-[rgba(24,31,48,0.7)] p-6 backdrop-blur-[24px]";
 const tierAccentClasses = ["border-[#FFD700]", "border-[#CABEFF]", "border-[#00DAF3]"];
 const MAX_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024;
-const DEFAULT_COVER_ART =
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuDahNGQr2ASL2Nl09sPhBwtt2FnXQOv1tcdwwb06RZ1yV-etg_hg1OkdbLtnpv4U1yIxaXqN67JCjtta16LjTDdd9yFKjBKnzIc3Q3TdyrLickqnz4FzibCs5UDTKYVfilLVW1xm6be7KKlwJbExyLW1geMjeGIZjCx_rEaVwdVw2LF2onKkNfnttar6ykkUQ1tC6OPIdzYMcnlvYli-bWxg--CPnKEQo2saahac8AR3QjMZ0x3S3v5mfEzFIIFHg9nJdqpUB9zka7U";
+const DEFAULT_COVER_ART = "/images/default-cover-art.png";
 
 const createTierId = () => `tier-${Math.random().toString(36).slice(2, 10)}`;
 

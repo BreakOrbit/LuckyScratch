@@ -98,7 +98,7 @@ export function PoolRankingsPage() {
             <img
               alt="Celebratory arena"
               className="absolute inset-0 h-full w-full object-cover opacity-40 mix-blend-screen saturate-50"
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuAntrS5245PDcBJmyIISXF-5dTr_wm6PE033tzloATeCYN0dPGOXCQjcz7nOwchgQUU0iNXzPFnhNmx10VJiNPTYEII-ySR3skFiWwO10DQ7Ogz7MXiQbY83Bil8P9zExroPCKIGg5TtoXNrlhIPuBV4XD5DlPQ5Ehnj90fP-eRZfhcI_zow4YusX-cDhalIWoCniRIJQQNztMg2YDV_XVRC4iQXE9kzTlDM59lA1OaxzbzfW12Q8EPsp_t1X6SvOD9w_U6TWJs4Jlv"
+              src="/images/pool-rankings-bg.png"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-[#0C1323] via-[#0C1323]/55 to-transparent" />
             <div className="absolute inset-0 flex justify-around opacity-40">

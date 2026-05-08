@@ -16,7 +16,7 @@ export const HeroSection = () => {
         <img
           alt="futuristic digital landscape"
           className="w-full h-full object-cover opacity-30 mix-blend-screen saturate-50 sepia-[0.2] hue-rotate-[200deg]"
-          src="https://lh3.googleusercontent.com/aida-public/AB6AXuAB5m4Kxc_XbLtjdpwGM5LKk8fHAoOaLsVchFUTp-aQdu1YTUEwQ4ikKRu9mbwSbCHqwF5VaWD-F5JJ8wB5Zuy0vbO22XNr6jKrjdlwvCUg_TFeg1l-Fim_z5k7A1x3SXM0oGzdgmVtJ1sF2E7Mi9iW4P5WotP4wDkdIMXC1vzfXZ-K_-VBEeu_Q6omBx_C5kXZCPAGqHFgFfeJ7Nb3LL2G0LPcdIZnyihxtHtmykZn2f8X9gRDxWidtNa3jv_HcsqYT_7rr46RdhBJ"
+          src="/images/hero-bg.png"
         />
         {/* Glowing Orbs */}
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-ns-primary/10 rounded-full blur-[120px]" />
