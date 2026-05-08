@@ -35,7 +35,6 @@ import {
 import { useDeployedContractInfo, useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 import { luckyScratchAPI } from "~~/services/luckyScratch/api";
 import {
-  MAX_PRIZE_SHARE_BPS,
   MAX_TICKETS_PER_ROUND,
   MAX_TOTAL_PRIZE_BUDGET_USDC,
   MIN_TOTAL_PRIZE_BUDGET_USDC,
@@ -232,9 +231,6 @@ export function CreatePoolPage() {
     winningTicketCount > totalTickets ? "Winning tier quantities cannot exceed total tickets." : null,
     totalPrizeBudgetOutOfRange
       ? `Total prize pool must be between ${MIN_TOTAL_PRIZE_BUDGET_USDC} and ${MAX_TOTAL_PRIZE_BUDGET_USDC} USDC.`
-      : null,
-    maxPrizeShareBps > MAX_PRIZE_SHARE_BPS
-      ? `Max prize cannot exceed ${formatPercentFromBps(MAX_PRIZE_SHARE_BPS)}% of the total prize pool.`
       : null,
   ].filter(Boolean) as string[];
 
