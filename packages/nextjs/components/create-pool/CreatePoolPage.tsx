@@ -35,13 +35,9 @@ import {
 import { useDeployedContractInfo, useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 import { luckyScratchAPI } from "~~/services/luckyScratch/api";
 import {
-  MAX_HIT_RATE_BPS,
   MAX_PRIZE_SHARE_BPS,
-  MAX_RTP_BPS,
   MAX_TICKETS_PER_ROUND,
   MAX_TOTAL_PRIZE_BUDGET_USDC,
-  MIN_HIT_RATE_BPS,
-  MIN_RTP_BPS,
   MIN_TOTAL_PRIZE_BUDGET_USDC,
   PLATFORM_FEE_BPS,
   SUPPORTED_TICKET_PRICES_USDC,
@@ -236,12 +232,6 @@ export function CreatePoolPage() {
     winningTicketCount > totalTickets ? "Winning tier quantities cannot exceed total tickets." : null,
     totalPrizeBudgetOutOfRange
       ? `Total prize pool must be between ${MIN_TOTAL_PRIZE_BUDGET_USDC} and ${MAX_TOTAL_PRIZE_BUDGET_USDC} USDC.`
-      : null,
-    hitRateBps < MIN_HIT_RATE_BPS || hitRateBps > MAX_HIT_RATE_BPS
-      ? `Win rate must be between ${formatPercentFromBps(MIN_HIT_RATE_BPS)}% and ${formatPercentFromBps(MAX_HIT_RATE_BPS)}%.`
-      : null,
-    targetRtpBps < MIN_RTP_BPS || targetRtpBps > MAX_RTP_BPS
-      ? `RTP must be between ${formatPercentFromBps(MIN_RTP_BPS)}% and ${formatPercentFromBps(MAX_RTP_BPS)}%. Adjust prize pool or ticket count.`
       : null,
     maxPrizeShareBps > MAX_PRIZE_SHARE_BPS
       ? `Max prize cannot exceed ${formatPercentFromBps(MAX_PRIZE_SHARE_BPS)}% of the total prize pool.`

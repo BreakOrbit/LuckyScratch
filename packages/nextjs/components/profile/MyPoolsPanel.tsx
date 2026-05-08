@@ -448,9 +448,16 @@ export function MyPoolsPanel() {
                   type="button"
                   disabled={!canClosePool || actionPending}
                   onClick={() => poolActionMutation.mutate({ pool, action: "close-pool" })}
+                  title={
+                    pool.status === "Closed"
+                      ? "Pool is already closed"
+                      : pool.closeRequested
+                        ? "Close requested — pool will close after the current round settles"
+                        : undefined
+                  }
                   className="rounded py-2 text-[10px] font-bold uppercase transition-transform active:scale-95 bg-[#2E3546] text-[#DCE2F9] border border-[#4D4732]/20 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Close
+                  {pool.closeRequested && pool.status !== "Closed" ? "Closing" : "Close"}
                 </button>
                 <Link
                   href={`/pool-detail/${pool.poolId}`}

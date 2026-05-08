@@ -109,7 +109,9 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
     () => buildPrizeStructure(inlinePrizeTiers?.length ? inlinePrizeTiers : metadataDocumentQuery.data?.prizeTiers),
     [inlinePrizeTiers, metadataDocumentQuery.data?.prizeTiers],
   );
-  const roundReady = Boolean(pool?.status === "Active" && pool?.initialized && currentRound?.status === "Ready");
+  const roundReady = Boolean(
+    pool?.status === "Active" && !pool?.closeRequested && pool?.initialized && currentRound?.status === "Ready",
+  );
   const totalAvailableTickets = purchaseContext?.availableTicketIndexes.length || 0;
   const availableIds = useMemo(
     () => (purchaseContext?.availableTicketIndexes || []).map(index => formatTicketDisplayId(index)),
@@ -370,21 +372,23 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
   const issuer = pool.protocolOwned ? "Official" : "Community";
   const statusHint = !address
     ? "Connect your wallet to authorize confidential cUSDC payments."
-    : !roundReady
-      ? currentRound?.status === "PendingEncryption"
-        ? "Prizes are being encrypted. Ticket purchases will open shortly."
-        : "This round is waiting for VRF initialization before ticket purchases can open."
-      : !operatorCheckAvailable
-        ? "The current network does not expose cUSDC / treasury metadata to the frontend, so purchase is disabled."
-        : isConfidentialBalanceLoading
-          ? "Checking your confidential cUSDC balance handle before purchase."
-          : isConfidentialBalanceReadError || !hasCusdcBalanceHandle
-            ? "Mint and wrap Sepolia cUSDC from the faucet before purchasing tickets."
-            : !operatorReady
-              ? "This action will authorize LuckyScratchTreasury as your cUSDC operator before purchasing."
-              : pool.selectable
-                ? "Manual and quick pick both submit the exact ticket indexes selected below. Payment uses confidential cUSDC."
-                : "This pool is not selectable, so the final on-chain ticket indexes are assigned automatically.";
+    : pool?.closeRequested
+      ? "This pool is closing and no longer accepting ticket purchases."
+      : !roundReady
+        ? currentRound?.status === "PendingEncryption"
+          ? "Prizes are being encrypted. Ticket purchases will open shortly."
+          : "This round is waiting for VRF initialization before ticket purchases can open."
+        : !operatorCheckAvailable
+          ? "The current network does not expose cUSDC / treasury metadata to the frontend, so purchase is disabled."
+          : isConfidentialBalanceLoading
+            ? "Checking your confidential cUSDC balance handle before purchase."
+            : isConfidentialBalanceReadError || !hasCusdcBalanceHandle
+              ? "Mint and wrap Sepolia cUSDC from the faucet before purchasing tickets."
+              : !operatorReady
+                ? "This action will authorize LuckyScratchTreasury as your cUSDC operator before purchasing."
+                : pool.selectable
+                  ? "Manual and quick pick both submit the exact ticket indexes selected below. Payment uses confidential cUSDC."
+                  : "This pool is not selectable, so the final on-chain ticket indexes are assigned automatically.";
 
   return (
     <div className="relative min-h-screen bg-ns-background text-ns-on-surface font-body">
@@ -455,9 +459,24 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
           </div>
         ) : !roundReady ? (
           <div className="rounded-3xl border border-[#8D6C1D] bg-[#493916]/30 p-8 text-center text-[#FFD66D]">
-            {currentRound?.status === "PendingEncryption"
-              ? "Prizes are being encrypted. Ticket purchases will open shortly."
-              : "The current round is waiting for VRF initialization. Ticket purchases will open after randomness is fulfilled."}
+            {pool?.closeRequested ? (
+              <>
+                <div className="text-xl font-headline font-bold mb-2">Pool Closing</div>
+                <div className="text-sm text-[#FFD66D]/70">
+                  This pool is closing and no longer accepting ticket purchases.
+                </div>
+                <button
+                  onClick={() => router.push("/store")}
+                  className="mt-4 rounded-xl bg-[#FFD700]/10 border border-[#FFD700]/30 px-6 py-2 text-sm font-headline font-bold text-[#FFD700] hover:bg-[#FFD700]/20 transition-colors"
+                >
+                  Browse Other Pools
+                </button>
+              </>
+            ) : currentRound?.status === "PendingEncryption" ? (
+              "Prizes are being encrypted. Ticket purchases will open shortly."
+            ) : (
+              "The current round is waiting for VRF initialization. Ticket purchases will open after randomness is fulfilled."
+            )}
           </div>
         ) : (
           <div
