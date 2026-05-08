@@ -13,6 +13,7 @@ type PurchaseSuccessModalProps = {
   poolName: string;
   poolEmoji: string;
   ticketArtUrl?: string;
+  coverImageUrl?: string;
   onScratchNow: () => void;
   onBuyMore: () => void;
 };
@@ -27,6 +28,7 @@ export const PurchaseSuccessModal: React.FC<PurchaseSuccessModalProps> = ({
   poolName,
   poolEmoji,
   ticketArtUrl,
+  coverImageUrl,
   onScratchNow,
   onBuyMore,
 }) => {
@@ -125,7 +127,7 @@ export const PurchaseSuccessModal: React.FC<PurchaseSuccessModalProps> = ({
                 <img
                   alt={`${poolName} ticket art`}
                   className={`absolute inset-0 ${TICKET_ART_IMAGE_CLASS} opacity-70`}
-                  src={ticketArtUrl || TICKET_ART_FALLBACK_URL}
+                  src={ticketArtUrl || coverImageUrl || TICKET_ART_FALLBACK_URL}
                 />
                 {/* Decorative radial */}
                 <div

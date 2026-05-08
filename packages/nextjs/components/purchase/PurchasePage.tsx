@@ -493,6 +493,7 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
                 onReadyStateChange={setIsGalleryReady}
                 themeColor={poolThemeColor(poolId)}
                 ticketArtUrl={pool.metadata?.ticketArtUrl}
+                coverImageUrl={pool.metadata?.coverImageUrl}
               />
             ) : (
               <BatchPickGallery
@@ -504,6 +505,7 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
                 onReadyStateChange={setIsGalleryReady}
                 themeColor={poolThemeColor(poolId)}
                 ticketArtUrl={pool.metadata?.ticketArtUrl}
+                coverImageUrl={pool.metadata?.coverImageUrl}
               />
             )}
           </div>
@@ -548,6 +550,7 @@ export const PurchasePage: React.FC<PurchasePageProps> = ({ poolId }) => {
             poolName={pool.metadata?.name || `Pool #${pool.poolId}`}
             poolEmoji={poolEmojiFromMetadata(pool.metadata?.name)}
             ticketArtUrl={pool.metadata?.ticketArtUrl}
+            coverImageUrl={pool.metadata?.coverImageUrl}
             onScratchNow={handleScratchNow}
             onBuyMore={handleBuyMore}
           />

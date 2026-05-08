@@ -19,6 +19,7 @@ type BatchPickGalleryProps = {
   onReadyStateChange: (isReady: boolean) => void;
   themeColor?: string;
   ticketArtUrl?: string;
+  coverImageUrl?: string;
 };
 
 /**
@@ -35,6 +36,7 @@ export const BatchPickGallery: React.FC<BatchPickGalleryProps> = ({
   onReadyStateChange,
   themeColor = "#C62828",
   ticketArtUrl,
+  coverImageUrl,
 }) => {
   const [phase, setPhase] = useState<"idle" | "shuffling" | "selected">("idle");
   const cardsRef = useRef<(HTMLDivElement | null)[]>([]);
@@ -197,7 +199,7 @@ export const BatchPickGallery: React.FC<BatchPickGalleryProps> = ({
             >
               {/* Background Art */}
               <img
-                src={ticketArtUrl || TICKET_ART_FALLBACK_URL}
+                src={ticketArtUrl || coverImageUrl || TICKET_ART_FALLBACK_URL}
                 className={`absolute inset-0 ${TICKET_ART_IMAGE_CLASS} opacity-80`}
                 alt="Ticket BG"
               />

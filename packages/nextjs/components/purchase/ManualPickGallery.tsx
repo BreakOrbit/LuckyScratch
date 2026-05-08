@@ -18,6 +18,7 @@ type ManualPickGalleryProps = {
   onReadyStateChange: (isReady: boolean) => void;
   themeColor?: string;
   ticketArtUrl?: string;
+  coverImageUrl?: string;
 };
 
 const DISPLAY_COUNT = 8;
@@ -35,6 +36,7 @@ export const ManualPickGallery: React.FC<ManualPickGalleryProps> = ({
   onReadyStateChange,
   themeColor = "#C62828",
   ticketArtUrl,
+  coverImageUrl,
 }) => {
   const [offset, setOffset] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -280,7 +282,7 @@ export const ManualPickGallery: React.FC<ManualPickGalleryProps> = ({
             >
               {/* Background Art */}
               <img
-                src={ticketArtUrl || TICKET_ART_FALLBACK_URL}
+                src={ticketArtUrl || coverImageUrl || TICKET_ART_FALLBACK_URL}
                 className={`absolute inset-0 ${TICKET_ART_IMAGE_CLASS} opacity-80`}
                 alt="Ticket BG"
               />
