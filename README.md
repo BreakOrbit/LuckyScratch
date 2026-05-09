@@ -21,6 +21,12 @@ The application keeps final user transactions wallet-driven:
 - Reward values are encrypted onchain with Zama fhEVM primitives. Claiming requires the frontend to obtain a public decryption proof through backend-authorized Zama proxy routes, then submit `claimReward` or `batchClaimRewards`.
 - Chainlink VRF v2.5 initializes live-network pool randomness. Local contract tests use the mock fulfillment path.
 
+## Fairness And Randomness
+
+LuckyScratch fixes the ticket count, ticket price, prize table, and RTP before sales begin. Chainlink VRF then provides the unpredictable seed used by the contract to shuffle prizes into ticket slots, while Zama FHE keeps each ticket reward encrypted until the owner scratches and obtains a valid decryption proof.
+
+![LuckyScratch fairness and randomness flow](doc/assets/luckyscratch-fairness-flow.png)
+
 ## Important Paths
 
 - Contracts: `packages/hardhat/contracts/luckyScratch/`
@@ -32,6 +38,7 @@ The application keeps final user transactions wallet-driven:
 - Backend SQL migrations: `packages/backend/sql/migrations/`
 - Backend SQL queries: `packages/backend/sql/queries/`
 - Deployment runbook: `doc/deployment-runbook.md`
+- Fairness flowchart: `doc/presentation-flowchart.md`
 
 ## Prerequisites
 
@@ -132,6 +139,7 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f sql/clean_database.sql
 ## More Documentation
 
 - `doc/deployment-runbook.md`: local and production deployment operations.
+- `doc/presentation-flowchart.md`: fairness and randomness flowchart, with SVG and PNG exports.
 - `doc/smart-contract-design.md`: contract design.
 - `doc/smart-contract-implementation-plan.md`: contract implementation plan.
 - `doc/backend-design.md`: backend architecture.
