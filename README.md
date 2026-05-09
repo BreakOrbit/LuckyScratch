@@ -1,5 +1,7 @@
 # LuckyScratch
 
+Live app: https://lucky-scratch-zama.vercel.app
+
 LuckyScratch is a privacy-preserving onchain scratch-card application. It lets creators launch fixed-odds scratch pools, lets players buy NFT tickets with confidential cUSDC, and keeps prize results hidden until the ticket owner scratches and reveals their own ticket.
 
 The core idea is simple: prize rules are public, prize positions are randomized before sales begin, and individual rewards stay encrypted onchain. This prevents creators from steering winning tickets and prevents players from reading the remaining prize distribution before buying.
