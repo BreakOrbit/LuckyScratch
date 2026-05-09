@@ -1,8 +1,19 @@
 # LuckyScratch
 
-LuckyScratch is a full-stack decentralized scratch-ticket application built from Scaffold-ETH 2. It combines Solidity contracts, a Next.js wallet frontend, and a Go/PostgreSQL backend that indexes chain events and coordinates pool metadata plus Zama reveal flows.
+LuckyScratch is a privacy-preserving onchain scratch-card application. It lets creators launch fixed-odds scratch pools, lets players buy NFT tickets with confidential cUSDC, and keeps prize results hidden until the ticket owner scratches and reveals their own ticket.
 
-The repository is currently a Hardhat-flavor SE-2 project. The old Scaffold-ETH demo contracts and frontend panels have been replaced by the LuckyScratch product surface.
+The core idea is simple: prize rules are public, prize positions are randomized before sales begin, and individual rewards stay encrypted onchain. This prevents creators from steering winning tickets and prevents players from reading the remaining prize distribution before buying.
+
+The implementation combines Solidity contracts, Zama fhEVM encrypted state, Chainlink VRF v2.5 randomness, a Next.js wallet frontend, and a Go/PostgreSQL backend for indexing and reveal orchestration.
+
+## Product Flow
+
+1. A creator configures a scratch pool with ticket count, ticket price, prize tiers, and RTP.
+2. Chainlink VRF provides the random seed used to shuffle the fixed prize table into ticket slots.
+3. The contract stores each ticket reward as encrypted Zama fhEVM state.
+4. A player buys a ticket and receives an ERC-721 ticket NFT.
+5. When the player scratches, the app authorizes reveal only for the current ticket owner.
+6. The frontend obtains the decrypted amount and proof, then submits a wallet-signed claim transaction.
 
 ## What Is In This Repo
 
@@ -21,11 +32,20 @@ The application keeps final user transactions wallet-driven:
 - Reward values are encrypted onchain with Zama fhEVM primitives. Claiming requires the frontend to obtain a public decryption proof through backend-authorized Zama proxy routes, then submit `claimReward` or `batchClaimRewards`.
 - Chainlink VRF v2.5 initializes live-network pool randomness. Local contract tests use the mock fulfillment path.
 
-## Fairness And Randomness
+## Randomness And Fairness
 
-LuckyScratch fixes the ticket count, ticket price, prize table, and RTP before sales begin. Chainlink VRF then provides the unpredictable seed used by the contract to shuffle prizes into ticket slots, while Zama FHE keeps each ticket reward encrypted until the owner scratches and obtains a valid decryption proof.
+LuckyScratch uses a pre-allocation model instead of drawing a fresh random number when a user buys or scratches. That choice is important: the full prize table is fixed first, then randomized once, then encrypted.
 
-![LuckyScratch fairness and randomness flow](doc/assets/luckyscratch-fairness-flow.png)
+![LuckyScratch randomness and fairness flow](doc/assets/luckyscratch-fairness-flow.png)
+
+The fairness properties come from four layers:
+
+- **Fixed public rules**: ticket count, ticket price, prize tiers, and RTP are determined at pool creation.
+- **Unpredictable shuffle**: Chainlink VRF provides the random seed used by the contract to assign prizes to ticket slots.
+- **Encrypted results**: Zama FHE keeps each ticket reward hidden onchain, so users cannot inspect which tickets are still valuable.
+- **Proof-based claims**: claiming requires a decrypted amount plus proof, so the claimed clear amount must match the encrypted onchain reward.
+
+This means the creator cannot choose which ticket wins, users cannot identify winning tickets before buying, and claim transactions cannot fake a larger reward.
 
 ## Important Paths
 
