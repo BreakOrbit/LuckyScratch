@@ -8,6 +8,14 @@ The core idea is simple: prize rules are public, prize positions are randomized 
 
 The implementation combines Solidity contracts, Zama fhEVM encrypted state, Chainlink VRF v2.5 randomness, a Next.js wallet frontend, and a Go/PostgreSQL backend for indexing and reveal orchestration.
 
+## Hackathon Summary
+
+LuckyScratch solves the trust problem in digital scratch-card games. Traditional lottery apps ask players to trust an operator with randomness, hidden outcomes, custody, and payouts; fully public onchain games can reveal too much and make ticket outcomes inspectable before the intended reveal.
+
+LuckyScratch uses smart contracts for pool rules, ticket ownership, payments, and claims, Chainlink VRF for unpredictable prize-slot shuffling, and Zama fhEVM for encrypted onchain reward values. Players get the transparency of onchain settlement while ticket-specific prizes remain private until the owner scratches.
+
+The main FHE use case is delayed, verifiable reveal: each ticket stores an encrypted `euint64` reward amount, scratching marks that encrypted handle as decryptable, and claiming requires the clear amount plus a Zama KMS decryption proof. This keeps prize outcomes hidden before reveal while preventing fake claim amounts.
+
 ## Product Flow
 
 1. A creator configures a scratch pool with ticket count, ticket price, prize tiers, and RTP.
@@ -16,6 +24,20 @@ The implementation combines Solidity contracts, Zama fhEVM encrypted state, Chai
 4. A player buys a ticket and receives an ERC-721 ticket NFT.
 5. When the player scratches, the app authorizes reveal only for the current ticket owner.
 6. The frontend obtains the decrypted amount and proof, then submits a wallet-signed claim transaction.
+
+## Demo / How To Try
+
+The live app runs on Sepolia: https://lucky-scratch-zama.vercel.app
+
+Recommended judge flow:
+
+1. Connect a Sepolia wallet with test ETH.
+2. Open `/faucet` if the wallet needs test cUSDC for purchases.
+3. Browse active pools in `/store`.
+4. Buy one or more NFT tickets from a pool.
+5. Open the scratch page, scratch the ticket, and reveal the encrypted reward.
+6. Claim the reward from the wallet if the revealed ticket is a winner.
+7. Use `/my-tickets` to inspect owned tickets, known reveals, and claimable winnings.
 
 ## What Is In This Repo
 
@@ -48,6 +70,19 @@ The fairness properties come from four layers:
 - **Proof-based claims**: claiming requires a decrypted amount plus proof, so the claimed clear amount must match the encrypted onchain reward.
 
 This means the creator cannot choose which ticket wins, users cannot identify winning tickets before buying, and claim transactions cannot fake a larger reward.
+
+## Sepolia Deployment
+
+Current Sepolia contracts used by the live app:
+
+| Contract | Address |
+|----------|---------|
+| LuckyScratchCore | [`0xbE18CE78a8F53780ed671919fB1eB5219E600A2a`](https://sepolia.etherscan.io/address/0xbE18CE78a8F53780ed671919fB1eB5219E600A2a) |
+| LuckyScratchTicket | [`0xaE9f434d06975b6eeE45A2DEECF90A7Fe37Aa424`](https://sepolia.etherscan.io/address/0xaE9f434d06975b6eeE45A2DEECF90A7Fe37Aa424) |
+| LuckyScratchTreasury | [`0x0180Cf8d272A9Ff3B0D22B99f2dDA542bA23810E`](https://sepolia.etherscan.io/address/0x0180Cf8d272A9Ff3B0D22B99f2dDA542bA23810E) |
+| LuckyScratchVRFAdapter | [`0xC7DbE4D3A5fa97eeD2DeA86c54a75E354F1F2086`](https://sepolia.etherscan.io/address/0xC7DbE4D3A5fa97eeD2DeA86c54a75E354F1F2086) |
+| Confidential cUSDC | [`0x7c5BF43B851c1dff1a4feE8dB225b87f2C223639`](https://sepolia.etherscan.io/address/0x7c5BF43B851c1dff1a4feE8dB225b87f2C223639) |
+| Faucet underlying token | [`0x9b5Cd13b8eFbB58Dc25A05CF411D8056058aDFfF`](https://sepolia.etherscan.io/address/0x9b5Cd13b8eFbB58Dc25A05CF411D8056058aDFfF) |
 
 ## Important Paths
 
